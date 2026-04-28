@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>L'Oasis Food</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    /* LOGIN SCREEN */
+    .login-container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .login-logo {
+      text-align: center;
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    .login-title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .login-subtitle {
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    .input-group label {
+      display: block;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+    }
+    .input-group input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s;
+      font-family: inherit;
+    }
+    .btn-login:active {
+      transform: scale(0.98);
+    }
+    .error-message {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      text-align: center;
+    }
+    
+    /* DASHBOARD */
+    .dashboard {
+      display: none;
+      background-color: #f5f5f5;
+      min-height: 100vh;
+      width: 100%;
+    }
+    .dashboard.show {
+      display: block;
+    }
+    .container {
+      max-width: 100%;
+      padding: 16px;
+      padding-bottom: 40px;
+    }
+    .header {
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      border-radius: 16px;
+      color: white;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-left h1 {
+      font-size: 24px;
+      margin: 0 0 4px 0;
+    }
+    .header-left p {
+      font-size: 14px;
+      opacity: 0.9;
+      margin: 0;
+    }
+    .btn-logout {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-logout:active {
+      background: rgba(255,255,255,0.3);
+    }
+    .filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    .btn-filter {
+      background-color: #f0f0f0;
+      color: #333;
+    }
+    .btn-filter.active {
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
+    }
+    .btn-refresh {
+      background-color: white;
+      border: 1px solid #ddd;
+      margin-left: auto;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+      font-size: 16px;
+    }
+    .no-data {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+      font-size: 16px;
+    }
+    .commande-card {
+      background: white;
+      border: 2px solid #f0f0f0;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .commande-card:active {
+      transform: scale(0.98);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      border-color: #007bff;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+    .card-numero {
+      font-weight: bold;
+      font-size: 16px;
+      color: #333;
+    }
+    .card-prix {
+      font-size: 20px;
+      font-weight: bold;
+      color: #007bff;
+    }
+    .card-client {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+      line-height: 1.5;
+    }
+    .card-client strong {
+      color: #333;
+    }
+    .badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .badge-livraison {
+      background-color: #e3f2fd;
+      color: #1976d2;
+    }
+    .badge-emporter {
+      background-color: #fff3e0;
+      color: #f57c00;
+    }
+    .badge-surplace {
+      background-color: #f3e5f5;
+      color: #7b1fa2;
+    }
+    .card-date {
+      font-size: 12px;
+      color: #999;
+      margin-top: 8px;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 1000;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .modal.show {
+      display: block;
+    }
+    .modal-wrapper {
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 600px;
+      width: 100%;
+      margin: auto;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .modal-header h2 {
+      font-size: 20px;
+      margin: 0;
+      color: #333;
+    }
+    .btn-close {
+      background: none;
+      border: none;
+      font-size: 36px;
+      color: #666;
+      cursor: pointer;
+      padding: 0;
+      width: 40px;
+      height: 40px;
+      line-height: 36px;
+    }
+    .info-box {
+      background-color: #f8f9fa;
+      padding: 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .info-box-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      font-size: 15px;
+      color: #333;
+    }
+    .info-box-content {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.6;
+    }
+    .articles-section {
+      margin-bottom: 20px;
+    }
+    .section-title {
+      font-weight: bold;
+      margin-bottom: 12px;
+      font-size: 16px;
+      color: #333;
+    }
+    .article-item {
+      background-color: #f8f9fa;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+    .article-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .article-nom {
+      font-size: 14px;
+      color: #333;
+    }
+    .article-prix {
+      font-weight: bold;
+      font-size: 14px;
+      color: #333;
+    }
+    .article-attributs {
+      font-size: 13px;
+      color: #666;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    .article-attributs div {
+      margin: 2px 0;
+    }
+    .article-instructions {
+      font-size: 13px;
+      color: #f57c00;
+      margin-top: 6px;
+      font-style: italic;
+    }
+    .total-box {
+      border-top: 2px solid #ddd;
+      padding-top: 16px;
+      font-size: 20px;
+      font-weight: bold;
+      text-align: right;
+      margin-top: 16px;
+      color: #333;
+    }
+    .info-footer {
+      margin-top: 20px;
+      font-size: 13px;
+      color: #999;
+      line-height: 1.6;
+    }
+    .dashboard-error {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="login-container">
+    <div class="login-logo">🔒</div>
+    <h1 class="login-title">L'Oasis Food</h1>
+    <p class="login-subtitle">Accès sécurisé au dashboard</p>
+    
+    <div id="login-error"></div>
+    
+    <form onsubmit="handleLogin(event)">
+      <div class="input-group">
+        <label for="password">Mot de passe</label>
+        <input 
+          type="password" 
+          id="password" 
+          placeholder="Entrez le mot de passe"
+          autocomplete="current-password"
+          required
+        >
+      </div>
+      <button type="submit" class="btn-login">Se connecter</button>
+    </form>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="dashboard">
+    <div class="container">
+      <div class="header">
+        <div class="header-left">
+          <h1>🌮 L'Oasis Food</h1>
+          <p>Gestion des commandes</p>
+        </div>
+        <button class="btn-logout" onclick="logout()">Déconnexion</button>
+      </div>
+
+      <div class="filters">
+        <button class="btn btn-filter active" id="btn-all" onclick="setFilter('all')">Toutes</button>
+        <button class="btn btn-filter" id="btn-today" onclick="setFilter('today')">Aujourd'hui</button>
+        <button class="btn btn-refresh" onclick="loadCommandes()">🔄 Actualiser</button>
+      </div>
+
+      <div id="content">
+        <div class="loading">Chargement...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal">
+    <div class="modal-wrapper" onclick="closeModalOutside(event)">
+      <div class="modal-content" id="modal-content" onclick="event.stopPropagation()">
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // ⚠️ CONFIGURATION
+    const SUPABASE_URL = 'https://ixpnsiyopebtcofntmoz.supabase.co';
+    const SUPABASE_ANON_KEY = 'TA_CLE_ICI';  // ← METS TA VRAIE CLÉ ICI!
+    const BUSINESS_ID = 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
+    
+    // 🔒 MOT DE PASSE (SHA-256 hash de "loasis2024")
+    // Pour changer le mot de passe, voir instructions en bas du fichier
+    const PASSWORD_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
+
+    // Variables globales
+    let commandes = [];
+    let currentFilter = 'all';
+    let supabaseClient;
+
+    // Vérifier si déjà connecté
+    window.addEventListener('DOMContentLoaded', function() {
+      const isLoggedIn = localStorage.getItem('loasis_logged_in');
+      if (isLoggedIn === 'true') {
+        showDashboard();
+      }
+    });
+
+    // LOGIN
+    async function handleLogin(event) {
+      event.preventDefault();
+      const password = document.getElementById('password').value;
+      const hash = await sha256(password);
+      
+      if (hash === PASSWORD_HASH) {
+        localStorage.setItem('loasis_logged_in', 'true');
+        showDashboard();
+      } else {
+        showLoginError('❌ Mot de passe incorrect');
+      }
+    }
+
+    function showLoginError(message) {
+      document.getElementById('login-error').innerHTML = 
+        `<div class="error-message">${message}</div>`;
+    }
+
+    function showDashboard() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('dashboard').classList.add('show');
+      initDashboard();
+    }
+
+    function logout() {
+      localStorage.removeItem('loasis_logged_in');
+      location.reload();
+    }
+
+    // Hash SHA-256
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex;
+    }
+
+    // DASHBOARD
+    function initDashboard() {
+      try {
+        if (typeof window.supabase === 'undefined') {
+          showError('❌ Supabase non chargé. Vérifiez votre connexion.');
+          return;
+        }
+        
+        if (SUPABASE_ANON_KEY === 'TA_CLE_ICI') {
+          showError('⚠️ Remplacez TA_CLE_ICI par votre vraie clé Supabase!');
+          return;
+        }
+        
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        loadCommandes();
+        setInterval(loadCommandes, 30000);
+      } catch (error) {
+        showError('❌ Erreur: ' + error.message);
+      }
+    }
+
+    async function loadCommandes() {
+      const content = document.getElementById('content');
+      
+      try {
+        content.innerHTML = '<div class="loading">🔄 Chargement...</div>';
+        
+        const { data, error } = await supabaseClient
+          .from('commandes')
+          .select(`
+            *,
+            client:client_id (nom, telephone),
+            produits_commandes (
+              quantite,
+              total,
+              attributs_choisis,
+              instructions_particulieres,
+              produit:produit_id (nom, prix)
+            )
+          `)
+          .eq('business_id', BUSINESS_ID)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+        
+        commandes = data || [];
+        
+        if (commandes.length === 0) {
+          content.innerHTML = '<div class="no-data">Aucune commande</div>';
+        } else {
+          renderCommandes();
+        }
+      } catch (error) {
+        showError('❌ Erreur: ' + error.message);
+      }
+    }
+
+    function setFilter(filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.btn-filter').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('btn-' + filter).classList.add('active');
+      renderCommandes();
+    }
+
+    function renderCommandes() {
+      const content = document.getElementById('content');
+      let filtered = commandes;
+      
+      if (currentFilter === 'today') {
+        const today = new Date().toISOString().split('T')[0];
+        filtered = commandes.filter(cmd => cmd.created_at.startsWith(today));
+      }
+
+      if (filtered.length === 0) {
+        content.innerHTML = '<div class="no-data">Aucune commande</div>';
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(cmd => {
+        const typeBadge = cmd.type_livraison === 'livraison' ? 'livraison' : 
+                         cmd.type_livraison === 'a_emporter' ? 'emporter' : 'surplace';
+        
+        const typeText = cmd.type_livraison === 'livraison' ? 
+          `🛵 Livraison${cmd.adresse_livraison?.ville ? ' → ' + cmd.adresse_livraison.ville : ''}` :
+          cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
+
+        html += `
+          <div class="commande-card" onclick="openModal('${cmd.id}')">
+            <div class="card-header">
+              <span class="card-numero">#${cmd.numero_commande}</span>
+              <span class="card-prix">${cmd.prix}€</span>
+            </div>
+            <div class="card-client">
+              👤 <strong>${cmd.client?.nom || 'Client'}</strong> • 📞 ${cmd.client?.telephone || 'N/A'}
+            </div>
+            <div>
+              <span class="badge badge-${typeBadge}">${typeText}</span>
+            </div>
+            <div class="card-date">⏰ ${formatDate(cmd.created_at)}</div>
+          </div>
+        `;
+      });
+
+      content.innerHTML = html;
+    }
+
+    function openModal(commandeId) {
+      const cmd = commandes.find(c => c.id === commandeId);
+      if (!cmd) return;
+
+      const typeText = cmd.type_livraison === 'livraison' ? '🛵 Livraison' :
+                      cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
+
+      let articlesHtml = '';
+      if (cmd.produits_commandes && cmd.produits_commandes.length > 0) {
+        cmd.produits_commandes.forEach(item => {
+          let attributsHtml = '';
+          if (item.attributs_choisis) {
+            const attr = item.attributs_choisis;
+            if (attr.viandes) attributsHtml += `<div>🥩 ${Array.isArray(attr.viandes) ? attr.viandes.join(', ') : attr.viandes}</div>`;
+            if (attr.sauces) attributsHtml += `<div>🌶️ ${Array.isArray(attr.sauces) ? attr.sauces.join(', ') : attr.sauces}</div>`;
+            if (attr.fromages) attributsHtml += `<div>🧀 ${Array.isArray(attr.fromages) ? attr.fromages.join(', ') : attr.fromages}</div>`;
+            if (attr.modifications) attributsHtml += `<div>📝 ${Array.isArray(attr.modifications) ? attr.modifications.join(', ') : attr.modifications}</div>`;
+          }
+
+          const instructionsHtml = item.instructions_particulieres ? 
+            `<div class="article-instructions">💬 ${item.instructions_particulieres}</div>` : '';
+
+          articlesHtml += `
+            <div class="article-item">
+              <div class="article-header">
+                <span class="article-nom"><strong>${item.quantite}x</strong> ${item.produit?.nom || 'Article'}</span>
+                <span class="article-prix">${item.total}€</span>
+              </div>
+              ${attributsHtml ? `<div class="article-attributs">${attributsHtml}</div>` : ''}
+              ${instructionsHtml}
+            </div>
+          `;
+        });
+      }
+
+      const adresseHtml = cmd.adresse_livraison ? `
+        <div class="info-box-content">
+          ${cmd.adresse_livraison.rue || ''}<br>
+          ${cmd.adresse_livraison.code_postal || ''} ${cmd.adresse_livraison.ville || ''}
+        </div>
+      ` : '<div class="info-box-content">Aucune adresse</div>';
+
+      const modalHtml = `
+        <div class="modal-header">
+          <h2>Commande #${cmd.numero_commande}</h2>
+          <button class="btn-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="info-box">
+          <div class="info-box-title">👤 Client</div>
+          <div class="info-box-content">${cmd.client?.nom || 'Client'}<br><span style="color: #999;">${cmd.client?.telephone || 'N/A'}</span></div>
+        </div>
+        <div class="info-box">
+          <div class="info-box-title">${typeText}</div>
+          ${adresseHtml}
+        </div>
+        <div class="articles-section">
+          <div class="section-title">📦 Articles</div>
+          ${articlesHtml || '<div class="no-data">Aucun article</div>'}
+        </div>
+        <div class="total-box">Total: ${cmd.prix}€</div>
+        <div class="info-footer">
+          <div>Reçue le: ${formatDate(cmd.created_at)}</div>
+          <div>Statut: ${cmd.statut || 'N/A'}</div>
+        </div>
+      `;
+
+      document.getElementById('modal-content').innerHTML = modalHtml;
+      document.getElementById('modal').classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('show');
+      document.body.style.overflow = '';
+    }
+
+    function closeModalOutside(event) {
+      if (event.target.classList.contains('modal-wrapper')) closeModal();
+    }
+
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function showError(message) {
+      document.getElementById('content').innerHTML = 
+        `<div class="dashboard-error">${message}</div>`;
+    }
+  </script>
+</body>
+</html>
+
+<!-- 
+🔒 COMMENT CHANGER LE MOT DE PASSE:
+
+Le mot de passe par défaut est: loasis2024
+
+Pour le changer:
+1. Va sur ce site: https://emn178.github.io/online-tools/sha256.html
+2. Entre ton nouveau mot de passe
+3. Copie le hash SHA-256 généré
+4. Remplace la valeur de PASSWORD_HASH ligne 328 par ce nouveau hash
+
+Exemple:
+Si ton nouveau mot de passe est "monmotdepasse123"
+Le hash sera: abc123def456... (une longue chaîne)
+Remplace: const PASSWORD_HASH = 'abc123def456...';
+-->
