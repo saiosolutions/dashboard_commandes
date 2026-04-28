@@ -450,7 +450,7 @@
   <script>
     // ⚠️ CONFIGURATION
     const SUPABASE_URL = 'https://ixpnsiyopebtcofntmoz.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4cG5zaXlvcGVidGNvZm50bW96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM4NDYsImV4cCI6MjA5MjA5OTg0Nn0.9Hg3RtM46v2q-1Ga8_U5gfpfYIgtNvodofAO6rGdav4';  // ← METS TA VRAIE CLÉ ICI!
+    const SUPABASE_ANON_KEY = 'TA_CLE_ICI';  // ← METS TA VRAIE CLÉ ICI!
     const BUSINESS_ID = 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
     
     // 🔒 MOT DE PASSE (SHA-256 hash de "loasis2024")
@@ -460,7 +460,7 @@
     // Variables globales
     let commandes = [];
     let currentFilter = 'all';
-    let supabase;
+    let supabaseClient;
 
     // Vérifier si déjà connecté
     window.addEventListener('DOMContentLoaded', function() {
@@ -522,7 +522,7 @@
           return;
         }
         
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         loadCommandes();
         setInterval(loadCommandes, 30000);
       } catch (error) {
@@ -536,7 +536,7 @@
       try {
         content.innerHTML = '<div class="loading">🔄 Chargement...</div>';
         
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('commandes')
           .select(`
             *,
