@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="mobile-web-app-capable" content="yes">
   <title>L'Oasis Food</title>
   <style>
     * {
@@ -15,11 +14,100 @@
       -webkit-tap-highlight-color: transparent;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    /* LOGIN SCREEN */
+    .login-container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .login-logo {
+      text-align: center;
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    .login-title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .login-subtitle {
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    .input-group label {
+      display: block;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+    }
+    .input-group input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s;
+      font-family: inherit;
+    }
+    .btn-login:active {
+      transform: scale(0.98);
+    }
+    .error-message {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      text-align: center;
+    }
+    
+    /* DASHBOARD */
+    .dashboard {
+      display: none;
       background-color: #f5f5f5;
       min-height: 100vh;
-      overflow-x: hidden;
-      -webkit-font-smoothing: antialiased;
+      width: 100%;
+    }
+    .dashboard.show {
+      display: block;
     }
     .container {
       max-width: 100%;
@@ -33,15 +121,31 @@
       border-radius: 16px;
       color: white;
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-    .header h1 {
+    .header-left h1 {
       font-size: 24px;
       margin: 0 0 4px 0;
     }
-    .header p {
+    .header-left p {
       font-size: 14px;
       opacity: 0.9;
       margin: 0;
+    }
+    .btn-logout {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-logout:active {
+      background: rgba(255,255,255,0.3);
     }
     .filters {
       display: flex;
@@ -57,8 +161,6 @@
       cursor: pointer;
       font-family: inherit;
       transition: all 0.2s;
-      -webkit-appearance: none;
-      appearance: none;
     }
     .btn-filter {
       background-color: #f0f0f0;
@@ -95,7 +197,6 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       cursor: pointer;
       transition: all 0.2s ease;
-      -webkit-touch-callout: none;
     }
     .commande-card:active {
       transform: scale(0.98);
@@ -203,8 +304,6 @@
       width: 40px;
       height: 40px;
       line-height: 36px;
-      -webkit-appearance: none;
-      appearance: none;
     }
     .info-box {
       background-color: #f8f9fa;
@@ -282,7 +381,7 @@
       color: #999;
       line-height: 1.6;
     }
-    .error-message {
+    .dashboard-error {
       background-color: #ffebee;
       color: #c62828;
       padding: 16px;
@@ -294,88 +393,154 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>🌮 L'Oasis Food</h1>
-      <p>Gestion des commandes</p>
-    </div>
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="login-container">
+    <div class="login-logo">🔒</div>
+    <h1 class="login-title">L'Oasis Food</h1>
+    <p class="login-subtitle">Accès sécurisé au dashboard</p>
+    
+    <div id="login-error"></div>
+    
+    <form onsubmit="handleLogin(event)">
+      <div class="input-group">
+        <label for="password">Mot de passe</label>
+        <input 
+          type="password" 
+          id="password" 
+          placeholder="Entrez le mot de passe"
+          autocomplete="current-password"
+          required
+        >
+      </div>
+      <button type="submit" class="btn-login">Se connecter</button>
+    </form>
+  </div>
 
-    <div class="filters">
-      <button class="btn btn-filter active" id="btn-all" onclick="setFilter('all')">Toutes</button>
-      <button class="btn btn-filter" id="btn-today" onclick="setFilter('today')">Aujourd'hui</button>
-      <button class="btn btn-refresh" onclick="loadCommandes()">🔄 Actualiser</button>
-    </div>
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="dashboard">
+    <div class="container">
+      <div class="header">
+        <div class="header-left">
+          <h1>🌮 L'Oasis Food</h1>
+          <p>Gestion des commandes</p>
+        </div>
+        <button class="btn-logout" onclick="logout()">Déconnexion</button>
+      </div>
 
-    <div id="content">
-      <div class="loading">Chargement...</div>
+      <div class="filters">
+        <button class="btn btn-filter active" id="btn-all" onclick="setFilter('all')">Toutes</button>
+        <button class="btn btn-filter" id="btn-today" onclick="setFilter('today')">Aujourd'hui</button>
+        <button class="btn btn-refresh" onclick="loadCommandes()">🔄 Actualiser</button>
+      </div>
+
+      <div id="content">
+        <div class="loading">Chargement...</div>
+      </div>
     </div>
   </div>
 
   <div id="modal" class="modal">
     <div class="modal-wrapper" onclick="closeModalOutside(event)">
       <div class="modal-content" id="modal-content" onclick="event.stopPropagation()">
-        <!-- Contenu dynamique -->
       </div>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // ⚠️ CONFIGURATION - REMPLACE PAR TES VRAIES VALEURS!
+    // ⚠️ CONFIGURATION
     const SUPABASE_URL = 'https://ixpnsiyopebtcofntmoz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4cG5zaXlvcGVidGNvZm50bW96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM4NDYsImV4cCI6MjA5MjA5OTg0Nn0.9Hg3RtM46v2q-1Ga8_U5gfpfYIgtNvodofAO6rGdav4';  // ← METS TA VRAIE CLÉ ICI!
     const BUSINESS_ID = 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
+    
+    // 🔒 MOT DE PASSE (SHA-256 hash de "loasis2024")
+    // Pour changer le mot de passe, voir instructions en bas du fichier
+    const PASSWORD_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
 
     // Variables globales
     let commandes = [];
     let currentFilter = 'all';
     let supabase;
 
-    // Initialisation
-    document.addEventListener('DOMContentLoaded', function() {
-      const content = document.getElementById('content');
-      content.innerHTML = '<div class="loading">🔄 Initialisation...</div>';
-      
-      try {
-        // Vérifier que Supabase est chargé
-        if (typeof window.supabase === 'undefined') {
-          showError('❌ Supabase n\'est pas chargé. Vérifiez votre connexion internet.');
-          return;
-        }
-        
-        // Vérifier la clé API
-        if (SUPABASE_ANON_KEY === 'TA_CLE_ICI') {
-          showError('⚠️ ATTENTION: Tu dois remplacer TA_CLE_ICI par ta vraie clé Supabase!<br><br>Ouvre le fichier avec Bloc-notes et cherche la ligne 249.');
-          return;
-        }
-        
-        content.innerHTML = '<div class="loading">✅ Supabase OK<br>📡 Connexion à la base...</div>';
-        
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        
-        content.innerHTML = '<div class="loading">⏳ Chargement des commandes...</div>';
-        
-        loadCommandes();
-        
-        // Auto-refresh toutes les 30 secondes
-        setInterval(loadCommandes, 30000);
-      } catch (error) {
-        showError('❌ Erreur d\'initialisation:<br>' + error.message + '<br><br>Détails: ' + error.stack);
+    // Vérifier si déjà connecté
+    window.addEventListener('DOMContentLoaded', function() {
+      const isLoggedIn = localStorage.getItem('loasis_logged_in');
+      if (isLoggedIn === 'true') {
+        showDashboard();
       }
     });
 
-    // Chargement des commandes
+    // LOGIN
+    async function handleLogin(event) {
+      event.preventDefault();
+      const password = document.getElementById('password').value;
+      const hash = await sha256(password);
+      
+      if (hash === PASSWORD_HASH) {
+        localStorage.setItem('loasis_logged_in', 'true');
+        showDashboard();
+      } else {
+        showLoginError('❌ Mot de passe incorrect');
+      }
+    }
+
+    function showLoginError(message) {
+      document.getElementById('login-error').innerHTML = 
+        `<div class="error-message">${message}</div>`;
+    }
+
+    function showDashboard() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('dashboard').classList.add('show');
+      initDashboard();
+    }
+
+    function logout() {
+      localStorage.removeItem('loasis_logged_in');
+      location.reload();
+    }
+
+    // Hash SHA-256
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      return hashHex;
+    }
+
+    // DASHBOARD
+    function initDashboard() {
+      try {
+        if (typeof window.supabase === 'undefined') {
+          showError('❌ Supabase non chargé. Vérifiez votre connexion.');
+          return;
+        }
+        
+        if (SUPABASE_ANON_KEY === 'TA_CLE_ICI') {
+          showError('⚠️ Remplacez TA_CLE_ICI par votre vraie clé Supabase!');
+          return;
+        }
+        
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        loadCommandes();
+        setInterval(loadCommandes, 30000);
+      } catch (error) {
+        showError('❌ Erreur: ' + error.message);
+      }
+    }
+
     async function loadCommandes() {
       const content = document.getElementById('content');
       
       try {
-        content.innerHTML = '<div class="loading">🔄 Chargement des commandes...</div>';
+        content.innerHTML = '<div class="loading">🔄 Chargement...</div>';
         
         const { data, error } = await supabase
           .from('commandes')
           .select(`
             *,
-            client:client_id (nom, telephone, derniere_adresse_livraison),
+            client:client_id (nom, telephone),
             produits_commandes (
               quantite,
               total,
@@ -388,52 +553,36 @@
           .order('created_at', { ascending: false })
           .limit(50);
 
-        if (error) {
-          console.error('Erreur Supabase:', error);
-          throw new Error('Supabase: ' + error.message + ' (Code: ' + error.code + ')');
-        }
-        
-        console.log('Données reçues:', data);
-        console.log('Nombre de commandes:', data ? data.length : 0);
+        if (error) throw error;
         
         commandes = data || [];
         
         if (commandes.length === 0) {
-          content.innerHTML = '<div class="no-data">✅ Connexion OK<br><br>Aucune commande trouvée pour ce business</div>';
+          content.innerHTML = '<div class="no-data">Aucune commande</div>';
         } else {
           renderCommandes();
         }
       } catch (error) {
-        console.error('Erreur complète:', error);
-        showError('❌ Erreur de chargement:<br><br>' + error.message + '<br><br>Vérifie que:<br>1. Ta clé API est correcte<br>2. Le BUSINESS_ID est correct<br>3. Les tables existent dans Supabase');
+        showError('❌ Erreur: ' + error.message);
       }
     }
 
-    // Filtrage
     function setFilter(filter) {
       currentFilter = filter;
-      
-      // Update buttons
-      document.querySelectorAll('.btn-filter').forEach(btn => {
-        btn.classList.remove('active');
-      });
+      document.querySelectorAll('.btn-filter').forEach(btn => btn.classList.remove('active'));
       document.getElementById('btn-' + filter).classList.add('active');
-      
       renderCommandes();
     }
 
-    // Affichage des commandes
     function renderCommandes() {
       const content = document.getElementById('content');
-      
-      // Filtrer
       let filtered = commandes;
+      
       if (currentFilter === 'today') {
         const today = new Date().toISOString().split('T')[0];
         filtered = commandes.filter(cmd => cmd.created_at.startsWith(today));
       }
 
-      // Afficher
       if (filtered.length === 0) {
         content.innerHTML = '<div class="no-data">Aucune commande</div>';
         return;
@@ -460,9 +609,7 @@
             <div>
               <span class="badge badge-${typeBadge}">${typeText}</span>
             </div>
-            <div class="card-date">
-              ⏰ ${formatDate(cmd.created_at)}
-            </div>
+            <div class="card-date">⏰ ${formatDate(cmd.created_at)}</div>
           </div>
         `;
       });
@@ -470,7 +617,6 @@
       content.innerHTML = html;
     }
 
-    // Ouvrir modal
     function openModal(commandeId) {
       const cmd = commandes.find(c => c.id === commandeId);
       if (!cmd) return;
@@ -484,22 +630,10 @@
           let attributsHtml = '';
           if (item.attributs_choisis) {
             const attr = item.attributs_choisis;
-            if (attr.viandes) {
-              const viandes = Array.isArray(attr.viandes) ? attr.viandes.join(', ') : attr.viandes;
-              attributsHtml += `<div>🥩 ${viandes}</div>`;
-            }
-            if (attr.sauces) {
-              const sauces = Array.isArray(attr.sauces) ? attr.sauces.join(', ') : attr.sauces;
-              attributsHtml += `<div>🌶️ ${sauces}</div>`;
-            }
-            if (attr.fromages) {
-              const fromages = Array.isArray(attr.fromages) ? attr.fromages.join(', ') : attr.fromages;
-              attributsHtml += `<div>🧀 ${fromages}</div>`;
-            }
-            if (attr.modifications) {
-              const mods = Array.isArray(attr.modifications) ? attr.modifications.join(', ') : attr.modifications;
-              attributsHtml += `<div>📝 ${mods}</div>`;
-            }
+            if (attr.viandes) attributsHtml += `<div>🥩 ${Array.isArray(attr.viandes) ? attr.viandes.join(', ') : attr.viandes}</div>`;
+            if (attr.sauces) attributsHtml += `<div>🌶️ ${Array.isArray(attr.sauces) ? attr.sauces.join(', ') : attr.sauces}</div>`;
+            if (attr.fromages) attributsHtml += `<div>🧀 ${Array.isArray(attr.fromages) ? attr.fromages.join(', ') : attr.fromages}</div>`;
+            if (attr.modifications) attributsHtml += `<div>📝 ${Array.isArray(attr.modifications) ? attr.modifications.join(', ') : attr.modifications}</div>`;
           }
 
           const instructionsHtml = item.instructions_particulieres ? 
@@ -530,29 +664,19 @@
           <h2>Commande #${cmd.numero_commande}</h2>
           <button class="btn-close" onclick="closeModal()">×</button>
         </div>
-
         <div class="info-box">
           <div class="info-box-title">👤 Client</div>
-          <div class="info-box-content">
-            ${cmd.client?.nom || 'Client'}<br>
-            <span style="color: #999;">${cmd.client?.telephone || 'N/A'}</span>
-          </div>
+          <div class="info-box-content">${cmd.client?.nom || 'Client'}<br><span style="color: #999;">${cmd.client?.telephone || 'N/A'}</span></div>
         </div>
-
         <div class="info-box">
           <div class="info-box-title">${typeText}</div>
           ${adresseHtml}
         </div>
-
         <div class="articles-section">
           <div class="section-title">📦 Articles</div>
           ${articlesHtml || '<div class="no-data">Aucun article</div>'}
         </div>
-
-        <div class="total-box">
-          Total: ${cmd.prix}€
-        </div>
-
+        <div class="total-box">Total: ${cmd.prix}€</div>
         <div class="info-footer">
           <div>Reçue le: ${formatDate(cmd.created_at)}</div>
           <div>Statut: ${cmd.statut || 'N/A'}</div>
@@ -564,35 +688,43 @@
       document.body.style.overflow = 'hidden';
     }
 
-    // Fermer modal
     function closeModal() {
       document.getElementById('modal').classList.remove('show');
       document.body.style.overflow = '';
     }
 
     function closeModalOutside(event) {
-      if (event.target.classList.contains('modal-wrapper')) {
-        closeModal();
-      }
+      if (event.target.classList.contains('modal-wrapper')) closeModal();
     }
 
-    // Formater date
     function formatDate(dateStr) {
-      const date = new Date(dateStr);
-      return date.toLocaleString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+      return new Date(dateStr).toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
       });
     }
 
-    // Afficher erreur
     function showError(message) {
       document.getElementById('content').innerHTML = 
-        `<div class="error-message">${message}</div>`;
+        `<div class="dashboard-error">${message}</div>`;
     }
   </script>
 </body>
 </html>
+
+<!-- 
+🔒 COMMENT CHANGER LE MOT DE PASSE:
+
+Le mot de passe par défaut est: loasis2024
+
+Pour le changer:
+1. Va sur ce site: https://emn178.github.io/online-tools/sha256.html
+2. Entre ton nouveau mot de passe
+3. Copie le hash SHA-256 généré
+4. Remplace la valeur de PASSWORD_HASH ligne 328 par ce nouveau hash
+
+Exemple:
+Si ton nouveau mot de passe est "monmotdepasse123"
+Le hash sera: abc123def456... (une longue chaîne)
+Remplace: const PASSWORD_HASH = 'abc123def456...';
+-->
