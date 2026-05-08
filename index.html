@@ -594,7 +594,7 @@
                          cmd.type_livraison === 'a_emporter' ? 'emporter' : 'surplace';
         
         const typeText = cmd.type_livraison === 'livraison' ? 
-          `🛵 Livraison${cmd.adresse_livraison?.ville ? ' → ' + cmd.adresse_livraison.ville : ''}` :
+          `🛵 Livraison${cmd.adresse_livraison?.Ville ? ' → ' + cmd.adresse_livraison.Ville : ''}` :
           cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
 
         html += `
@@ -655,7 +655,7 @@
       const adresseHtml = cmd.adresse_livraison ? `
         <div class="info-box-content">
           ${cmd.adresse_livraison.rue || ''}<br>
-          ${cmd.adresse_livraison.code_postal || ''} ${cmd.adresse_livraison.ville || ''}
+          ${cmd.adresse_livraison.code_postal || ''} ${cmd.adresse_livraison.Ville || ''}
         </div>
       ` : '<div class="info-box-content">Aucune adresse</div>';
 
