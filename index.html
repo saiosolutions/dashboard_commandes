@@ -248,6 +248,16 @@
       background-color: #f3e5f5;
       color: #7b1fa2;
     }
+    .badge-anonymous {
+      background-color: #ffebee;
+      color: #c62828;
+      font-weight: bold;
+    }
+    .badge-different {
+      background-color: #fff3e0;
+      color: #f57c00;
+      font-weight: bold;
+    }
     .card-date {
       font-size: 12px;
       color: #999;
@@ -450,11 +460,10 @@
   <script>
     // ⚠️ CONFIGURATION
     const SUPABASE_URL = 'https://ixpnsiyopebtcofntmoz.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4cG5zaXlvcGVidGNvZm50bW96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM4NDYsImV4cCI6MjA5MjA5OTg0Nn0.9Hg3RtM46v2q-1Ga8_U5gfpfYIgtNvodofAO6rGdav4';  // ← METS TA VRAIE CLÉ ICI!
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4cG5zaXlvcGVidGNvZm50bW96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM4NDYsImV4cCI6MjA5MjA5OTg0Nn0.9Hg3RtM46v2q-1Ga8_U5gfpfYIgtNvodofAO6rGdav4';
     const BUSINESS_ID = 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
     
     // 🔒 MOT DE PASSE (SHA-256 hash de "loasis2024")
-    // Pour changer le mot de passe, voir instructions en bas du fichier
     const PASSWORD_HASH = '9c495d69652b2b659253e49da433d2ec6e9f097629f9b1c3a75208ea2b132321';
 
     // Variables globales
@@ -594,8 +603,27 @@
                          cmd.type_livraison === 'a_emporter' ? 'emporter' : 'surplace';
         
         const typeText = cmd.type_livraison === 'livraison' ? 
-          `🛵 Livraison${cmd.adresse_livraison?.Ville ? ' → ' + cmd.adresse_livraison.Ville : ''}` :
+          `🛵 Livraison${cmd.adresse_livraison?.ville ? ' → ' + cmd.adresse_livraison.ville : ''}` :
           cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
+
+        // ========================================
+        // AFFICHER NOM + TEL depuis adresse_livraison EN PRIORITÉ
+        // ========================================
+        const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
+        const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
+        
+        // ========================================
+        // DÉTECTER ANONYMOUS ou NUMÉRO DIFFÉRENT
+        // ========================================
+        const callerId = cmd.adresse_livraison?.caller_id;
+        const telDeclare = cmd.adresse_livraison?.telephone;
+        
+        let warningBadge = '';
+        if (callerId === 'anonymous') {
+          warningBadge = '<span class="badge badge-anonymous">⚠️ ANONYMOUS</span> ';
+        } else if (callerId && telDeclare && callerId !== telDeclare) {
+          warningBadge = '<span class="badge badge-different">🔄 NUMÉRO DIFFÉRENT</span> ';
+        }
 
         html += `
           <div class="commande-card" onclick="openModal('${cmd.id}')">
@@ -604,7 +632,7 @@
               <span class="card-prix">${cmd.prix}€</span>
             </div>
             <div class="card-client">
-              👤 <strong>${cmd.client?.nom || 'Client'}</strong> • 📞 ${cmd.client?.telephone || 'N/A'}
+              ${warningBadge}👤 <strong>${nomClient}</strong> • 📞 ${telClient}
             </div>
             <div>
               <span class="badge badge-${typeBadge}">${typeText}</span>
@@ -652,10 +680,42 @@
         });
       }
 
+      // ========================================
+      // AFFICHER NOM + TEL depuis adresse_livraison EN PRIORITÉ
+      // ========================================
+      const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
+      const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
+      
+      // ========================================
+      // DÉTECTER ANONYMOUS ou NUMÉRO DIFFÉRENT
+      // ========================================
+      const callerId = cmd.adresse_livraison?.caller_id;
+      const telDeclare = cmd.adresse_livraison?.telephone;
+      
+      let clientInfoHtml = `${nomClient}<br><span style="color: #999;">${telClient}</span>`;
+      
+      if (callerId === 'anonymous') {
+        // CAS 1 : Numéro masqué (ANONYMOUS)
+        clientInfoHtml = `
+          <span class="badge badge-anonymous" style="display: inline-block; margin-bottom: 8px;">⚠️ ANONYMOUS</span><br>
+          ${nomClient}<br>
+          <span style="color: #999;">📞 Déclaré: ${telClient}</span><br>
+          <span style="color: #c62828; font-size: 12px;">📱 Caller ID: masqué</span>
+        `;
+      } else if (callerId && telDeclare && callerId !== telDeclare) {
+        // CAS 2 : Numéro différent (appel pour un autre)
+        clientInfoHtml = `
+          <span class="badge badge-different" style="display: inline-block; margin-bottom: 8px;">🔄 NUMÉRO DIFFÉRENT</span><br>
+          ${nomClient}<br>
+          <span style="color: #999;">📞 Déclaré: ${telClient}</span><br>
+          <span style="color: #f57c00; font-size: 12px;">📱 Caller ID: ${callerId}</span>
+        `;
+      }
+
       const adresseHtml = cmd.adresse_livraison ? `
         <div class="info-box-content">
           ${cmd.adresse_livraison.rue || ''}<br>
-          ${cmd.adresse_livraison.code_postal || ''} ${cmd.adresse_livraison.Ville || ''}
+          ${cmd.adresse_livraison.code_postal || ''} ${cmd.adresse_livraison.ville || cmd.adresse_livraison.Ville || ''}
         </div>
       ` : '<div class="info-box-content">Aucune adresse</div>';
 
@@ -666,7 +726,7 @@
         </div>
         <div class="info-box">
           <div class="info-box-title">👤 Client</div>
-          <div class="info-box-content">${cmd.client?.nom || 'Client'}<br><span style="color: #999;">${cmd.client?.telephone || 'N/A'}</span></div>
+          <div class="info-box-content">${clientInfoHtml}</div>
         </div>
         <div class="info-box">
           <div class="info-box-title">${typeText}</div>
@@ -679,7 +739,7 @@
         <div class="total-box">Total: ${cmd.prix}€</div>
         <div class="info-footer">
           <div>Reçue le: ${formatDate(cmd.created_at)}</div>
-          <div>Statut: ${cmd.statut || 'N/A'}</div>
+          <div>Statut: ${cmd.statut_commande || 'N/A'}</div>
         </div>
       `;
 
@@ -721,7 +781,7 @@ Pour le changer:
 1. Va sur ce site: https://emn178.github.io/online-tools/sha256.html
 2. Entre ton nouveau mot de passe
 3. Copie le hash SHA-256 généré
-4. Remplace la valeur de PASSWORD_HASH ligne 328 par ce nouveau hash
+4. Remplace la valeur de PASSWORD_HASH par ce nouveau hash
 
 Exemple:
 Si ton nouveau mot de passe est "monmotdepasse123"
