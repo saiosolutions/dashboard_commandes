@@ -753,7 +753,7 @@
       content.innerHTML = '<div class="loading">🔄 Chargement...</div>';
       
       try {
-        let query = supabase
+        let query = supabaseClient
           .from('commandes')
           .select(`
             *,
@@ -934,7 +934,7 @@
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('produits')
           .select('*, produit_familles(nom)')
           .eq('business_id', BUSINESS_ID)
@@ -1006,7 +1006,7 @@
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('attributs')
           .select('*')
           .eq('business_id', BUSINESS_ID)
@@ -1062,7 +1062,7 @@
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('zones_service')
           .select('*')
           .eq('business_id', BUSINESS_ID)
@@ -1116,7 +1116,7 @@
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('produit_familles')
           .select('*')
           .eq('business_id', BUSINESS_ID)
@@ -1167,7 +1167,7 @@
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
       try {
-        let query = supabase
+        let query = supabaseClient
           .from('client')
           .select('*')
           .eq('business_id', BUSINESS_ID)
