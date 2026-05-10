@@ -662,7 +662,7 @@
     const PASSWORD_HASH = '9c495d69652b2b659253e49da433d2ec6e9f097629f9b1c3a75208ea2b132321';
     const EDGE_FUNCTION_ID = 'c72d94d0-8b68-4635-98cf-bedc5e085f3a';
 
-    let supabase;
+    let supabaseClient;
     let commandes = [];
     let currentFilter = {type: 'all', startDate: null, endDate: null};
     let currentTab = 'commandes';
@@ -685,14 +685,27 @@
     async function handleLogin(e) {
       e.preventDefault();
       const password = document.getElementById('password').value;
-      const hash = await sha256(password);
       
-      if (hash === PASSWORD_HASH) {
-        localStorage.setItem('loasis_logged_in', 'true');
-        showDashboard();
-      } else {
+      console.log('🔐 Tentative de connexion...');
+      console.log('📝 Mot de passe saisi:', password);
+      
+      try {
+        const hash = await sha256(password);
+        console.log('🔑 Hash généré:', hash);
+        console.log('🎯 Hash attendu:', PASSWORD_HASH);
+        console.log('✅ Match?', hash === PASSWORD_HASH);
+        
+        if (hash === PASSWORD_HASH) {
+          localStorage.setItem('loasis_logged_in', 'true');
+          showDashboard();
+        } else {
+          document.getElementById('login-error').innerHTML = 
+            '<div class="error-message">❌ Mot de passe incorrect<br>Mot de passe par défaut: loasis2024</div>';
+        }
+      } catch (error) {
+        console.error('❌ Erreur:', error);
         document.getElementById('login-error').innerHTML = 
-          '<div class="error-message">❌ Mot de passe incorrect</div>';
+          '<div class="error-message">❌ Erreur: ' + error.message + '</div>';
       }
     }
 
@@ -706,7 +719,7 @@
     function showDashboard() {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('dashboard').classList.add('show');
-      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       loadCommandes();
     }
 
