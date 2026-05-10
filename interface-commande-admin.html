@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>L'Oasis Admin</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    /* LOGIN SCREEN */
+    .login-container {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .login-box {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 400px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .login-logo {
+      text-align: center;
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    .login-title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .login-subtitle {
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .input-group {
+      margin-bottom: 20px;
+    }
+    .input-group label {
+      display: block;
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+    .input-group input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .btn-login:active {
+      transform: scale(0.98);
+    }
+    .error-message {
+      background-color: #ffebee;
+      color: #c62828;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      text-align: center;
+    }
+    
+    /* DASHBOARD */
+    .dashboard {
+      display: none;
+      background-color: #f5f5f5;
+      min-height: 100vh;
+    }
+    .dashboard.show {
+      display: block;
+    }
+    
+    /* HEADER */
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+      color: white;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-left h1 {
+      font-size: 24px;
+      margin: 0 0 4px 0;
+    }
+    .header-left p {
+      font-size: 14px;
+      opacity: 0.9;
+      margin: 0;
+    }
+    .btn-logout {
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-logout:hover {
+      background: rgba(255,255,255,0.3);
+    }
+    
+    /* TABS */
+    .tabs {
+      display: flex;
+      background: white;
+      border-bottom: 2px solid #e0e0e0;
+      overflow-x: auto;
+    }
+    .tab {
+      padding: 16px 24px;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tab:hover {
+      background: #f5f5f5;
+    }
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+    
+    /* CONTAINER */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    /* TAB CONTENT */
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    
+    /* BUTTONS */
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+    .btn-success {
+      background: #4caf50;
+      color: white;
+    }
+    .btn-danger {
+      background: #f44336;
+      color: white;
+    }
+    .btn-sm {
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+    
+    /* TOOLBAR */
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .toolbar-left {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    /* TABLE */
+    .table-container {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead {
+      background: #f8f9fa;
+    }
+    th {
+      padding: 12px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 600;
+      color: #666;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    td {
+      padding: 12px;
+      font-size: 14px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    tbody tr:hover {
+      background: #f8f9fa;
+    }
+    
+    /* BADGE */
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .badge-success {
+      background: #e8f5e9;
+      color: #4caf50;
+    }
+    .badge-danger {
+      background: #ffebee;
+      color: #f44336;
+    }
+    .badge-warning {
+      background: #fff3e0;
+      color: #ff9800;
+    }
+    .badge-info {
+      background: #e3f2fd;
+      color: #2196f3;
+    }
+    
+    /* MODAL */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      overflow-y: auto;
+    }
+    .modal.show {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .modal-header h2 {
+      font-size: 20px;
+      margin: 0;
+    }
+    .btn-close {
+      background: none;
+      border: none;
+      font-size: 28px;
+      color: #999;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #333;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 24px;
+    }
+    
+    /* LOADING */
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    
+    /* NO DATA */
+    .no-data {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+    }
+    
+    /* COMMANDE CARD (pour onglet commandes) */
+    .commande-card {
+      background: white;
+      border: 2px solid #f0f0f0;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .commande-card:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .card-numero {
+      font-weight: bold;
+      font-size: 16px;
+    }
+    .card-prix {
+      font-size: 20px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    .card-client {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    .badge-livraison {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+    .badge-emporter {
+      background: #fff3e0;
+      color: #f57c00;
+    }
+    .badge-surplace {
+      background: #f3e5f5;
+      color: #7b1fa2;
+    }
+    
+    /* FILTERS */
+    .filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-filter {
+      padding: 10px 16px;
+      background: #f0f0f0;
+      color: #333;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn-filter.active {
+      background: #667eea;
+      color: white;
+    }
+    
+    /* LOG VIEWER */
+    .log-entry {
+      background: white;
+      border-left: 4px solid #e0e0e0;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    }
+    .log-entry.error {
+      border-left-color: #f44336;
+      background: #ffebee;
+    }
+    .log-entry.warning {
+      border-left-color: #ff9800;
+      background: #fff3e0;
+    }
+    .log-entry.info {
+      border-left-color: #2196f3;
+    }
+    .log-timestamp {
+      color: #999;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+    .log-message {
+      color: #333;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    
+    /* CHECKBOX */
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+  </style>
+</head>
+<body>
+  <!-- LOGIN SCREEN -->
+  <div id="login-screen" class="login-container">
+    <div class="login-box">
+      <div class="login-logo">🔒</div>
+      <h1 class="login-title">L'Oasis Admin</h1>
+      <p class="login-subtitle">Interface d'administration</p>
+      
+      <div id="login-error"></div>
+      
+      <form onsubmit="handleLogin(event)">
+        <div class="input-group">
+          <label for="password">Mot de passe</label>
+          <input 
+            type="password" 
+            id="password" 
+            placeholder="Entrez le mot de passe"
+            required
+          >
+        </div>
+        <button type="submit" class="btn-login">Se connecter</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dashboard" class="dashboard">
+    <!-- HEADER -->
+    <div class="header">
+      <div class="header-left">
+        <h1>🌮 L'Oasis Admin</h1>
+        <p>Interface de gestion complète</p>
+      </div>
+      <button class="btn-logout" onclick="logout()">Déconnexion</button>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('commandes')">📦 Commandes</div>
+      <div class="tab" onclick="switchTab('parametrages')">⚙️ Paramétrages</div>
+      <div class="tab" onclick="switchTab('clients')">👥 Clients</div>
+      <div class="tab" onclick="switchTab('logs')">📋 Logs</div>
+    </div>
+
+    <!-- TAB: COMMANDES -->
+    <div id="tab-commandes" class="tab-content active">
+      <div class="container">
+        <div class="filters">
+          <button class="btn-filter active" id="filter-all" onclick="setCommandeFilter('all')">Toutes</button>
+          <button class="btn-filter" id="filter-today" onclick="setCommandeFilter('today')">Aujourd'hui</button>
+          <button class="btn-filter" id="filter-date" onclick="showDatePicker()">📅 Choisir une date</button>
+          <button class="btn-filter" id="filter-range" onclick="showDateRangePicker()">📆 Plage de dates</button>
+          <button class="btn btn-secondary" onclick="loadCommandes()">🔄 Actualiser</button>
+        </div>
+        <div id="commandes-content">
+          <div class="loading">Chargement...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: PARAMETRAGES -->
+    <div id="tab-parametrages" class="tab-content">
+      <div class="container">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <select id="param-section" onchange="switchParamSection(this.value)">
+              <option value="produits">Produits</option>
+              <option value="attributs">Attributs</option>
+              <option value="zones">Zones de livraison</option>
+              <option value="familles">Familles de produits</option>
+            </select>
+            <button class="btn btn-primary" onclick="openAddModal()">➕ Ajouter</button>
+          </div>
+          <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
+        </div>
+        
+        <div id="param-produits" class="param-section">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <input type="text" id="search-produits" placeholder="Rechercher..." style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+              <select id="filter-categorie" onchange="loadParamData()">
+                <option value="">Toutes catégories</option>
+              </select>
+            </div>
+          </div>
+          <div id="produits-table"></div>
+        </div>
+        
+        <div id="param-attributs" class="param-section" style="display:none;">
+          <div class="toolbar">
+            <select id="filter-attr-categorie" onchange="loadParamData()">
+              <option value="">Toutes catégories</option>
+              <option value="viande">Viandes</option>
+              <option value="fromage">Fromages</option>
+              <option value="sauce">Sauces</option>
+            </select>
+          </div>
+          <div id="attributs-table"></div>
+        </div>
+        
+        <div id="param-zones" class="param-section" style="display:none;">
+          <div id="zones-table"></div>
+        </div>
+        
+        <div id="param-familles" class="param-section" style="display:none;">
+          <div id="familles-table"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: CLIENTS -->
+    <div id="tab-clients" class="tab-content">
+      <div class="container">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <input type="text" id="search-clients" placeholder="Rechercher..." style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+            <select id="filter-segment" onchange="loadClients()">
+              <option value="">Tous segments</option>
+              <option value="nouveau">Nouveau</option>
+              <option value="regulier">Régulier</option>
+              <option value="vip">VIP</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="loadClients()">🔄 Actualiser</button>
+        </div>
+        <div id="clients-table"></div>
+      </div>
+    </div>
+
+    <!-- TAB: LOGS -->
+    <div id="tab-logs" class="tab-content">
+      <div class="container">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <select id="filter-log-level" onchange="loadLogs()">
+              <option value="">Tous niveaux</option>
+              <option value="info">Info</option>
+              <option value="error">Erreurs</option>
+              <option value="log">Log</option>
+            </select>
+            <input type="number" id="log-limit" value="50" min="10" max="200" style="width: 80px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+          </div>
+          <button class="btn btn-secondary" onclick="loadLogs()">🔄 Actualiser</button>
+        </div>
+        <div id="logs-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <div id="modal-commande" class="modal"></div>
+  <div id="modal-edit" class="modal"></div>
+  <div id="modal-date" class="modal"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // CONFIG
+    const SUPABASE_URL = 'https://ixpnsiyopebtcofntmoz.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4cG5zaXlvcGVidGNvZm50bW96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM4NDYsImV4cCI6MjA5MjA5OTg0Nn0.9Hg3RtM46v2q-1Ga8_U5gfpfYIgtNvodofAO6rGdav4';
+    const BUSINESS_ID = 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
+    const PASSWORD_HASH = '9c495d69652b2b659253e49da433d2ec6e9f097629f9b1c3a75208ea2b132321';
+    const EDGE_FUNCTION_ID = 'c72d94d0-8b68-4635-98cf-bedc5e085f3a';
+
+    let supabase;
+    let commandes = [];
+    let currentFilter = {type: 'all', startDate: null, endDate: null};
+    let currentTab = 'commandes';
+    let currentParamSection = 'produits';
+    let produits = [];
+    let attributs = [];
+    let zones = [];
+    let familles = [];
+    let clients = [];
+
+    // ========================================
+    // LOGIN
+    // ========================================
+    window.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('loasis_logged_in') === 'true') {
+        showDashboard();
+      }
+    });
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const password = document.getElementById('password').value;
+      const hash = await sha256(password);
+      
+      if (hash === PASSWORD_HASH) {
+        localStorage.setItem('loasis_logged_in', 'true');
+        showDashboard();
+      } else {
+        document.getElementById('login-error').innerHTML = 
+          '<div class="error-message">❌ Mot de passe incorrect</div>';
+      }
+    }
+
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function showDashboard() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('dashboard').classList.add('show');
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      loadCommandes();
+    }
+
+    function logout() {
+      localStorage.removeItem('loasis_logged_in');
+      location.reload();
+    }
+
+    // ========================================
+    // TAB SWITCHING
+    // ========================================
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+      
+      if (tab === 'commandes') loadCommandes();
+      else if (tab === 'parametrages') loadParamData();
+      else if (tab === 'clients') loadClients();
+      else if (tab === 'logs') loadLogs();
+    }
+
+    // ========================================
+    // COMMANDES
+    // ========================================
+    async function loadCommandes() {
+      const content = document.getElementById('commandes-content');
+      content.innerHTML = '<div class="loading">🔄 Chargement...</div>';
+      
+      try {
+        let query = supabase
+          .from('commandes')
+          .select(`
+            *,
+            client:client_id (nom, telephone),
+            produits_commandes (
+              quantite, total, attributs_choisis, instructions_particulieres,
+              produit:produit_id (nom, prix)
+            )
+          `)
+          .eq('business_id', BUSINESS_ID)
+          .order('created_at', { ascending: false });
+
+        if (currentFilter.type === 'today') {
+          const today = new Date().toISOString().split('T')[0];
+          query = query.gte('created_at', today);
+        } else if (currentFilter.startDate) {
+          query = query.gte('created_at', currentFilter.startDate);
+          if (currentFilter.endDate) {
+            query = query.lte('created_at', currentFilter.endDate);
+          }
+        }
+
+        const { data, error } = await query.limit(100);
+        if (error) throw error;
+        
+        commandes = data || [];
+        renderCommandes();
+      } catch (error) {
+        content.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
+      }
+    }
+
+    function setCommandeFilter(type) {
+      currentFilter = {type, startDate: null, endDate: null};
+      document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+      document.getElementById('filter-' + type).classList.add('active');
+      loadCommandes();
+    }
+
+    function showDatePicker() {
+      const date = prompt('Entrez une date (YYYY-MM-DD):');
+      if (date) {
+        currentFilter = {type: 'custom', startDate: date, endDate: date + 'T23:59:59'};
+        loadCommandes();
+      }
+    }
+
+    function showDateRangePicker() {
+      const start = prompt('Date début (YYYY-MM-DD):');
+      if (!start) return;
+      const end = prompt('Date fin (YYYY-MM-DD):');
+      if (!end) return;
+      currentFilter = {type: 'range', startDate: start, endDate: end + 'T23:59:59'};
+      loadCommandes();
+    }
+
+    function renderCommandes() {
+      const content = document.getElementById('commandes-content');
+      
+      if (commandes.length === 0) {
+        content.innerHTML = '<div class="no-data">Aucune commande</div>';
+        return;
+      }
+
+      let html = '';
+      commandes.forEach(cmd => {
+        const typeClass = cmd.type_livraison === 'livraison' ? 'livraison' : 
+                         cmd.type_livraison === 'a_emporter' ? 'emporter' : 'surplace';
+        const typeText = cmd.type_livraison === 'livraison' ? '🛵 Livraison' :
+                        cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
+        
+        const nom = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
+        const tel = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
+
+        html += `
+          <div class="commande-card" onclick="openCommandeDetail('${cmd.id}')">
+            <div class="card-header">
+              <span class="card-numero">#${cmd.numero_commande}</span>
+              <span class="card-prix">${cmd.prix}€</span>
+            </div>
+            <div class="card-client">👤 ${nom} • 📞 ${tel}</div>
+            <div><span class="badge badge-${typeClass}">${typeText}</span></div>
+            <div style="font-size: 12px; color: #999; margin-top: 8px;">
+              ⏰ ${formatDate(cmd.created_at)}
+            </div>
+          </div>
+        `;
+      });
+
+      content.innerHTML = html;
+    }
+
+    function openCommandeDetail(id) {
+      const cmd = commandes.find(c => c.id === id);
+      if (!cmd) return;
+
+      let articlesHtml = '';
+      if (cmd.produits_commandes) {
+        cmd.produits_commandes.forEach(item => {
+          let attrHtml = '';
+          if (item.attributs_choisis) {
+            const a = item.attributs_choisis;
+            if (a.viandes) attrHtml += `<div>🥩 ${Array.isArray(a.viandes) ? a.viandes.join(', ') : a.viandes}</div>`;
+            if (a.sauces) attrHtml += `<div>🍯 ${Array.isArray(a.sauces) ? a.sauces.join(', ') : a.sauces}</div>`;
+            if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
+          }
+
+          articlesHtml += `
+            <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
+              <div style="display: flex; justify-content: space-between;">
+                <span><strong>${item.quantite}x</strong> ${item.produit?.nom}</span>
+                <strong>${item.total}€</strong>
+              </div>
+              ${attrHtml}
+              ${item.instructions_particulieres ? `<div style="color: #f57c00; margin-top: 6px;">💬 ${item.instructions_particulieres}</div>` : ''}
+            </div>
+          `;
+        });
+      }
+
+      const modal = document.getElementById('modal-commande');
+      modal.innerHTML = `
+        <div style="padding: 20px;" onclick="event.stopPropagation()">
+          <div style="background: white; border-radius: 16px; padding: 24px; max-width: 600px; margin: 0 auto;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+              <h2>Commande #${cmd.numero_commande}</h2>
+              <button onclick="closeModal('modal-commande')" style="background: none; border: none; font-size: 28px; cursor: pointer;">×</button>
+            </div>
+            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+              <strong>👤 Client</strong><br>
+              ${cmd.adresse_livraison?.nom || cmd.client?.nom}<br>
+              📞 ${cmd.adresse_livraison?.telephone || cmd.client?.telephone}
+            </div>
+            ${cmd.adresse_livraison ? `
+              <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                <strong>📍 Adresse</strong><br>
+                ${cmd.adresse_livraison.rue}<br>
+                ${cmd.adresse_livraison.code_postal} ${cmd.adresse_livraison.ville || cmd.adresse_livraison.Ville}
+              </div>
+            ` : ''}
+            <div style="margin-bottom: 20px;">
+              <strong>📦 Articles</strong>
+              <div style="margin-top: 12px;">${articlesHtml}</div>
+            </div>
+            <div style="border-top: 2px solid #ddd; padding-top: 16px; font-size: 20px; font-weight: bold; text-align: right;">
+              Total: ${cmd.prix}€
+            </div>
+          </div>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-commande');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    // ========================================
+    // PARAMETRAGES
+    // ========================================
+    function switchParamSection(section) {
+      currentParamSection = section;
+      document.querySelectorAll('.param-section').forEach(s => s.style.display = 'none');
+      document.getElementById('param-' + section).style.display = 'block';
+      loadParamData();
+    }
+
+    async function loadParamData() {
+      if (currentParamSection === 'produits') await loadProduits();
+      else if (currentParamSection === 'attributs') await loadAttributs();
+      else if (currentParamSection === 'zones') await loadZones();
+      else if (currentParamSection === 'familles') await loadFamilles();
+    }
+
+    async function loadProduits() {
+      const container = document.getElementById('produits-table');
+      container.innerHTML = '<div class="loading">Chargement...</div>';
+
+      try {
+        const { data, error } = await supabase
+          .from('produits')
+          .select('*, produit_familles(nom)')
+          .eq('business_id', BUSINESS_ID)
+          .order('categorie', { ascending: true })
+          .order('nom', { ascending: true });
+
+        if (error) throw error;
+        produits = data || [];
+
+        // Populate category filter
+        const categories = [...new Set(produits.map(p => p.categorie).filter(Boolean))];
+        const filterSelect = document.getElementById('filter-categorie');
+        filterSelect.innerHTML = '<option value="">Toutes catégories</option>' +
+          categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+        renderProduitsTable();
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
+      }
+    }
+
+    function renderProduitsTable() {
+      const search = document.getElementById('search-produits').value.toLowerCase();
+      const catFilter = document.getElementById('filter-categorie').value;
+      
+      let filtered = produits.filter(p => {
+        const matchSearch = !search || p.nom.toLowerCase().includes(search);
+        const matchCat = !catFilter || p.categorie === catFilter;
+        return matchSearch && matchCat;
+      });
+
+      const html = `
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>Catégorie</th>
+                <th>Prix</th>
+                <th>Metadata</th>
+                <th>Actif</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.map(p => `
+                <tr>
+                  <td><strong>${p.nom}</strong></td>
+                  <td>${p.categorie || '-'}</td>
+                  <td>${p.prix}€</td>
+                  <td style="font-size: 11px;">${JSON.stringify(p.metadata).slice(0, 50)}...</td>
+                  <td><span class="badge ${p.actif ? 'badge-success' : 'badge-danger'}">${p.actif ? 'Oui' : 'Non'}</span></td>
+                  <td>
+                    <button class="btn btn-sm btn-secondary" onclick="editProduit('${p.id}')">✏️</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteProduit('${p.id}')">🗑️</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      document.getElementById('produits-table').innerHTML = html;
+    }
+
+    async function loadAttributs() {
+      const container = document.getElementById('attributs-table');
+      container.innerHTML = '<div class="loading">Chargement...</div>';
+
+      try {
+        const { data, error } = await supabase
+          .from('attributs')
+          .select('*')
+          .eq('business_id', BUSINESS_ID)
+          .order('categorie', { ascending: true })
+          .order('nom', { ascending: true });
+
+        if (error) throw error;
+        attributs = data || [];
+
+        const catFilter = document.getElementById('filter-attr-categorie').value;
+        const filtered = catFilter ? attributs.filter(a => a.categorie.toLowerCase() === catFilter) : attributs;
+
+        const html = `
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Catégorie</th>
+                  <th>Prix supplément</th>
+                  <th>Type entité</th>
+                  <th>Actif</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.map(a => `
+                  <tr>
+                    <td><strong>${a.nom}</strong></td>
+                    <td><span class="badge badge-info">${a.categorie}</span></td>
+                    <td>${a.prix_supplement}€</td>
+                    <td>${a.type_entite}</td>
+                    <td><span class="badge ${a.actif ? 'badge-success' : 'badge-danger'}">${a.actif ? 'Oui' : 'Non'}</span></td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary" onclick="editAttribut('${a.id}')">✏️</button>
+                      <button class="btn btn-sm btn-danger" onclick="deleteAttribut('${a.id}')">🗑️</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        container.innerHTML = html;
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
+      }
+    }
+
+    async function loadZones() {
+      const container = document.getElementById('zones-table');
+      container.innerHTML = '<div class="loading">Chargement...</div>';
+
+      try {
+        const { data, error } = await supabase
+          .from('zones_service')
+          .select('*')
+          .eq('business_id', BUSINESS_ID)
+          .order('nom', { ascending: true });
+
+        if (error) throw error;
+        zones = data || [];
+
+        const html = `
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Code postal</th>
+                  <th>Minimum</th>
+                  <th>Frais</th>
+                  <th>Type zone</th>
+                  <th>Actif</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${zones.map(z => `
+                  <tr>
+                    <td><strong>${z.nom}</strong></td>
+                    <td>${z.code_postal || '-'}</td>
+                    <td>${z.montant_minimum}€</td>
+                    <td>${z.frais_service}€</td>
+                    <td>${z.type_zone}</td>
+                    <td><span class="badge ${z.actif ? 'badge-success' : 'badge-danger'}">${z.actif ? 'Oui' : 'Non'}</span></td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary" onclick="editZone('${z.id}')">✏️</button>
+                      <button class="btn btn-sm btn-danger" onclick="deleteZone('${z.id}')">🗑️</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        container.innerHTML = html;
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
+      }
+    }
+
+    async function loadFamilles() {
+      const container = document.getElementById('familles-table');
+      container.innerHTML = '<div class="loading">Chargement...</div>';
+
+      try {
+        const { data, error } = await supabase
+          .from('produit_familles')
+          .select('*')
+          .eq('business_id', BUSINESS_ID)
+          .order('position', { ascending: true });
+
+        if (error) throw error;
+        familles = data || [];
+
+        const html = `
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Position</th>
+                  <th>Actif</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${familles.map(f => `
+                  <tr>
+                    <td><strong>${f.nom}</strong></td>
+                    <td>${f.position}</td>
+                    <td><span class="badge ${f.actif ? 'badge-success' : 'badge-danger'}">${f.actif ? 'Oui' : 'Non'}</span></td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary" onclick="editFamille('${f.id}')">✏️</button>
+                      <button class="btn btn-sm btn-danger" onclick="deleteFamille('${f.id}')">🗑️</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        container.innerHTML = html;
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
+      }
+    }
+
+    // ========================================
+    // CLIENTS
+    // ========================================
+    async function loadClients() {
+      const container = document.getElementById('clients-table');
+      container.innerHTML = '<div class="loading">Chargement...</div>';
+
+      try {
+        let query = supabase
+          .from('client')
+          .select('*')
+          .eq('business_id', BUSINESS_ID)
+          .order('created_at', { ascending: false });
+
+        const segment = document.getElementById('filter-segment').value;
+        if (segment) query = query.eq('segment', segment);
+
+        const { data, error } = await query.limit(200);
+        if (error) throw error;
+        
+        clients = data || [];
+
+        const search = document.getElementById('search-clients').value.toLowerCase();
+        const filtered = clients.filter(c => 
+          !search || 
+          c.nom?.toLowerCase().includes(search) || 
+          c.telephone?.includes(search) ||
+          c.email?.toLowerCase().includes(search)
+        );
+
+        const html = `
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Téléphone</th>
+                  <th>Email</th>
+                  <th>Commandes</th>
+                  <th>Points</th>
+                  <th>Segment</th>
+                  <th>Actif</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filtered.map(c => `
+                  <tr>
+                    <td><strong>${c.nom || 'N/A'}</strong></td>
+                    <td>${c.telephone}</td>
+                    <td>${c.email || '-'}</td>
+                    <td>${c.nombre_de_commandes}</td>
+                    <td>${c.points}</td>
+                    <td><span class="badge badge-info">${c.segment}</span></td>
+                    <td><span class="badge ${c.actif ? 'badge-success' : 'badge-danger'}">${c.actif ? 'Oui' : 'Non'}</span></td>
+                    <td>
+                      <button class="btn btn-sm btn-secondary" onclick="editClient('${c.id}')">✏️</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        container.innerHTML = html;
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
+      }
+    }
+
+    // ========================================
+    // LOGS
+    // ========================================
+    async function loadLogs() {
+      const container = document.getElementById('logs-content');
+      container.innerHTML = '<div class="loading">Chargement des logs...</div>';
+
+      try {
+        const limit = parseInt(document.getElementById('log-limit').value) || 50;
+        const level = document.getElementById('filter-log-level').value;
+
+        // Fetch logs from Supabase Edge Functions logs
+        const url = `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION_ID}/logs?limit=${limit}`;
+        
+        const response = await fetch(url, {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+
+        if (!response.ok) throw new Error('Impossible de charger les logs');
+        
+        const logs = await response.json();
+        
+        const filtered = level ? logs.filter(l => l.level === level) : logs;
+
+        if (filtered.length === 0) {
+          container.innerHTML = '<div class="no-data">Aucun log trouvé</div>';
+          return;
+        }
+
+        const html = filtered.map(log => {
+          const logClass = log.level === 'error' ? 'error' : log.level === 'warn' ? 'warning' : 'info';
+          return `
+            <div class="log-entry ${logClass}">
+              <div class="log-timestamp">${formatDate(new Date(log.timestamp).toISOString())}</div>
+              <div class="log-message">${log.event_message || log.message || JSON.stringify(log)}</div>
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML = html;
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}<br><br>Note: L'accès aux logs nécessite des permissions spéciales sur Supabase.</div>`;
+      }
+    }
+
+    // ========================================
+    // CRUD OPERATIONS (placeholders - to implement)
+    // ========================================
+    function openAddModal() {
+      alert('Fonctionnalité d\'ajout en cours de développement');
+    }
+
+    function editProduit(id) {
+      alert('Édition produit: ' + id);
+    }
+
+    function deleteProduit(id) {
+      if (confirm('Supprimer ce produit?')) {
+        // Implement delete
+      }
+    }
+
+    function editAttribut(id) {
+      alert('Édition attribut: ' + id);
+    }
+
+    function deleteAttribut(id) {
+      if (confirm('Supprimer cet attribut?')) {
+        // Implement delete
+      }
+    }
+
+    function editZone(id) {
+      alert('Édition zone: ' + id);
+    }
+
+    function deleteZone(id) {
+      if (confirm('Supprimer cette zone?')) {
+        // Implement delete
+      }
+    }
+
+    function editFamille(id) {
+      alert('Édition famille: ' + id);
+    }
+
+    function deleteFamille(id) {
+      if (confirm('Supprimer cette famille?')) {
+        // Implement delete
+      }
+    }
+
+    function editClient(id) {
+      alert('Édition client: ' + id);
+    }
+
+    // ========================================
+    // HELPERS
+    // ========================================
+    function formatDate(dateStr) {
+      return new Date(dateStr).toLocaleString('fr-FR', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    // Search handlers
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchProduits = document.getElementById('search-produits');
+      if (searchProduits) {
+        searchProduits.addEventListener('input', () => {
+          if (currentTab === 'parametrages' && currentParamSection === 'produits') {
+            renderProduitsTable();
+          }
+        });
+      }
+
+      const searchClients = document.getElementById('search-clients');
+      if (searchClients) {
+        searchClients.addEventListener('input', loadClients);
+      }
+    });
+  </script>
+</body>
+</html>
