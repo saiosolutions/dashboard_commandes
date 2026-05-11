@@ -886,14 +886,11 @@
       if (cmd.produits_commandes) {
         cmd.produits_commandes.forEach(item => {
           let attrHtml = '';
-          if (item.attributs_choisis) {
-            const a = item.attributs_choisis;
-            if (a.viandes) attrHtml += `<div>🥩 ${Array.isArray(a.viandes) ? a.viandes.join(', ') : a.viandes}</div>`;
-            if (a.sauces_sandwich) attrHtml += `<div>🍯 Sandwich: ${Array.isArray(a.sauces_sandwich) ? a.sauces_sandwich.join(', ') : a.sauces_sandwich}</div>`;
-            if (a.sauces_frites) attrHtml += `<div>🍟 Frites: ${Array.isArray(a.sauces_frites) ? a.sauces_frites.join(', ') : a.sauces_frites}</div>`;
-            if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
-            if (a.supplements) attrHtml += `<div>➕ ${Array.isArray(a.supplements) ? a.supplements.join(', ') : a.supplements}</div>`;
-          }
+          if (a.viandes) attrHtml += `<div>🥩 ${Array.isArray(a.viandes) ? a.viandes.join(', ') : a.viandes}</div>`;
+          if (a.sauces_sandwich) attrHtml += `<div>🍯 Sandwich: ${Array.isArray(a.sauces_sandwich) ? a.sauces_sandwich.join(', ') : a.sauces_sandwich}</div>`;
+          if (a.sauces_plat) attrHtml += `<div>🍯 Plat: ${Array.isArray(a.sauces_plat) ? a.sauces_plat.join(', ') : a.sauces_plat}</div>`;
+          if (a.sauces_frites) attrHtml += `<div>🍟 Frites: ${Array.isArray(a.sauces_frites) ? a.sauces_frites.join(', ') : a.sauces_frites}</div>`;
+          if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
 
           articlesHtml += `
             <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
