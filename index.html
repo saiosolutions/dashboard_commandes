@@ -889,7 +889,8 @@
           if (item.attributs_choisis) {
             const a = item.attributs_choisis;
             if (a.viandes) attrHtml += `<div>🥩 ${Array.isArray(a.viandes) ? a.viandes.join(', ') : a.viandes}</div>`;
-            if (a.sauces) attrHtml += `<div>🍯 ${Array.isArray(a.sauces) ? a.sauces.join(', ') : a.sauces}</div>`;
+            if (a.sauces_sandwich) attrHtml += `<div>🍯 Sandwich: ${Array.isArray(a.sauces_sandwich) ? a.sauces_sandwich.join(', ') : a.sauces_sandwich}</div>`;
+            if (a.sauces_frites) attrHtml += `<div>🍟 Frites: ${Array.isArray(a.sauces_frites) ? a.sauces_frites.join(', ') : a.sauces_frites}</div>`;
             if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
             if (a.supplements) attrHtml += `<div>➕ ${Array.isArray(a.supplements) ? a.supplements.join(', ') : a.supplements}</div>`;
           }
