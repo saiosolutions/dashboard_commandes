@@ -840,11 +840,9 @@
           `🛵 Livraison${cmd.adresse_livraison?.ville ? ' → ' + cmd.adresse_livraison.ville : ''}` :
           cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
 
-        // AFFICHER NOM + TEL depuis adresse_livraison EN PRIORITÉ
         const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
         const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
         
-        // DÉTECTER ANONYMOUS ou NUMÉRO DIFFÉRENT
         const callerId = cmd.adresse_livraison?.caller_id;
         const telDeclare = cmd.adresse_livraison?.telephone;
         
@@ -886,11 +884,16 @@
       if (cmd.produits_commandes) {
         cmd.produits_commandes.forEach(item => {
           let attrHtml = '';
-          if (a.viandes) attrHtml += `<div>🥩 ${Array.isArray(a.viandes) ? a.viandes.join(', ') : a.viandes}</div>`;
-          if (a.sauces_sandwich) attrHtml += `<div>🍯 Sandwich: ${Array.isArray(a.sauces_sandwich) ? a.sauces_sandwich.join(', ') : a.sauces_sandwich}</div>`;
-          if (a.sauces_plat) attrHtml += `<div>🍯 Plat: ${Array.isArray(a.sauces_plat) ? a.sauces_plat.join(', ') : a.sauces_plat}</div>`;
-          if (a.sauces_frites) attrHtml += `<div>🍟 Frites: ${Array.isArray(a.sauces_frites) ? a.sauces_frites.join(', ') : a.sauces_frites}</div>`;
-          if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
+          if (item.attributs_choisis) {
+            // ✅ CORRECTION : déclaration de la variable "a"
+            const a = item.attributs_choisis;
+            if (a.viandes) attrHtml += `<div>🥩 ${Array.isArray(a.viandes) ? a.viandes.join(', ') : a.viandes}</div>`;
+            if (a.sauces_sandwich) attrHtml += `<div>🍯 Sandwich: ${Array.isArray(a.sauces_sandwich) ? a.sauces_sandwich.join(', ') : a.sauces_sandwich}</div>`;
+            if (a.sauces_plat) attrHtml += `<div>🍯 Plat: ${Array.isArray(a.sauces_plat) ? a.sauces_plat.join(', ') : a.sauces_plat}</div>`;
+            if (a.sauces_frites) attrHtml += `<div>🍟 Frites: ${Array.isArray(a.sauces_frites) ? a.sauces_frites.join(', ') : a.sauces_frites}</div>`;
+            if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
+            if (a.supplements) attrHtml += `<div>➕ ${Array.isArray(a.supplements) ? a.supplements.join(', ') : a.supplements}</div>`;
+          }
 
           articlesHtml += `
             <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
@@ -905,18 +908,15 @@
         });
       }
 
-      // AFFICHER NOM + TEL depuis adresse_livraison EN PRIORITÉ
       const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
       const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
       
-      // DÉTECTER ANONYMOUS ou NUMÉRO DIFFÉRENT
       const callerId = cmd.adresse_livraison?.caller_id;
       const telDeclare = cmd.adresse_livraison?.telephone;
       
       let clientInfoHtml = `${nomClient}<br><span style="color: #999;">${telClient}</span>`;
       
       if (callerId === 'anonymous') {
-        // CAS 1 : Numéro masqué (ANONYMOUS)
         clientInfoHtml = `
           <span class="badge badge-anonymous" style="display: inline-block; margin-bottom: 8px;">⚠️ ANONYMOUS</span><br>
           ${nomClient}<br>
@@ -924,7 +924,6 @@
           <span style="color: #c62828; font-size: 12px;">📱 Caller ID: masqué</span>
         `;
       } else if (callerId && telDeclare && callerId !== telDeclare) {
-        // CAS 2 : Numéro différent (appel pour un autre)
         clientInfoHtml = `
           <span class="badge badge-different" style="display: inline-block; margin-bottom: 8px;">🔄 NUMÉRO DIFFÉRENT</span><br>
           ${nomClient}<br>
@@ -1012,7 +1011,6 @@
         if (error) throw error;
         produits = data || [];
 
-        // Populate category filter
         const categories = [...new Set(produits.map(p => p.categorie).filter(Boolean))];
         const filterSelect = document.getElementById('filter-categorie');
         filterSelect.innerHTML = '<option value="">Toutes catégories</option>' +
@@ -1071,7 +1069,6 @@
 
       document.getElementById('produits-table').innerHTML = html;
       
-      // Rattacher les événements après le rendu
       const searchInput = document.getElementById('search-produits');
       if (searchInput) {
         searchInput.addEventListener('input', renderProduitsTable);
@@ -1318,7 +1315,6 @@
         const limit = parseInt(document.getElementById('log-limit').value) || 50;
         const level = document.getElementById('filter-log-level').value;
 
-        // Fetch logs from Supabase Edge Functions logs
         const url = `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION_ID}/logs?limit=${limit}`;
         
         const response = await fetch(url, {
@@ -1356,7 +1352,7 @@
     }
 
     // ========================================
-    // CRUD OPERATIONS (placeholders - to implement)
+    // CRUD OPERATIONS
     // ========================================
     function openAddModal() {
       alert('Fonctionnalité d\'ajout en cours de développement');
@@ -1416,7 +1412,6 @@
       });
     }
 
-    // Search handlers
     document.addEventListener('DOMContentLoaded', () => {
       const searchProduits = document.getElementById('search-produits');
       if (searchProduits) {
