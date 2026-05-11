@@ -885,7 +885,6 @@
         cmd.produits_commandes.forEach(item => {
           let attrHtml = '';
           if (item.attributs_choisis) {
-            // ✅ CORRECTION : déclaration de la variable "a"
             const a = item.attributs_choisis;
             if (a.viandes) attrHtml += `<div>🥩 ${Array.isArray(a.viandes) ? a.viandes.join(', ') : a.viandes}</div>`;
             if (a.sauces_sandwich) attrHtml += `<div>🍯 Sandwich: ${Array.isArray(a.sauces_sandwich) ? a.sauces_sandwich.join(', ') : a.sauces_sandwich}</div>`;
@@ -939,6 +938,22 @@
         </div>
       ` : '<div style="color: #999;">Aucune adresse</div>';
 
+      // ✅ NOUVEAU : Affichage instructions_acces
+      const instructionsAccesHtml = cmd.adresse_livraison?.instructions_acces ? `
+        <div style="background: #fff3e0; padding: 12px; border-radius: 8px; margin-top: 12px; border-left: 4px solid #ff9800;">
+          <strong>🔑 Instructions d'accès</strong><br>
+          <span style="color: #666; font-size: 14px;">${cmd.adresse_livraison.instructions_acces}</span>
+        </div>
+      ` : '';
+
+      // ✅ NOUVEAU : Affichage instructions_livraison
+      const instructionsLivraisonHtml = cmd.instructions_livraison ? `
+        <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #2196f3;">
+          <strong>📝 Instructions de livraison</strong><br>
+          <span style="color: #666; font-size: 14px;">${cmd.instructions_livraison}</span>
+        </div>
+      ` : '';
+
       const modal = document.getElementById('modal-commande');
       modal.innerHTML = `
         <div style="padding: 20px;" onclick="event.stopPropagation()">
@@ -955,8 +970,10 @@
               <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
                 <strong>${typeText}</strong><br>
                 ${adresseHtml}
+                ${instructionsAccesHtml}
               </div>
             ` : ''}
+            ${instructionsLivraisonHtml}
             <div style="margin-bottom: 20px;">
               <strong>📦 Articles</strong>
               <div style="margin-top: 12px;">${articlesHtml}</div>
