@@ -292,6 +292,16 @@
       background: #e3f2fd;
       color: #2196f3;
     }
+    .badge-anonymous {
+      background: #ffebee;
+      color: #c62828;
+      font-weight: bold;
+    }
+    .badge-different {
+      background: #fff3e0;
+      color: #f57c00;
+      font-weight: bold;
+    }
     
     /* MODAL */
     .modal {
@@ -304,6 +314,7 @@
       background: rgba(0,0,0,0.5);
       z-index: 1000;
       overflow-y: auto;
+      padding: 20px;
     }
     .modal.show {
       display: flex;
@@ -315,7 +326,7 @@
       border-radius: 16px;
       padding: 24px;
       max-width: 600px;
-      width: 90%;
+      width: 100%;
       max-height: 90vh;
       overflow-y: auto;
     }
@@ -509,6 +520,34 @@
     .checkbox-group input[type="checkbox"] {
       width: 18px;
       height: 18px;
+    }
+
+    /* DATE PICKER MODAL */
+    .date-picker-modal {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 100%;
+    }
+
+    /* ADRESSES LIST */
+    .adresses-list {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    .adresse-item {
+      padding: 8px;
+      background: white;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      border-left: 3px solid #667eea;
+    }
+    .adresse-item:last-child {
+      margin-bottom: 0;
     }
   </style>
 </head>
@@ -806,20 +845,96 @@
       loadCommandes();
     }
 
+    // ✅ NOUVEAU: Sélecteur de date visuel
     function showDatePicker() {
-      const date = prompt('Entrez une date (YYYY-MM-DD):');
-      if (date) {
-        currentFilter = {type: 'custom', startDate: date, endDate: date + 'T23:59:59'};
-        loadCommandes();
-      }
+      const modal = document.getElementById('modal-date');
+      modal.innerHTML = `
+        <div class="date-picker-modal" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>📅 Choisir une date</h2>
+            <button class="btn-close" onclick="closeModal('modal-date')">×</button>
+          </div>
+          <div class="form-group">
+            <label>Date et heure</label>
+            <input type="datetime-local" id="date-single" class="form-control" value="${new Date().toISOString().slice(0, 16)}">
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('modal-date')">Annuler</button>
+            <button class="btn btn-primary" onclick="applyDateFilter()">Appliquer</button>
+          </div>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-date');
     }
 
+    // ✅ NOUVEAU: Sélecteur de plage de dates visuel
     function showDateRangePicker() {
-      const start = prompt('Date début (YYYY-MM-DD):');
-      if (!start) return;
-      const end = prompt('Date fin (YYYY-MM-DD):');
-      if (!end) return;
-      currentFilter = {type: 'range', startDate: start, endDate: end + 'T23:59:59'};
+      const now = new Date();
+      const startDefault = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+      const endDefault = now.toISOString().slice(0, 16);
+
+      const modal = document.getElementById('modal-date');
+      modal.innerHTML = `
+        <div class="date-picker-modal" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>📆 Plage de dates</h2>
+            <button class="btn-close" onclick="closeModal('modal-date')">×</button>
+          </div>
+          <div class="form-group">
+            <label>Date et heure de début</label>
+            <input type="datetime-local" id="date-start" class="form-control" value="${startDefault}">
+          </div>
+          <div class="form-group">
+            <label>Date et heure de fin</label>
+            <input type="datetime-local" id="date-end" class="form-control" value="${endDefault}">
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('modal-date')">Annuler</button>
+            <button class="btn btn-primary" onclick="applyDateRangeFilter()">Appliquer</button>
+          </div>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-date');
+    }
+
+    // ✅ NOUVEAU: Appliquer le filtre de date unique
+    function applyDateFilter() {
+      const dateValue = document.getElementById('date-single').value;
+      if (!dateValue) return;
+
+      const startDate = new Date(dateValue).toISOString();
+      const endDate = new Date(new Date(dateValue).getTime() + 24 * 60 * 60 * 1000).toISOString();
+
+      currentFilter = {type: 'custom', startDate, endDate};
+      document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+      document.getElementById('filter-date').classList.add('active');
+      
+      closeModal('modal-date');
+      loadCommandes();
+    }
+
+    // ✅ NOUVEAU: Appliquer le filtre de plage de dates
+    function applyDateRangeFilter() {
+      const startValue = document.getElementById('date-start').value;
+      const endValue = document.getElementById('date-end').value;
+      
+      if (!startValue || !endValue) {
+        alert('Veuillez remplir les deux dates');
+        return;
+      }
+
+      currentFilter = {
+        type: 'range', 
+        startDate: new Date(startValue).toISOString(),
+        endDate: new Date(endValue).toISOString()
+      };
+      
+      document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+      document.getElementById('filter-range').classList.add('active');
+      
+      closeModal('modal-date');
       loadCommandes();
     }
 
@@ -938,7 +1053,6 @@
         </div>
       ` : '<div style="color: #999;">Aucune adresse</div>';
 
-      // ✅ NOUVEAU : Affichage instructions_acces
       const instructionsAccesHtml = cmd.adresse_livraison?.instructions_acces ? `
         <div style="background: #fff3e0; padding: 12px; border-radius: 8px; margin-top: 12px; border-left: 4px solid #ff9800;">
           <strong>🔑 Instructions d'accès</strong><br>
@@ -946,7 +1060,6 @@
         </div>
       ` : '';
 
-      // ✅ NOUVEAU : Affichage instructions_livraison
       const instructionsLivraisonHtml = cmd.instructions_livraison ? `
         <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #2196f3;">
           <strong>📝 Instructions de livraison</strong><br>
@@ -1260,7 +1373,10 @@
       try {
         let query = supabaseClient
           .from('client')
-          .select('*')
+          .select(`
+            *,
+            adresses:adresse_clients(*)
+          `)
           .eq('business_id', BUSINESS_ID)
           .order('created_at', { ascending: false });
 
@@ -1288,6 +1404,7 @@
                   <th>Nom</th>
                   <th>Téléphone</th>
                   <th>Email</th>
+                  <th>Adresses</th>
                   <th>Commandes</th>
                   <th>Points</th>
                   <th>Segment</th>
@@ -1296,20 +1413,26 @@
                 </tr>
               </thead>
               <tbody>
-                ${filtered.map(c => `
-                  <tr>
-                    <td><strong>${c.nom || 'N/A'}</strong></td>
-                    <td>${c.telephone}</td>
-                    <td>${c.email || '-'}</td>
-                    <td>${c.nombre_de_commandes}</td>
-                    <td>${c.points}</td>
-                    <td><span class="badge badge-info">${c.segment}</span></td>
-                    <td><span class="badge ${c.actif ? 'badge-success' : 'badge-danger'}">${c.actif ? 'Oui' : 'Non'}</span></td>
-                    <td>
-                      <button class="btn btn-sm btn-secondary" onclick="editClient('${c.id}')">✏️</button>
-                    </td>
-                  </tr>
-                `).join('')}
+                ${filtered.map(c => {
+                  const adressesCount = c.adresses?.length || 0;
+                  const adressesText = adressesCount > 0 ? `${adressesCount} adresse${adressesCount > 1 ? 's' : ''}` : 'Aucune';
+                  
+                  return `
+                    <tr>
+                      <td><strong>${c.nom || 'N/A'}</strong></td>
+                      <td>${c.telephone}</td>
+                      <td>${c.email || '-'}</td>
+                      <td><span class="badge badge-info">${adressesText}</span></td>
+                      <td>${c.nombre_de_commandes}</td>
+                      <td>${c.points}</td>
+                      <td><span class="badge badge-info">${c.segment}</span></td>
+                      <td><span class="badge ${c.actif ? 'badge-success' : 'badge-danger'}">${c.actif ? 'Oui' : 'Non'}</span></td>
+                      <td>
+                        <button class="btn btn-sm btn-secondary" onclick="editClient('${c.id}')">✏️</button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
               </tbody>
             </table>
           </div>
@@ -1369,54 +1492,473 @@
     }
 
     // ========================================
-    // CRUD OPERATIONS
+    // ✅ CRUD OPERATIONS - NOUVEAUX FORMULAIRES FONCTIONNELS
     // ========================================
     function openAddModal() {
       alert('Fonctionnalité d\'ajout en cours de développement');
     }
 
-    function editProduit(id) {
-      alert('Édition produit: ' + id);
+    // ✅ ÉDITION PRODUIT
+    async function editProduit(id) {
+      const produit = produits.find(p => p.id === id);
+      if (!produit) return;
+
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>✏️ Modifier le produit</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="saveProduit(event, '${id}')">
+            <div class="form-group">
+              <label>Nom *</label>
+              <input type="text" name="nom" value="${produit.nom}" required>
+            </div>
+            <div class="form-group">
+              <label>Catégorie</label>
+              <input type="text" name="categorie" value="${produit.categorie || ''}">
+            </div>
+            <div class="form-group">
+              <label>Prix (€) *</label>
+              <input type="number" step="0.01" name="prix" value="${produit.prix}" required>
+            </div>
+            <div class="form-group">
+              <label>Taille</label>
+              <input type="text" name="taille" value="${produit.taille || ''}">
+            </div>
+            <div class="form-group">
+              <label>Description</label>
+              <textarea name="description">${produit.description || ''}</textarea>
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group">
+                <input type="checkbox" name="actif" ${produit.actif ? 'checked' : ''}>
+                <label>Actif</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
     }
 
-    function deleteProduit(id) {
-      if (confirm('Supprimer ce produit?')) {
-        // Implement delete
+    async function saveProduit(e, id) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      
+      try {
+        const { error } = await supabaseClient
+          .from('produits')
+          .update({
+            nom: formData.get('nom'),
+            categorie: formData.get('categorie'),
+            prix: parseFloat(formData.get('prix')),
+            taille: formData.get('taille'),
+            description: formData.get('description'),
+            actif: formData.get('actif') === 'on'
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+        
+        alert('✅ Produit mis à jour');
+        closeModal('modal-edit');
+        loadProduits();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
       }
     }
 
-    function editAttribut(id) {
-      alert('Édition attribut: ' + id);
-    }
+    async function deleteProduit(id) {
+      if (!confirm('Supprimer ce produit? Cette action est irréversible.')) return;
+      
+      try {
+        const { error } = await supabaseClient
+          .from('produits')
+          .delete()
+          .eq('id', id);
 
-    function deleteAttribut(id) {
-      if (confirm('Supprimer cet attribut?')) {
-        // Implement delete
+        if (error) throw error;
+        alert('✅ Produit supprimé');
+        loadProduits();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
       }
     }
 
-    function editZone(id) {
-      alert('Édition zone: ' + id);
+    // ✅ ÉDITION ATTRIBUT
+    async function editAttribut(id) {
+      const attribut = attributs.find(a => a.id === id);
+      if (!attribut) return;
+
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>✏️ Modifier l'attribut</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="saveAttribut(event, '${id}')">
+            <div class="form-group">
+              <label>Nom *</label>
+              <input type="text" name="nom" value="${attribut.nom}" required>
+            </div>
+            <div class="form-group">
+              <label>Catégorie *</label>
+              <select name="categorie" required>
+                <option value="viande" ${attribut.categorie === 'viande' ? 'selected' : ''}>Viande</option>
+                <option value="fromage" ${attribut.categorie === 'fromage' ? 'selected' : ''}>Fromage</option>
+                <option value="sauce" ${attribut.categorie === 'sauce' ? 'selected' : ''}>Sauce</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Prix supplément (€)</label>
+              <input type="number" step="0.01" name="prix_supplement" value="${attribut.prix_supplement || 0}">
+            </div>
+            <div class="form-group">
+              <label>Type entité</label>
+              <input type="text" name="type_entite" value="${attribut.type_entite || ''}">
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group">
+                <input type="checkbox" name="actif" ${attribut.actif ? 'checked' : ''}>
+                <label>Actif</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
     }
 
-    function deleteZone(id) {
-      if (confirm('Supprimer cette zone?')) {
-        // Implement delete
+    async function saveAttribut(e, id) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      
+      try {
+        const { error } = await supabaseClient
+          .from('attributs')
+          .update({
+            nom: formData.get('nom'),
+            categorie: formData.get('categorie'),
+            prix_supplement: parseFloat(formData.get('prix_supplement')),
+            type_entite: formData.get('type_entite'),
+            actif: formData.get('actif') === 'on'
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+        
+        alert('✅ Attribut mis à jour');
+        closeModal('modal-edit');
+        loadAttributs();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
       }
     }
 
-    function editFamille(id) {
-      alert('Édition famille: ' + id);
-    }
+    async function deleteAttribut(id) {
+      if (!confirm('Supprimer cet attribut? Cette action est irréversible.')) return;
+      
+      try {
+        const { error } = await supabaseClient
+          .from('attributs')
+          .delete()
+          .eq('id', id);
 
-    function deleteFamille(id) {
-      if (confirm('Supprimer cette famille?')) {
-        // Implement delete
+        if (error) throw error;
+        alert('✅ Attribut supprimé');
+        loadAttributs();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
       }
     }
 
-    function editClient(id) {
-      alert('Édition client: ' + id);
+    // ✅ ÉDITION ZONE
+    async function editZone(id) {
+      const zone = zones.find(z => z.id === id);
+      if (!zone) return;
+
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>✏️ Modifier la zone</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="saveZone(event, '${id}')">
+            <div class="form-group">
+              <label>Nom *</label>
+              <input type="text" name="nom" value="${zone.nom}" required>
+            </div>
+            <div class="form-group">
+              <label>Code postal</label>
+              <input type="text" name="code_postal" value="${zone.code_postal || ''}">
+            </div>
+            <div class="form-group">
+              <label>Montant minimum (€) *</label>
+              <input type="number" step="0.01" name="montant_minimum" value="${zone.montant_minimum}" required>
+            </div>
+            <div class="form-group">
+              <label>Frais de service (€) *</label>
+              <input type="number" step="0.01" name="frais_service" value="${zone.frais_service}" required>
+            </div>
+            <div class="form-group">
+              <label>Type de zone *</label>
+              <input type="text" name="type_zone" value="${zone.type_zone}" required>
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group">
+                <input type="checkbox" name="actif" ${zone.actif ? 'checked' : ''}>
+                <label>Actif</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function saveZone(e, id) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      
+      try {
+        const { error } = await supabaseClient
+          .from('zones_service')
+          .update({
+            nom: formData.get('nom'),
+            code_postal: formData.get('code_postal'),
+            montant_minimum: parseFloat(formData.get('montant_minimum')),
+            frais_service: parseFloat(formData.get('frais_service')),
+            type_zone: formData.get('type_zone'),
+            actif: formData.get('actif') === 'on'
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+        
+        alert('✅ Zone mise à jour');
+        closeModal('modal-edit');
+        loadZones();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    }
+
+    async function deleteZone(id) {
+      if (!confirm('Supprimer cette zone? Cette action est irréversible.')) return;
+      
+      try {
+        const { error } = await supabaseClient
+          .from('zones_service')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+        alert('✅ Zone supprimée');
+        loadZones();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    }
+
+    // ✅ ÉDITION FAMILLE
+    async function editFamille(id) {
+      const famille = familles.find(f => f.id === id);
+      if (!famille) return;
+
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>✏️ Modifier la famille</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="saveFamille(event, '${id}')">
+            <div class="form-group">
+              <label>Nom *</label>
+              <input type="text" name="nom" value="${famille.nom}" required>
+            </div>
+            <div class="form-group">
+              <label>Position *</label>
+              <input type="number" name="position" value="${famille.position}" required>
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group">
+                <input type="checkbox" name="actif" ${famille.actif ? 'checked' : ''}>
+                <label>Actif</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function saveFamille(e, id) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      
+      try {
+        const { error } = await supabaseClient
+          .from('produit_familles')
+          .update({
+            nom: formData.get('nom'),
+            position: parseInt(formData.get('position')),
+            actif: formData.get('actif') === 'on'
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+        
+        alert('✅ Famille mise à jour');
+        closeModal('modal-edit');
+        loadFamilles();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    }
+
+    async function deleteFamille(id) {
+      if (!confirm('Supprimer cette famille? Cette action est irréversible.')) return;
+      
+      try {
+        const { error } = await supabaseClient
+          .from('produit_familles')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+        alert('✅ Famille supprimée');
+        loadFamilles();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    }
+
+    // ✅ ÉDITION CLIENT AVEC ADRESSES
+    async function editClient(id) {
+      const client = clients.find(c => c.id === id);
+      if (!client) return;
+
+      let adressesHtml = '';
+      if (client.adresses && client.adresses.length > 0) {
+        adressesHtml = `
+          <div class="adresses-list">
+            <strong>📍 Adresses enregistrées:</strong>
+            ${client.adresses.map(adr => `
+              <div class="adresse-item">
+                <div><strong>${adr.nom || 'Sans nom'}</strong></div>
+                <div style="font-size: 12px; color: #666;">
+                  ${adr.rue || ''}<br>
+                  ${adr.code_postal || ''} ${adr.ville || adr.Ville || ''}
+                  ${adr.instructions_acces ? '<br>🔑 ' + adr.instructions_acces : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        adressesHtml = '<div style="color: #999; font-size: 14px; margin-top: 12px;">Aucune adresse enregistrée</div>';
+      }
+
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>✏️ Modifier le client</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="saveClient(event, '${id}')">
+            <div class="form-group">
+              <label>Nom *</label>
+              <input type="text" name="nom" value="${client.nom || ''}" required>
+            </div>
+            <div class="form-group">
+              <label>Téléphone *</label>
+              <input type="tel" name="telephone" value="${client.telephone}" required>
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" name="email" value="${client.email || ''}">
+            </div>
+            <div class="form-group">
+              <label>Segment</label>
+              <select name="segment">
+                <option value="nouveau" ${client.segment === 'nouveau' ? 'selected' : ''}>Nouveau</option>
+                <option value="regulier" ${client.segment === 'regulier' ? 'selected' : ''}>Régulier</option>
+                <option value="vip" ${client.segment === 'vip' ? 'selected' : ''}>VIP</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Points de fidélité</label>
+              <input type="number" name="points" value="${client.points || 0}">
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group">
+                <input type="checkbox" name="actif" ${client.actif ? 'checked' : ''}>
+                <label>Actif</label>
+              </div>
+            </div>
+            ${adressesHtml}
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function saveClient(e, id) {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      
+      try {
+        const { error } = await supabaseClient
+          .from('client')
+          .update({
+            nom: formData.get('nom'),
+            telephone: formData.get('telephone'),
+            email: formData.get('email') || null,
+            segment: formData.get('segment'),
+            points: parseInt(formData.get('points')),
+            actif: formData.get('actif') === 'on'
+          })
+          .eq('id', id);
+
+        if (error) throw error;
+        
+        alert('✅ Client mis à jour');
+        closeModal('modal-edit');
+        loadClients();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
     }
 
     // ========================================
