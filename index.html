@@ -643,9 +643,6 @@
           <div class="toolbar">
             <select id="filter-attr-categorie" onchange="loadAttributs()">
               <option value="">Toutes catégories</option>
-              <option value="viande">Viandes</option>
-              <option value="fromage">Fromages</option>
-              <option value="sauce">Sauces</option>
             </select>
           </div>
           <div id="attributs-table"></div>
@@ -669,9 +666,6 @@
             <input type="text" id="search-clients" placeholder="Rechercher..." style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
             <select id="filter-segment" onchange="loadClients()">
               <option value="">Tous segments</option>
-              <option value="nouveau">Nouveau</option>
-              <option value="regulier">Régulier</option>
-              <option value="vip">VIP</option>
             </select>
           </div>
           <button class="btn btn-secondary" onclick="loadClients()">🔄 Actualiser</button>
@@ -1219,8 +1213,14 @@
         if (error) throw error;
         attributs = data || [];
 
-        const catFilter = document.getElementById('filter-attr-categorie').value;
-        const filtered = catFilter ? attributs.filter(a => a.categorie.toLowerCase() === catFilter) : attributs;
+        // ✅ Générer le filtre catégorie dynamiquement
+        const categories = [...new Set(attributs.map(a => a.categorie).filter(Boolean))];
+        const catFilter = document.getElementById('filter-attr-categorie');
+        const currentValue = catFilter.value;
+        catFilter.innerHTML = '<option value="">Toutes catégories</option>' +
+          categories.map(c => `<option value="${c}" ${c === currentValue ? 'selected' : ''}>${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
+
+        const filtered = currentValue ? attributs.filter(a => a.categorie.toLowerCase() === currentValue) : attributs;
 
         const html = `
           <div class="table-container">
@@ -1370,6 +1370,7 @@
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
       try {
+        // Charger tous les clients
         let query = supabaseClient
           .from('client')
           .select('*')
@@ -1383,6 +1384,13 @@
         if (error) throw error;
         
         clients = data || [];
+
+        // ✅ Générer le filtre segment dynamiquement
+        const segments = [...new Set(clients.map(c => c.segment).filter(Boolean))];
+        const segmentFilter = document.getElementById('filter-segment');
+        const currentValue = segmentFilter.value;
+        segmentFilter.innerHTML = '<option value="">Tous segments</option>' +
+          segments.map(s => `<option value="${s}" ${s === currentValue ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('');
 
         const search = document.getElementById('search-clients').value.toLowerCase();
         const filtered = clients.filter(c => 
@@ -1601,6 +1609,10 @@
 
     // ✅ AJOUTER ATTRIBUT
     async function openAddAttribut() {
+      // Charger les catégories existantes
+      const categories = [...new Set(attributs.map(a => a.categorie).filter(Boolean))];
+      const categoriesOptions = categories.map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
+
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -1615,11 +1627,10 @@
             </div>
             <div class="form-group">
               <label>Catégorie *</label>
-              <select name="categorie" required>
-                <option value="viande">Viande</option>
-                <option value="fromage">Fromage</option>
-                <option value="sauce">Sauce</option>
-              </select>
+              <input type="text" name="categorie" list="categories-list" required>
+              <datalist id="categories-list">
+                ${categoriesOptions}
+              </datalist>
             </div>
             <div class="form-group">
               <label>Prix supplément (€)</label>
@@ -1948,6 +1959,10 @@
       const attribut = attributs.find(a => a.id === id);
       if (!attribut) return;
 
+      // Charger les catégories existantes
+      const categories = [...new Set(attributs.map(a => a.categorie).filter(Boolean))];
+      const categoriesOptions = categories.map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
+
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -1962,11 +1977,10 @@
             </div>
             <div class="form-group">
               <label>Catégorie *</label>
-              <select name="categorie" required>
-                <option value="viande" ${attribut.categorie === 'viande' ? 'selected' : ''}>Viande</option>
-                <option value="fromage" ${attribut.categorie === 'fromage' ? 'selected' : ''}>Fromage</option>
-                <option value="sauce" ${attribut.categorie === 'sauce' ? 'selected' : ''}>Sauce</option>
-              </select>
+              <input type="text" name="categorie" value="${attribut.categorie}" list="categories-list" required>
+              <datalist id="categories-list">
+                ${categoriesOptions}
+              </datalist>
             </div>
             <div class="form-group">
               <label>Prix supplément (€)</label>
@@ -2219,37 +2233,98 @@
       }
     }
 
-    // ✅ ÉDITION CLIENT
+    // ✅ ÉDITION CLIENT AVEC ADRESSES
     async function editClient(id) {
       const client = clients.find(c => c.id === id);
       if (!client) return;
 
-      // Charger les adresses séparément
-      const { data: adresses } = await supabaseClient
+      // Charger les adresses de la table adresse_clients
+      const { data: adressesClients } = await supabaseClient
         .from('adresse_clients')
         .select('*')
         .eq('client_id', id);
 
+      // Charger les adresses uniques des commandes du client
+      const { data: commandesAdresses } = await supabaseClient
+        .from('commandes')
+        .select('adresse_livraison')
+        .eq('client_id', id)
+        .not('adresse_livraison', 'is', null);
+
       let adressesHtml = '';
-      if (adresses && adresses.length > 0) {
-        adressesHtml = `
-          <div class="adresses-list">
-            <strong>📍 Adresses enregistrées:</strong>
-            ${adresses.map(adr => `
+      let hasAdresses = false;
+
+      // Afficher derniere_adresse_livraison si elle existe
+      if (client.derniere_adresse_livraison) {
+        hasAdresses = true;
+        const adr = client.derniere_adresse_livraison;
+        adressesHtml += `
+          <div class="adresse-item">
+            <div><strong>🏠 Dernière adresse de livraison</strong></div>
+            <div style="font-size: 12px; color: #666;">
+              ${adr.nom || ''}<br>
+              ${adr.rue || ''}<br>
+              ${adr.code_postal || ''} ${adr.ville || adr.Ville || ''}
+              ${adr.instructions_acces ? '<br>🔑 ' + adr.instructions_acces : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      // Afficher les adresses de adresse_clients
+      if (adressesClients && adressesClients.length > 0) {
+        hasAdresses = true;
+        adressesClients.forEach(adr => {
+          adressesHtml += `
+            <div class="adresse-item">
+              <div><strong>📍 ${adr.nom || 'Adresse enregistrée'}</strong></div>
+              <div style="font-size: 12px; color: #666;">
+                ${adr.rue || ''}<br>
+                ${adr.code_postal || ''} ${adr.ville || adr.Ville || ''}
+                ${adr.instructions_acces ? '<br>🔑 ' + adr.instructions_acces : ''}
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      // Afficher les adresses uniques des commandes
+      if (commandesAdresses && commandesAdresses.length > 0) {
+        const adressesUniques = new Map();
+        commandesAdresses.forEach(cmd => {
+          if (cmd.adresse_livraison) {
+            const adr = cmd.adresse_livraison;
+            const key = `${adr.rue}-${adr.code_postal}-${adr.ville || adr.Ville}`;
+            if (!adressesUniques.has(key)) {
+              adressesUniques.set(key, adr);
+            }
+          }
+        });
+
+        if (adressesUniques.size > 0) {
+          hasAdresses = true;
+          adressesUniques.forEach(adr => {
+            adressesHtml += `
               <div class="adresse-item">
-                <div><strong>${adr.nom || 'Sans nom'}</strong></div>
+                <div><strong>📦 Adresse de commande</strong></div>
                 <div style="font-size: 12px; color: #666;">
+                  ${adr.nom || ''}<br>
                   ${adr.rue || ''}<br>
                   ${adr.code_postal || ''} ${adr.ville || adr.Ville || ''}
                   ${adr.instructions_acces ? '<br>🔑 ' + adr.instructions_acces : ''}
                 </div>
               </div>
-            `).join('')}
-          </div>
-        `;
-      } else {
-        adressesHtml = '<div style="color: #999; font-size: 14px; margin-top: 12px;">Aucune adresse enregistrée</div>';
+            `;
+          });
+        }
       }
+
+      const adressesDisplay = hasAdresses ? `
+        <div class="adresses-list">
+          <strong>📍 Adresses:</strong>
+          ${adressesHtml}
+        </div>
+      ` : '<div style="color: #999; font-size: 14px; margin-top: 12px;">Aucune adresse trouvée</div>';
 
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
@@ -2289,7 +2364,7 @@
                 <label>Actif</label>
               </div>
             </div>
-            ${adressesHtml}
+            ${adressesDisplay}
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
