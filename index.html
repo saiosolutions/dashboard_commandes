@@ -1595,7 +1595,7 @@
         if (currentLogFilter.statut === 'success') {
           query = query.eq('statut', 'success');
         } else if (currentLogFilter.statut === 'failure') {
-          query = query.neq('statut', 'success');
+          query = query.neq('statut', 'success') // error, warning, info;
         }
 
         const { data, error } = await query;
