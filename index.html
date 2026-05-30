@@ -1676,13 +1676,26 @@
 
     // Modale de détail d'un événement
     function openEvenementDetail(id) {
+      try {
       const evt = evenements.find(e => e.id === id);
       if (!evt) return;
 
       const d      = evt.details || {};
       const tools  = d.tools || {};
-      const adresse = typeof d.adresse === 'string' ? JSON.parse(d.adresse) : (d.adresse || null);
-      const articles = typeof d.articles === 'string' ? JSON.parse(d.articles) : (d.articles || []);
+      // Adresse : si c'est un objet → direct, si c'est une string JSON → parser,
+      // si c'est une string invalide (ex: "À EMPORTER") → null
+      const adresse = (() => {
+        if (!d.adresse) return null;
+        if (typeof d.adresse !== 'string') return d.adresse;
+        try { return JSON.parse(d.adresse); } catch { return null; }
+      })();
+      // Articles : même protection
+      const articles = (() => {
+        if (!d.articles) return [];
+        if (Array.isArray(d.articles)) return d.articles;
+        if (typeof d.articles !== 'string') return [];
+        try { return JSON.parse(d.articles); } catch { return []; }
+      })();
 
       const nom       = evt.client_nom || d.nom || null;
       const telephone = evt.client_telephone || d.telephone || null;
@@ -1853,6 +1866,11 @@
       `;
       modal.classList.add('show');
       modal.onclick = () => closeModal('modal-commande');
+
+      } catch(err) {
+        console.error('❌ Erreur openEvenementDetail:', err);
+        alert('Erreur: ' + err.message);
+      }
     }
 
     // ========================================
