@@ -549,6 +549,52 @@
     .adresse-item:last-child {
       margin-bottom: 0;
     }
+
+    /* PASTILLES ÉVÉNEMENTS */
+    .pastille-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: flex-end;
+    }
+    .pastille {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 7px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .pastille-success {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .pastille-danger {
+      background: #ffebee;
+      color: #c62828;
+    }
+    .pastille-unknown {
+      background: #f5f5f5;
+      color: #9e9e9e;
+    }
+    .pastille-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-success { background: #4caf50; }
+    .dot-danger  { background: #f44336; }
+    .dot-unknown { background: #9e9e9e; }
+
+    /* INFO MANQUANTE */
+    .info-manquante {
+      color: #f44336;
+      font-style: italic;
+      font-size: 13px;
+    }
   </style>
 </head>
 <body>
@@ -643,6 +689,9 @@
           <div class="toolbar">
             <select id="filter-attr-categorie" onchange="loadAttributs()">
               <option value="">Toutes catégories</option>
+              <option value="viande">Viandes</option>
+              <option value="fromage">Fromages</option>
+              <option value="sauce">Sauces</option>
             </select>
           </div>
           <div id="attributs-table"></div>
@@ -666,6 +715,9 @@
             <input type="text" id="search-clients" placeholder="Rechercher..." style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
             <select id="filter-segment" onchange="loadClients()">
               <option value="">Tous segments</option>
+              <option value="nouveau">Nouveau</option>
+              <option value="regulier">Régulier</option>
+              <option value="vip">VIP</option>
             </select>
           </div>
           <button class="btn btn-secondary" onclick="loadClients()">🔄 Actualiser</button>
@@ -677,16 +729,12 @@
     <!-- TAB: LOGS -->
     <div id="tab-logs" class="tab-content">
       <div class="container">
-        <div class="toolbar">
-          <div class="toolbar-left">
-            <select id="filter-log-level" onchange="loadLogs()">
-              <option value="">Tous niveaux</option>
-              <option value="info">Info</option>
-              <option value="error">Erreurs</option>
-              <option value="log">Log</option>
-            </select>
-            <input type="number" id="log-limit" value="50" min="10" max="200" style="width: 80px; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
-          </div>
+        <div class="filters">
+          <button class="btn-filter active" id="log-filter-all" onclick="setLogFilter('all')">Tous</button>
+          <button class="btn-filter" id="log-filter-today" onclick="setLogFilter('today')">Aujourd'hui</button>
+          <button class="btn-filter" id="log-filter-date" onclick="showLogDatePicker()">📅 Date</button>
+          <button class="btn-filter" id="log-filter-success" onclick="setLogStatut('success')">✅ Succès</button>
+          <button class="btn-filter" id="log-filter-failure" onclick="setLogStatut('failure')">❌ Échec</button>
           <button class="btn btn-secondary" onclick="loadLogs()">🔄 Actualiser</button>
         </div>
         <div id="logs-content"></div>
@@ -710,7 +758,9 @@
 
     let supabaseClient;
     let commandes = [];
+    let evenements = [];
     let currentFilter = {type: 'all', startDate: null, endDate: null};
+    let currentLogFilter = {type: 'all', startDate: null, endDate: null, statut: null};
     let currentTab = 'commandes';
     let currentParamSection = 'produits';
     let produits = [];
@@ -1213,14 +1263,8 @@
         if (error) throw error;
         attributs = data || [];
 
-        // ✅ Générer le filtre catégorie dynamiquement
-        const categories = [...new Set(attributs.map(a => a.categorie).filter(Boolean))];
-        const catFilter = document.getElementById('filter-attr-categorie');
-        const currentValue = catFilter.value;
-        catFilter.innerHTML = '<option value="">Toutes catégories</option>' +
-          categories.map(c => `<option value="${c}" ${c === currentValue ? 'selected' : ''}>${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
-
-        const filtered = currentValue ? attributs.filter(a => a.categorie.toLowerCase() === currentValue) : attributs;
+        const catFilter = document.getElementById('filter-attr-categorie').value;
+        const filtered = catFilter ? attributs.filter(a => a.categorie.toLowerCase() === catFilter) : attributs;
 
         const html = `
           <div class="table-container">
@@ -1370,7 +1414,6 @@
       container.innerHTML = '<div class="loading">Chargement...</div>';
 
       try {
-        // Charger tous les clients
         let query = supabaseClient
           .from('client')
           .select('*')
@@ -1384,13 +1427,6 @@
         if (error) throw error;
         
         clients = data || [];
-
-        // ✅ Générer le filtre segment dynamiquement
-        const segments = [...new Set(clients.map(c => c.segment).filter(Boolean))];
-        const segmentFilter = document.getElementById('filter-segment');
-        const currentValue = segmentFilter.value;
-        segmentFilter.innerHTML = '<option value="">Tous segments</option>' +
-          segments.map(s => `<option value="${s}" ${s === currentValue ? 'selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('');
 
         const search = document.getElementById('search-clients').value.toLowerCase();
         const filtered = clients.filter(c => 
@@ -1442,50 +1478,375 @@
     }
 
     // ========================================
-    // LOGS
+    // LOGS - ÉVÉNEMENTS POST-CALL
     // ========================================
+
+    // Formate une durée en secondes → "3min 20sec"
+    function formatDuree(seconds) {
+      if (!seconds && seconds !== 0) return 'N/A';
+      const min = Math.floor(seconds / 60);
+      const sec = seconds % 60;
+      if (min === 0) return `${sec}sec`;
+      if (sec === 0) return `${min}min`;
+      return `${min}min ${sec}sec`;
+    }
+
+    // Génère une pastille avec label et couleur selon la valeur
+    function renderPastille(value, label) {
+      // null/undefined = gris (info non dispo)
+      if (value === null || value === undefined) {
+        return `<span class="pastille pastille-unknown">
+          <span class="pastille-dot dot-unknown"></span>${label}
+        </span>`;
+      }
+      // true = vert, false = rouge
+      if (value === true) {
+        return `<span class="pastille pastille-success">
+          <span class="pastille-dot dot-success"></span>${label}
+        </span>`;
+      }
+      return `<span class="pastille pastille-danger">
+        <span class="pastille-dot dot-danger"></span>${label}
+      </span>`;
+    }
+
+    // Filtre date
+    function setLogFilter(type) {
+      currentLogFilter = {type, startDate: null, endDate: null, statut: currentLogFilter.statut};
+      document.querySelectorAll('#tab-logs .btn-filter').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('log-filter-' + type);
+      if (btn) btn.classList.add('active');
+      loadLogs();
+    }
+
+    // Filtre statut succès/échec
+    function setLogStatut(statut) {
+      // Si déjà actif, on désactive
+      if (currentLogFilter.statut === statut) {
+        currentLogFilter.statut = null;
+        document.getElementById('log-filter-success').classList.remove('active');
+        document.getElementById('log-filter-failure').classList.remove('active');
+      } else {
+        currentLogFilter.statut = statut;
+        document.getElementById('log-filter-success').classList.remove('active');
+        document.getElementById('log-filter-failure').classList.remove('active');
+        document.getElementById('log-filter-' + (statut === 'success' ? 'success' : 'failure')).classList.add('active');
+      }
+      loadLogs();
+    }
+
+    // Sélecteur de date pour les logs
+    function showLogDatePicker() {
+      const modal = document.getElementById('modal-date');
+      modal.innerHTML = `
+        <div class="date-picker-modal" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>📅 Choisir une date</h2>
+            <button class="btn-close" onclick="closeModal('modal-date')">×</button>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="log-date-single" value="${new Date().toISOString().split('T')[0]}">
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('modal-date')">Annuler</button>
+            <button class="btn btn-primary" onclick="applyLogDateFilter()">Appliquer</button>
+          </div>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-date');
+    }
+
+    function applyLogDateFilter() {
+      const dateValue = document.getElementById('log-date-single').value;
+      if (!dateValue) return;
+      currentLogFilter.type = 'date';
+      currentLogFilter.startDate = dateValue + 'T00:00:00';
+      currentLogFilter.endDate   = dateValue + 'T23:59:59';
+      document.querySelectorAll('#tab-logs .btn-filter').forEach(b => b.classList.remove('active'));
+      document.getElementById('log-filter-date').classList.add('active');
+      closeModal('modal-date');
+      loadLogs();
+    }
+
+    // Chargement principal des événements
     async function loadLogs() {
       const container = document.getElementById('logs-content');
-      container.innerHTML = '<div class="loading">Chargement des logs...</div>';
+      container.innerHTML = '<div class="loading">🔄 Chargement des événements...</div>';
 
       try {
-        const limit = parseInt(document.getElementById('log-limit').value) || 50;
-        const level = document.getElementById('filter-log-level').value;
+        let query = supabaseClient
+          .from('evenements')
+          .select('*')
+          .eq('business_id', BUSINESS_ID)
+          .order('created_at', { ascending: false })
+          .limit(100);
 
-        const url = `${SUPABASE_URL}/functions/v1/${EDGE_FUNCTION_ID}/logs?limit=${limit}`;
-        
-        const response = await fetch(url, {
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-          }
-        });
-
-        if (!response.ok) throw new Error('Impossible de charger les logs');
-        
-        const logs = await response.json();
-        
-        const filtered = level ? logs.filter(l => l.level === level) : logs;
-
-        if (filtered.length === 0) {
-          container.innerHTML = '<div class="no-data">Aucun log trouvé</div>';
-          return;
+        // Filtre date
+        if (currentLogFilter.type === 'today') {
+          const today = new Date().toISOString().split('T')[0];
+          query = query.gte('created_at', today + 'T00:00:00').lte('created_at', today + 'T23:59:59');
+        } else if (currentLogFilter.type === 'date' && currentLogFilter.startDate) {
+          query = query.gte('created_at', currentLogFilter.startDate).lte('created_at', currentLogFilter.endDate);
         }
 
-        const html = filtered.map(log => {
-          const logClass = log.level === 'error' ? 'error' : log.level === 'warn' ? 'warning' : 'info';
-          return `
-            <div class="log-entry ${logClass}">
-              <div class="log-timestamp">${formatDate(new Date(log.timestamp).toISOString())}</div>
-              <div class="log-message">${log.event_message || log.message || JSON.stringify(log)}</div>
+        // Filtre statut
+        if (currentLogFilter.statut === 'success') {
+          query = query.eq('statut', 'success');
+        } else if (currentLogFilter.statut === 'failure') {
+          query = query.neq('statut', 'success');
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        evenements = data || [];
+        renderEvenements();
+
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
+      }
+    }
+
+    // Rendu des cartes événements
+    function renderEvenements() {
+      const container = document.getElementById('logs-content');
+
+      if (evenements.length === 0) {
+        container.innerHTML = '<div class="no-data">Aucun événement trouvé</div>';
+        return;
+      }
+
+      let html = '';
+
+      evenements.forEach(evt => {
+        // Récupérer les détails (JSONB)
+        const d = evt.details || {};
+        const tools = d.tools || {};
+
+        // Infos client
+        const nom       = evt.client_nom || d.nom || null;
+        const telephone = evt.client_telephone || d.telephone || null;
+        const typeL     = d.type_livraison || null;
+        const prix      = d.prix_total || null;
+        const numero    = d.numero_commande || evt.call_id || 'N/A';
+
+        // Badge type livraison
+        const typeBadge = typeL === 'livraison' ? 'livraison' :
+                          typeL === 'a_emporter' ? 'emporter' :
+                          typeL === 'sur_place'  ? 'surplace' : 'info';
+
+        const typeText  = typeL === 'livraison'  ? `🛵 Livraison${d.adresse?.ville ? ' → ' + d.adresse.ville : ''}` :
+                          typeL === 'a_emporter' ? '🛍️ À emporter' :
+                          typeL === 'sur_place'  ? '🍽️ Sur place' : '❓ N/A';
+
+        // Pastilles (commande_validee, validate_commande, initialize_call)
+        const pastilles = `
+          <div class="pastille-container">
+            ${renderPastille(tools.commande_validee  ?? null, 'Commande validée')}
+            ${renderPastille(tools.validate_commande ?? null, 'Outil Validation')}
+            ${renderPastille(tools.initialize_call   ?? null, 'Outil Initialisation')}
+          </div>
+        `;
+
+        html += `
+          <div class="commande-card" onclick="openEvenementDetail('${evt.id}')">
+            <div class="card-header" style="align-items: flex-start;">
+              <span class="card-numero">#${numero}</span>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+                <span class="card-prix">${prix !== null ? prix + '€' : '—'}</span>
+                ${pastilles}
+              </div>
+            </div>
+            <div class="card-client">
+              👤 <strong>${nom || '<span class="info-manquante">info manquante</span>'}</strong>
+              • 📞 ${telephone || '<span class="info-manquante">info manquante</span>'}
+            </div>
+            <div>
+              <span class="badge badge-${typeBadge}">${typeText}</span>
+            </div>
+            <div class="card-date">⏰ ${formatDate(evt.created_at)}</div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Modale de détail d'un événement
+    function openEvenementDetail(id) {
+      const evt = evenements.find(e => e.id === id);
+      if (!evt) return;
+
+      const d      = evt.details || {};
+      const tools  = d.tools || {};
+      const adresse = typeof d.adresse === 'string' ? JSON.parse(d.adresse) : (d.adresse || null);
+      const articles = typeof d.articles === 'string' ? JSON.parse(d.articles) : (d.articles || []);
+
+      const nom       = evt.client_nom || d.nom || null;
+      const telephone = evt.client_telephone || d.telephone || null;
+      const typeL     = d.type_livraison || null;
+      const prix      = d.prix_total || null;
+      const numero    = d.numero_commande || evt.call_id || 'N/A';
+      const duree     = formatDuree(evt.duree_appel || d.duree_appel);
+      const credits   = d.cout_credits ?? null;
+      const resume    = d.resume || null;
+
+      // Type livraison texte
+      const typeText = typeL === 'livraison'  ? '🛵 Livraison' :
+                       typeL === 'a_emporter' ? '🛍️ À emporter' :
+                       typeL === 'sur_place'  ? '🍽️ Sur place' : '❓ Non renseigné';
+
+      // Bloc client
+      const nomHtml = nom
+        ? `<strong>${nom}</strong>`
+        : `<span class="info-manquante">⚠️ Nom manquant</span>`;
+
+      const telHtml = telephone
+        ? `<span style="color: #999;">${telephone}</span>`
+        : `<span class="info-manquante">⚠️ Téléphone manquant</span>`;
+
+      // Bloc adresse
+      let adresseHtml = '';
+      if (typeL === 'livraison') {
+        const rue  = adresse?.rue  || null;
+        const cp   = adresse?.code_postal || null;
+        const ville = adresse?.ville || null;
+
+        const rueHtml   = rue   ? rue   : `<span class="info-manquante">⚠️ Rue manquante</span>`;
+        const cpHtml    = cp    ? cp    : `<span class="info-manquante">⚠️ Code postal manquant</span>`;
+        const villeHtml = ville ? ville : `<span class="info-manquante">⚠️ Ville manquante</span>`;
+
+        adresseHtml = `
+          <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+            <strong>${typeText}</strong>
+            <div style="color: #666; font-size: 14px; line-height: 2; margin-top: 8px;">
+              ${rueHtml}<br>${cpHtml} ${villeHtml}
+            </div>
+          </div>
+        `;
+      } else {
+        adresseHtml = `
+          <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+            <strong>${typeText}</strong>
+          </div>
+        `;
+      }
+
+      // Bloc articles
+      let articlesHtml = '';
+      if (articles.length > 0) {
+        articles.forEach(item => {
+          let attrHtml = '';
+          if (item.viandes)      attrHtml += `<div style="font-size:12px;color:#666;">🥩 ${item.viandes}</div>`;
+          if (item.sauces_plat)  attrHtml += `<div style="font-size:12px;color:#666;">🍯 Plat: ${item.sauces_plat}</div>`;
+          if (item.sauces_frites)attrHtml += `<div style="font-size:12px;color:#666;">🍟 Frites: ${item.sauces_frites}</div>`;
+          if (item.fromages)     attrHtml += `<div style="font-size:12px;color:#666;">🧀 ${item.fromages}</div>`;
+          if (item.supplements)  attrHtml += `<div style="font-size:12px;color:#666;">➕ ${item.supplements}</div>`;
+          if (item.modifications)attrHtml += `<div style="font-size:12px;color:#f57c00;">💬 ${item.modifications}</div>`;
+
+          articlesHtml += `
+            <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
+              <div style="display: flex; justify-content: space-between;">
+                <span><strong>${item.quantite}x</strong> ${item.produit || item.nom}</span>
+              </div>
+              ${attrHtml}
             </div>
           `;
-        }).join('');
-
-        container.innerHTML = html;
-      } catch (error) {
-        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}<br><br>Note: L'accès aux logs nécessite des permissions spéciales sur Supabase.</div>`;
+        });
+      } else {
+        articlesHtml = '<div style="color: #999; font-size: 14px;">Aucun article enregistré</div>';
       }
+
+      // Pastilles dans la modale
+      const pastillesModal = `
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
+          ${renderPastille(tools.commande_validee  ?? null, 'Commande validée')}
+          ${renderPastille(tools.validate_commande ?? null, 'Outil Validation')}
+          ${renderPastille(tools.initialize_call   ?? null, 'Outil Initialisation')}
+        </div>
+      `;
+
+      // Bloc résumé
+      const resumeHtml = resume ? `
+        <div style="background: #e3f2fd; padding: 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #2196f3;">
+          <strong>📝 Résumé de l'appel</strong>
+          <div style="color: #555; font-size: 14px; line-height: 1.6; margin-top: 8px;">${resume}</div>
+        </div>
+      ` : '';
+
+      // Bloc infos appel
+      const infosAppelHtml = `
+        <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+          <strong>📞 Informations appel</strong>
+          <div style="margin-top: 10px; display: flex; gap: 20px; flex-wrap: wrap;">
+            <div style="font-size: 14px;">
+              ⏱️ Durée : <strong>${duree}</strong>
+            </div>
+            <div style="font-size: 14px;">
+              💳 Coût : <strong>${credits !== null ? credits + ' crédits' : 'N/A'}</strong>
+            </div>
+          </div>
+          ${pastillesModal}
+        </div>
+      `;
+
+      // Erreur si présente
+      const erreurHtml = evt.error_message ? `
+        <div style="background: #ffebee; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #f44336;">
+          <strong>❌ Erreur</strong><br>
+          <span style="font-size: 14px; color: #c62828;">${evt.error_message}</span>
+        </div>
+      ` : '';
+
+      const modal = document.getElementById('modal-commande');
+      modal.innerHTML = `
+        <div style="padding: 20px;" onclick="event.stopPropagation()">
+          <div style="background: white; border-radius: 16px; padding: 24px; max-width: 600px; margin: 0 auto;">
+
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+              <div>
+                <h2 style="margin: 0 0 4px 0;">Événement #${numero}</h2>
+                <span class="badge ${evt.statut === 'success' ? 'badge-success' : 'badge-danger'}">
+                  ${evt.statut === 'success' ? '✅ Succès' : '❌ Échec'}
+                </span>
+              </div>
+              <button onclick="closeModal('modal-commande')" style="background: none; border: none; font-size: 28px; cursor: pointer;">×</button>
+            </div>
+
+            ${erreurHtml}
+
+            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+              <strong>👤 Client</strong><br>
+              ${nomHtml}<br>${telHtml}
+            </div>
+
+            ${adresseHtml}
+
+            ${infosAppelHtml}
+
+            ${resumeHtml}
+
+            <div style="margin-bottom: 20px;">
+              <strong>📦 Articles</strong>
+              <div style="margin-top: 12px;">${articlesHtml}</div>
+            </div>
+
+            <div style="border-top: 2px solid #ddd; padding-top: 16px; font-size: 20px; font-weight: bold; text-align: right;">
+              Total : ${prix !== null ? prix + '€' : '<span class="info-manquante">info manquante</span>'}
+            </div>
+
+            <div style="margin-top: 20px; font-size: 13px; color: #999;">
+              <div>Enregistré le : ${formatDate(evt.created_at)}</div>
+              <div>Type : ${evt.type_evenement || 'N/A'}</div>
+            </div>
+
+          </div>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-commande');
     }
 
     // ========================================
@@ -1609,10 +1970,6 @@
 
     // ✅ AJOUTER ATTRIBUT
     async function openAddAttribut() {
-      // Charger les catégories existantes
-      const categories = [...new Set(attributs.map(a => a.categorie).filter(Boolean))];
-      const categoriesOptions = categories.map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
-
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -1627,10 +1984,11 @@
             </div>
             <div class="form-group">
               <label>Catégorie *</label>
-              <input type="text" name="categorie" list="categories-list" required>
-              <datalist id="categories-list">
-                ${categoriesOptions}
-              </datalist>
+              <select name="categorie" required>
+                <option value="viande">Viande</option>
+                <option value="fromage">Fromage</option>
+                <option value="sauce">Sauce</option>
+              </select>
             </div>
             <div class="form-group">
               <label>Prix supplément (€)</label>
@@ -1959,10 +2317,6 @@
       const attribut = attributs.find(a => a.id === id);
       if (!attribut) return;
 
-      // Charger les catégories existantes
-      const categories = [...new Set(attributs.map(a => a.categorie).filter(Boolean))];
-      const categoriesOptions = categories.map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('');
-
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -1977,10 +2331,11 @@
             </div>
             <div class="form-group">
               <label>Catégorie *</label>
-              <input type="text" name="categorie" value="${attribut.categorie}" list="categories-list" required>
-              <datalist id="categories-list">
-                ${categoriesOptions}
-              </datalist>
+              <select name="categorie" required>
+                <option value="viande" ${attribut.categorie === 'viande' ? 'selected' : ''}>Viande</option>
+                <option value="fromage" ${attribut.categorie === 'fromage' ? 'selected' : ''}>Fromage</option>
+                <option value="sauce" ${attribut.categorie === 'sauce' ? 'selected' : ''}>Sauce</option>
+              </select>
             </div>
             <div class="form-group">
               <label>Prix supplément (€)</label>
@@ -2233,98 +2588,37 @@
       }
     }
 
-    // ✅ ÉDITION CLIENT AVEC ADRESSES
+    // ✅ ÉDITION CLIENT
     async function editClient(id) {
       const client = clients.find(c => c.id === id);
       if (!client) return;
 
-      // Charger les adresses de la table adresse_clients
-      const { data: adressesClients } = await supabaseClient
+      // Charger les adresses séparément
+      const { data: adresses } = await supabaseClient
         .from('adresse_clients')
         .select('*')
         .eq('client_id', id);
 
-      // Charger les adresses uniques des commandes du client
-      const { data: commandesAdresses } = await supabaseClient
-        .from('commandes')
-        .select('adresse_livraison')
-        .eq('client_id', id)
-        .not('adresse_livraison', 'is', null);
-
       let adressesHtml = '';
-      let hasAdresses = false;
-
-      // Afficher derniere_adresse_livraison si elle existe
-      if (client.derniere_adresse_livraison) {
-        hasAdresses = true;
-        const adr = client.derniere_adresse_livraison;
-        adressesHtml += `
-          <div class="adresse-item">
-            <div><strong>🏠 Dernière adresse de livraison</strong></div>
-            <div style="font-size: 12px; color: #666;">
-              ${adr.nom || ''}<br>
-              ${adr.rue || ''}<br>
-              ${adr.code_postal || ''} ${adr.ville || adr.Ville || ''}
-              ${adr.instructions_acces ? '<br>🔑 ' + adr.instructions_acces : ''}
-            </div>
-          </div>
-        `;
-      }
-
-      // Afficher les adresses de adresse_clients
-      if (adressesClients && adressesClients.length > 0) {
-        hasAdresses = true;
-        adressesClients.forEach(adr => {
-          adressesHtml += `
-            <div class="adresse-item">
-              <div><strong>📍 ${adr.nom || 'Adresse enregistrée'}</strong></div>
-              <div style="font-size: 12px; color: #666;">
-                ${adr.rue || ''}<br>
-                ${adr.code_postal || ''} ${adr.ville || adr.Ville || ''}
-                ${adr.instructions_acces ? '<br>🔑 ' + adr.instructions_acces : ''}
-              </div>
-            </div>
-          `;
-        });
-      }
-
-      // Afficher les adresses uniques des commandes
-      if (commandesAdresses && commandesAdresses.length > 0) {
-        const adressesUniques = new Map();
-        commandesAdresses.forEach(cmd => {
-          if (cmd.adresse_livraison) {
-            const adr = cmd.adresse_livraison;
-            const key = `${adr.rue}-${adr.code_postal}-${adr.ville || adr.Ville}`;
-            if (!adressesUniques.has(key)) {
-              adressesUniques.set(key, adr);
-            }
-          }
-        });
-
-        if (adressesUniques.size > 0) {
-          hasAdresses = true;
-          adressesUniques.forEach(adr => {
-            adressesHtml += `
+      if (adresses && adresses.length > 0) {
+        adressesHtml = `
+          <div class="adresses-list">
+            <strong>📍 Adresses enregistrées:</strong>
+            ${adresses.map(adr => `
               <div class="adresse-item">
-                <div><strong>📦 Adresse de commande</strong></div>
+                <div><strong>${adr.nom || 'Sans nom'}</strong></div>
                 <div style="font-size: 12px; color: #666;">
-                  ${adr.nom || ''}<br>
                   ${adr.rue || ''}<br>
                   ${adr.code_postal || ''} ${adr.ville || adr.Ville || ''}
                   ${adr.instructions_acces ? '<br>🔑 ' + adr.instructions_acces : ''}
                 </div>
               </div>
-            `;
-          });
-        }
+            `).join('')}
+          </div>
+        `;
+      } else {
+        adressesHtml = '<div style="color: #999; font-size: 14px; margin-top: 12px;">Aucune adresse enregistrée</div>';
       }
-
-      const adressesDisplay = hasAdresses ? `
-        <div class="adresses-list">
-          <strong>📍 Adresses:</strong>
-          ${adressesHtml}
-        </div>
-      ` : '<div style="color: #999; font-size: 14px; margin-top: 12px;">Aucune adresse trouvée</div>';
 
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
@@ -2364,7 +2658,7 @@
                 <label>Actif</label>
               </div>
             </div>
-            ${adressesDisplay}
+            ${adressesHtml}
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
