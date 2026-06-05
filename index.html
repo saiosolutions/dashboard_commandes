@@ -667,8 +667,9 @@
               <option value="attributs">Attributs</option>
               <option value="zones">Zones de livraison</option>
               <option value="familles">Familles de produits</option>
+              <option value="messages">Messages d'accueil</option>
             </select>
-            <button class="btn btn-primary" onclick="openAddModal()">➕ Ajouter</button>
+            <button class="btn btn-primary" id="btn-add-param" onclick="openAddModal()">➕ Ajouter</button>
           </div>
           <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
         </div>
@@ -703,6 +704,10 @@
         
         <div id="param-familles" class="param-section" style="display:none;">
           <div id="familles-table"></div>
+        </div>
+
+        <div id="param-messages" class="param-section" style="display:none;">
+          <div id="messages-content"></div>
         </div>
       </div>
     </div>
@@ -1158,6 +1163,13 @@
       currentParamSection = section;
       document.querySelectorAll('.param-section').forEach(s => s.style.display = 'none');
       document.getElementById('param-' + section).style.display = 'block';
+
+      // Masquer le bouton "Ajouter" sur la section Messages d'accueil
+      const btnAdd = document.getElementById('btn-add-param');
+      if (btnAdd) {
+        btnAdd.style.display = (section === 'messages') ? 'none' : '';
+      }
+
       loadParamData();
     }
 
@@ -1166,6 +1178,7 @@
       else if (currentParamSection === 'attributs') await loadAttributs();
       else if (currentParamSection === 'zones') await loadZones();
       else if (currentParamSection === 'familles') await loadFamilles();
+      else if (currentParamSection === 'messages') await loadMessagesAccueil();
     }
 
     async function loadProduits() {
@@ -1870,6 +1883,85 @@
       } catch(err) {
         console.error('❌ Erreur openEvenementDetail:', err);
         alert('Erreur: ' + err.message);
+      }
+    }
+
+    // ========================================
+    // ✅ MESSAGES D'ACCUEIL
+    // ========================================
+    async function loadMessagesAccueil() {
+      const container = document.getElementById('messages-content');
+      container.innerHTML = '<div class="loading">🔄 Chargement...</div>';
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('business')
+          .select('messages_accueil')
+          .eq('id', BUSINESS_ID)
+          .single();
+
+        if (error) throw error;
+
+        const m = data.messages_accueil || {};
+
+        // Échappe les chevrons pour un affichage correct dans les textarea
+        const esc = (txt) => (txt || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        container.innerHTML = `
+          <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 800px;">
+            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
+              💡 Ces phrases sont dites par l'assistant vocal dès le décrochage.
+              Utilisez <strong>{{nom_client}}</strong> pour insérer le nom du client.
+            </p>
+
+            <div class="form-group">
+              <label>✅ Ouvert — Client connu</label>
+              <textarea id="msg-ouvert_connu" style="min-height: 70px;">${esc(m.ouvert_connu)}</textarea>
+            </div>
+
+            <div class="form-group">
+              <label>✅ Ouvert — Client inconnu</label>
+              <textarea id="msg-ouvert_inconnu" style="min-height: 70px;">${esc(m.ouvert_inconnu)}</textarea>
+            </div>
+
+            <div class="form-group">
+              <label>🌙 Fermé — Client connu</label>
+              <textarea id="msg-ferme_connu" style="min-height: 70px;">${esc(m.ferme_connu)}</textarea>
+            </div>
+
+            <div class="form-group">
+              <label>🌙 Fermé — Client inconnu</label>
+              <textarea id="msg-ferme_inconnu" style="min-height: 70px;">${esc(m.ferme_inconnu)}</textarea>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveMessagesAccueil()">💾 Enregistrer</button>
+            </div>
+          </div>
+        `;
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
+      }
+    }
+
+    async function saveMessagesAccueil() {
+      const messages = {
+        ouvert_connu:   document.getElementById('msg-ouvert_connu').value.trim(),
+        ouvert_inconnu: document.getElementById('msg-ouvert_inconnu').value.trim(),
+        ferme_connu:    document.getElementById('msg-ferme_connu').value.trim(),
+        ferme_inconnu:  document.getElementById('msg-ferme_inconnu').value.trim()
+      };
+
+      try {
+        const { error } = await supabaseClient
+          .from('business')
+          .update({ messages_accueil: messages })
+          .eq('id', BUSINESS_ID);
+
+        if (error) throw error;
+        alert('✅ Messages d\'accueil enregistrés');
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
       }
     }
 
