@@ -16,7 +16,7 @@
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
     }
-    
+
     /* LOGIN SCREEN */
     .login-container {
       min-height: 100vh;
@@ -98,7 +98,7 @@
       font-size: 14px;
       text-align: center;
     }
-    
+
     /* DASHBOARD */
     .dashboard {
       display: none;
@@ -108,7 +108,7 @@
     .dashboard.show {
       display: block;
     }
-    
+
     /* HEADER */
     .header {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -141,7 +141,7 @@
     .btn-logout:hover {
       background: rgba(255,255,255,0.3);
     }
-    
+
     /* TABS */
     .tabs {
       display: flex;
@@ -170,14 +170,14 @@
       border-bottom-color: #667eea;
       background: linear-gradient(to bottom, #f8f9fa, white);
     }
-    
+
     /* CONTAINER */
     .container {
       max-width: 1400px;
       margin: 0 auto;
       padding: 20px;
     }
-    
+
     /* TAB CONTENT */
     .tab-content {
       display: none;
@@ -185,7 +185,7 @@
     .tab-content.active {
       display: block;
     }
-    
+
     /* BUTTONS */
     .btn {
       padding: 10px 20px;
@@ -221,7 +221,7 @@
       padding: 6px 12px;
       font-size: 12px;
     }
-    
+
     /* TOOLBAR */
     .toolbar {
       display: flex;
@@ -236,7 +236,7 @@
       gap: 10px;
       flex-wrap: wrap;
     }
-    
+
     /* TABLE */
     .table-container {
       background: white;
@@ -267,7 +267,7 @@
     tbody tr:hover {
       background: #f8f9fa;
     }
-    
+
     /* BADGE */
     .badge {
       display: inline-block;
@@ -302,7 +302,7 @@
       color: #f57c00;
       font-weight: bold;
     }
-    
+
     /* MODAL */
     .modal {
       display: none;
@@ -386,21 +386,21 @@
       justify-content: flex-end;
       margin-top: 24px;
     }
-    
+
     /* LOADING */
     .loading {
       text-align: center;
       padding: 40px;
       color: #666;
     }
-    
+
     /* NO DATA */
     .no-data {
       text-align: center;
       padding: 40px;
       color: #999;
     }
-    
+
     /* COMMANDE CARD (pour onglet commandes) */
     .commande-card {
       background: white;
@@ -446,7 +446,7 @@
       background: #f3e5f5;
       color: #7b1fa2;
     }
-    
+
     /* FILTERS */
     .filters {
       display: flex;
@@ -478,7 +478,7 @@
       border-color: #667eea;
       box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
     }
-    
+
     /* LOG VIEWER */
     .log-entry {
       background: white;
@@ -510,7 +510,7 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
-    
+
     /* CHECKBOX */
     .checkbox-group {
       display: flex;
@@ -589,6 +589,30 @@
     .dot-danger  { background: #f44336; }
     .dot-unknown { background: #9e9e9e; }
 
+    /* 🆕 PASTILLE + BADGE "À VÉRIFIER" (ajout V10, ne touche pas à l'existant) */
+    .pastille-warning {
+      background: #fff3e0;
+      color: #e65100;
+    }
+    .dot-warning { background: #ff9800; }
+    .badge-averifier {
+      background: #fff3e0;
+      color: #e65100;
+      font-weight: bold;
+    }
+    .anomalie-box {
+      background: #fff3e0;
+      border-left: 4px solid #ff9800;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .anomalie-item {
+      font-size: 14px;
+      color: #e65100;
+      padding: 3px 0;
+    }
+
     /* INFO MANQUANTE */
     .info-manquante {
       color: #f44336;
@@ -604,15 +628,15 @@
       <div class="login-logo">🔒</div>
       <h1 class="login-title">L'Oasis Admin</h1>
       <p class="login-subtitle">Interface d'administration</p>
-      
+
       <div id="login-error"></div>
-      
+
       <form onsubmit="handleLogin(event)">
         <div class="input-group">
           <label for="password">Mot de passe</label>
-          <input 
-            type="password" 
-            id="password" 
+          <input
+            type="password"
+            id="password"
             placeholder="Entrez le mot de passe"
             required
           >
@@ -673,7 +697,7 @@
           </div>
           <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
         </div>
-        
+
         <div id="param-produits" class="param-section">
           <div class="toolbar">
             <div class="toolbar-left">
@@ -685,7 +709,7 @@
           </div>
           <div id="produits-table"></div>
         </div>
-        
+
         <div id="param-attributs" class="param-section" style="display:none;">
           <div class="toolbar">
             <select id="filter-attr-categorie" onchange="loadAttributs()">
@@ -697,11 +721,11 @@
           </div>
           <div id="attributs-table"></div>
         </div>
-        
+
         <div id="param-zones" class="param-section" style="display:none;">
           <div id="zones-table"></div>
         </div>
-        
+
         <div id="param-familles" class="param-section" style="display:none;">
           <div id="familles-table"></div>
         </div>
@@ -786,26 +810,26 @@
     async function handleLogin(e) {
       e.preventDefault();
       const password = document.getElementById('password').value;
-      
+
       console.log('🔐 Tentative de connexion...');
       console.log('📝 Mot de passe saisi:', password);
-      
+
       try {
         const hash = await sha256(password);
         console.log('🔑 Hash généré:', hash);
         console.log('🎯 Hash attendu:', PASSWORD_HASH);
         console.log('✅ Match?', hash === PASSWORD_HASH);
-        
+
         if (hash === PASSWORD_HASH) {
           localStorage.setItem('loasis_logged_in', 'true');
           showDashboard();
         } else {
-          document.getElementById('login-error').innerHTML = 
+          document.getElementById('login-error').innerHTML =
             '<div class="error-message">❌ Mot de passe incorrect<br>Mot de passe par défaut: loasis2024</div>';
         }
       } catch (error) {
         console.error('❌ Erreur:', error);
-        document.getElementById('login-error').innerHTML = 
+        document.getElementById('login-error').innerHTML =
           '<div class="error-message">❌ Erreur: ' + error.message + '</div>';
       }
     }
@@ -836,10 +860,10 @@
       currentTab = tab;
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
+
       event.target.classList.add('active');
       document.getElementById('tab-' + tab).classList.add('active');
-      
+
       if (tab === 'commandes') loadCommandes();
       else if (tab === 'parametrages') loadParamData();
       else if (tab === 'clients') loadClients();
@@ -852,7 +876,7 @@
     async function loadCommandes() {
       const content = document.getElementById('commandes-content');
       content.innerHTML = '<div class="loading">🔄 Chargement...</div>';
-      
+
       try {
         let query = supabaseClient
           .from('commandes')
@@ -879,7 +903,7 @@
 
         const { data, error } = await query.limit(100);
         if (error) throw error;
-        
+
         commandes = data || [];
         renderCommandes();
       } catch (error) {
@@ -958,7 +982,7 @@
       currentFilter = {type: 'custom', startDate, endDate};
       document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
       document.getElementById('filter-date').classList.add('active');
-      
+
       closeModal('modal-date');
       loadCommandes();
     }
@@ -966,28 +990,28 @@
     function applyDateRangeFilter() {
       const startValue = document.getElementById('date-start').value;
       const endValue = document.getElementById('date-end').value;
-      
+
       if (!startValue || !endValue) {
         alert('Veuillez remplir les deux dates');
         return;
       }
 
       currentFilter = {
-        type: 'range', 
+        type: 'range',
         startDate: startValue + 'T00:00:00',
         endDate: endValue + 'T23:59:59'
       };
-      
+
       document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
       document.getElementById('filter-range').classList.add('active');
-      
+
       closeModal('modal-date');
       loadCommandes();
     }
 
     function renderCommandes() {
       const content = document.getElementById('commandes-content');
-      
+
       if (commandes.length === 0) {
         content.innerHTML = '<div class="no-data">Aucune commande</div>';
         return;
@@ -995,19 +1019,19 @@
 
       let html = '';
       commandes.forEach(cmd => {
-        const typeBadge = cmd.type_livraison === 'livraison' ? 'livraison' : 
+        const typeBadge = cmd.type_livraison === 'livraison' ? 'livraison' :
                          cmd.type_livraison === 'a_emporter' ? 'emporter' : 'surplace';
-        
-        const typeText = cmd.type_livraison === 'livraison' ? 
+
+        const typeText = cmd.type_livraison === 'livraison' ?
           `🛵 Livraison${cmd.adresse_livraison?.ville ? ' → ' + cmd.adresse_livraison.ville : ''}` :
           cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
 
         const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
         const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
-        
+
         const callerId = cmd.adresse_livraison?.caller_id;
         const telDeclare = cmd.adresse_livraison?.telephone;
-        
+
         let warningBadge = '';
         if (callerId === 'anonymous') {
           warningBadge = '<span class="badge badge-anonymous">⚠️ ANONYMOUS</span> ';
@@ -1071,12 +1095,12 @@
 
       const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
       const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
-      
+
       const callerId = cmd.adresse_livraison?.caller_id;
       const telDeclare = cmd.adresse_livraison?.telephone;
-      
+
       let clientInfoHtml = `${nomClient}<br><span style="color: #999;">${telClient}</span>`;
-      
+
       if (callerId === 'anonymous') {
         clientInfoHtml = `
           <span class="badge badge-anonymous" style="display: inline-block; margin-bottom: 8px;">⚠️ ANONYMOUS</span><br>
@@ -1210,7 +1234,7 @@
     function renderProduitsTable() {
       const search = (document.getElementById('search-produits')?.value || '').toLowerCase();
       const catFilter = document.getElementById('filter-categorie')?.value || '';
-      
+
       let filtered = produits.filter(p => {
         const matchSearch = !search || p.nom.toLowerCase().includes(search);
         const matchCat = !catFilter || p.categorie === catFilter;
@@ -1232,7 +1256,7 @@
               </tr>
             </thead>
             <tbody>
-              ${filtered.length === 0 ? '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #999;">Aucun produit trouvé</td></tr>' : 
+              ${filtered.length === 0 ? '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #999;">Aucun produit trouvé</td></tr>' :
                 filtered.map(p => `
                 <tr>
                   <td><strong>${p.nom}</strong></td>
@@ -1253,7 +1277,7 @@
       `;
 
       document.getElementById('produits-table').innerHTML = html;
-      
+
       const searchInput = document.getElementById('search-produits');
       if (searchInput) {
         searchInput.removeEventListener('input', renderProduitsTable);
@@ -1438,13 +1462,13 @@
 
         const { data, error } = await query.limit(200);
         if (error) throw error;
-        
+
         clients = data || [];
 
         const search = document.getElementById('search-clients').value.toLowerCase();
-        const filtered = clients.filter(c => 
-          !search || 
-          c.nom?.toLowerCase().includes(search) || 
+        const filtered = clients.filter(c =>
+          !search ||
+          c.nom?.toLowerCase().includes(search) ||
           c.telephone?.includes(search) ||
           c.email?.toLowerCase().includes(search)
         );
@@ -1622,7 +1646,7 @@
       }
     }
 
-    // Rendu des cartes événements
+    // Rendu des cartes événements (format V10 : anomalies + statut a_verifier)
     function renderEvenements() {
       const container = document.getElementById('logs-content');
 
@@ -1634,16 +1658,33 @@
       let html = '';
 
       evenements.forEach(evt => {
-        // Récupérer les détails (JSONB)
-        const d = evt.details || {};
-        const tools = d.tools || {};
+        // Récupérer les détails (JSONB, peut être objet ou string)
+        let d = evt.details || {};
+        if (typeof d === 'string') { try { d = JSON.parse(d); } catch { d = {}; } }
 
         // Infos client
         const nom       = evt.client_nom || d.nom || null;
         const telephone = evt.client_telephone || d.telephone || null;
         const typeL     = d.type_livraison || null;
-        const prix      = d.prix_total || null;
         const numero    = d.numero_commande || evt.call_id || 'N/A';
+
+        // Anomalies + commande créée (format V10), avec repli sur ancien format
+        const anomalies = Array.isArray(d.anomalies) ? d.anomalies : [];
+        const commandeCreee = d.commande_creee === true;
+
+        // Prix : montant annoncé au client (V10), repli sur prix_total (ancien)
+        const prix = d.montant_annonce != null ? d.montant_annonce
+                   : (d.prix_total != null ? d.prix_total : null);
+
+        // Badge statut : success / a_verifier / error
+        let statutBadge;
+        if (evt.statut === 'success') {
+          statutBadge = '<span class="badge badge-success">✅ Validée</span>';
+        } else if (evt.statut === 'a_verifier') {
+          statutBadge = '<span class="badge badge-averifier">⚠️ À vérifier</span>';
+        } else {
+          statutBadge = '<span class="badge badge-danger">❌ Échec</span>';
+        }
 
         // Badge type livraison
         const typeBadge = typeL === 'livraison' ? 'livraison' :
@@ -1654,12 +1695,18 @@
                           typeL === 'a_emporter' ? '🛍️ À emporter' :
                           typeL === 'sur_place'  ? '🍽️ Sur place' : '❓ N/A';
 
-        // Pastilles (commande_validee, validate_commande, initialize_call)
+        // Confirmation : true sauf si "false" explicite, null si absent
+        const confirmeeBrut = d.commande_confirmee_brut;
+        const confirmeeVal = confirmeeBrut == null ? null : (String(confirmeeBrut).toLowerCase() !== 'false');
+
+        // Pastilles format V10 + compteur d'anomalies
         const pastilles = `
           <div class="pastille-container">
-            ${renderPastille(tools.commande_validee  ?? null, 'Commande validée')}
-            ${renderPastille(tools.validate_commande ?? null, 'Outil Validation')}
-            ${renderPastille(tools.initialize_call   ?? null, 'Outil Initialisation')}
+            ${renderPastille(commandeCreee, 'Commande créée')}
+            ${renderPastille(confirmeeVal, 'Confirmée')}
+            ${anomalies.length > 0
+              ? `<span class="pastille pastille-warning"><span class="pastille-dot dot-warning"></span>${anomalies.length} à vérifier</span>`
+              : ''}
           </div>
         `;
 
@@ -1669,6 +1716,7 @@
               <span class="card-numero">#${numero}</span>
               <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
                 <span class="card-prix">${prix !== null ? prix + '€' : '—'}</span>
+                ${statutBadge}
                 ${pastilles}
               </div>
             </div>
@@ -1693,8 +1741,9 @@
       const evt = evenements.find(e => e.id === id);
       if (!evt) return;
 
-      const d      = evt.details || {};
-      const tools  = d.tools || {};
+      let d = evt.details || {};
+      if (typeof d === 'string') { try { d = JSON.parse(d); } catch { d = {}; } }
+      const anomalies = Array.isArray(d.anomalies) ? d.anomalies : [];
       // Adresse : si c'est un objet → direct, si c'est une string JSON → parser,
       // si c'est une string invalide (ex: "À EMPORTER") → null
       const adresse = (() => {
@@ -1713,7 +1762,7 @@
       const nom       = evt.client_nom || d.nom || null;
       const telephone = evt.client_telephone || d.telephone || null;
       const typeL     = d.type_livraison || null;
-      const prix      = d.prix_total || null;
+      const prix      = d.montant_annonce != null ? d.montant_annonce : (d.prix_total || null);
       const numero    = d.numero_commande || evt.call_id || 'N/A';
       const duree     = formatDuree(evt.duree_appel || d.duree_appel);
       const credits   = d.cout_credits ?? null;
@@ -1791,12 +1840,13 @@
         articlesHtml = '<div style="color: #999; font-size: 14px;">Aucun article enregistré</div>';
       }
 
-      // Pastilles dans la modale
+      // Pastilles dans la modale (format V10)
+      const confirmeeBrut = d.commande_confirmee_brut;
+      const confirmeeVal = confirmeeBrut == null ? null : (String(confirmeeBrut).toLowerCase() !== 'false');
       const pastillesModal = `
         <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;">
-          ${renderPastille(tools.commande_validee  ?? null, 'Commande validée')}
-          ${renderPastille(tools.validate_commande ?? null, 'Outil Validation')}
-          ${renderPastille(tools.initialize_call   ?? null, 'Outil Initialisation')}
+          ${renderPastille(d.commande_creee === true, 'Commande créée')}
+          ${renderPastille(confirmeeVal, 'Confirmée')}
         </div>
       `;
 
@@ -1840,14 +1890,23 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
               <div>
                 <h2 style="margin: 0 0 4px 0;">Événement #${numero}</h2>
-                <span class="badge ${evt.statut === 'success' ? 'badge-success' : 'badge-danger'}">
-                  ${evt.statut === 'success' ? '✅ Succès' : '❌ Échec'}
+                <span class="badge ${evt.statut === 'success' ? 'badge-success' : evt.statut === 'a_verifier' ? 'badge-averifier' : 'badge-danger'}">
+                  ${evt.statut === 'success' ? '✅ Succès' : evt.statut === 'a_verifier' ? '⚠️ À vérifier' : '❌ Échec'}
                 </span>
               </div>
               <button onclick="closeModal('modal-commande')" style="background: none; border: none; font-size: 28px; cursor: pointer;">×</button>
             </div>
 
             ${erreurHtml}
+
+            ${anomalies.length > 0 ? `
+              <div class="anomalie-box">
+                <strong>⚠️ Points à vérifier</strong>
+                <div style="margin-top: 8px;">
+                  ${anomalies.map(a => `<div class="anomalie-item">• ${a.message || a.type || 'Anomalie'}</div>`).join('')}
+                </div>
+              </div>
+            ` : ''}
 
             <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
               <strong>👤 Client</strong><br>
@@ -2057,7 +2116,7 @@
     async function createProduit(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('produits')
@@ -2075,7 +2134,7 @@
           });
 
         if (error) throw error;
-        
+
         alert('✅ Produit créé');
         closeModal('modal-edit');
         loadProduits();
@@ -2138,7 +2197,7 @@
     async function createAttribut(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('attributs')
@@ -2153,7 +2212,7 @@
           });
 
         if (error) throw error;
-        
+
         alert('✅ Attribut créé');
         closeModal('modal-edit');
         loadAttributs();
@@ -2216,7 +2275,7 @@
     async function createZone(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('zones_service')
@@ -2232,7 +2291,7 @@
           });
 
         if (error) throw error;
-        
+
         alert('✅ Zone créée');
         closeModal('modal-edit');
         loadZones();
@@ -2279,7 +2338,7 @@
     async function createFamille(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('produit_familles')
@@ -2291,7 +2350,7 @@
           });
 
         if (error) throw error;
-        
+
         alert('✅ Famille créée');
         closeModal('modal-edit');
         loadFamilles();
@@ -2303,7 +2362,7 @@
     // ========================================
     // ✅ CRUD - ÉDITION (CHAMPS CORRECTS)
     // ========================================
-    
+
     // ✅ ÉDITION PRODUIT - CHAMPS CORRECTS
     async function editProduit(id) {
       const produit = produits.find(p => p.id === id);
@@ -2384,7 +2443,7 @@
     async function saveProduit(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('produits')
@@ -2402,7 +2461,7 @@
           .eq('id', id);
 
         if (error) throw error;
-        
+
         alert('✅ Produit mis à jour');
         closeModal('modal-edit');
         loadProduits();
@@ -2413,7 +2472,7 @@
 
     async function deleteProduit(id) {
       if (!confirm('Supprimer ce produit? Cette action est irréversible.')) return;
-      
+
       try {
         const { error } = await supabaseClient
           .from('produits')
@@ -2485,7 +2544,7 @@
     async function saveAttribut(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('attributs')
@@ -2500,7 +2559,7 @@
           .eq('id', id);
 
         if (error) throw error;
-        
+
         alert('✅ Attribut mis à jour');
         closeModal('modal-edit');
         loadAttributs();
@@ -2511,7 +2570,7 @@
 
     async function deleteAttribut(id) {
       if (!confirm('Supprimer cet attribut? Cette action est irréversible.')) return;
-      
+
       try {
         const { error } = await supabaseClient
           .from('attributs')
@@ -2583,7 +2642,7 @@
     async function saveZone(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('zones_service')
@@ -2599,7 +2658,7 @@
           .eq('id', id);
 
         if (error) throw error;
-        
+
         alert('✅ Zone mise à jour');
         closeModal('modal-edit');
         loadZones();
@@ -2610,7 +2669,7 @@
 
     async function deleteZone(id) {
       if (!confirm('Supprimer cette zone? Cette action est irréversible.')) return;
-      
+
       try {
         const { error} = await supabaseClient
           .from('zones_service')
@@ -2666,7 +2725,7 @@
     async function saveFamille(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('produit_familles')
@@ -2678,7 +2737,7 @@
           .eq('id', id);
 
         if (error) throw error;
-        
+
         alert('✅ Famille mise à jour');
         closeModal('modal-edit');
         loadFamilles();
@@ -2689,7 +2748,7 @@
 
     async function deleteFamille(id) {
       if (!confirm('Supprimer cette famille? Cette action est irréversible.')) return;
-      
+
       try {
         const { error } = await supabaseClient
           .from('produit_familles')
@@ -2789,7 +2848,7 @@
     async function saveClient(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-      
+
       try {
         const { error } = await supabaseClient
           .from('client')
@@ -2804,7 +2863,7 @@
           .eq('id', id);
 
         if (error) throw error;
-        
+
         alert('✅ Client mis à jour');
         closeModal('modal-edit');
         loadClients();
