@@ -1632,7 +1632,8 @@
         if (currentLogFilter.statut === 'success') {
           query = query.eq('statut', 'success');
         } else if (currentLogFilter.statut === 'failure') {
-          query = query.neq('statut', 'success') // error, warning, info;
+          // tout sauf success (error, a_verifier)
+          query = query.neq('statut', 'success');
         }
 
         const { data, error } = await query;
@@ -1658,6 +1659,7 @@
       let html = '';
 
       evenements.forEach(evt => {
+       try {
         // Récupérer les détails (JSONB, peut être objet ou string)
         let d = evt.details || {};
         if (typeof d === 'string') { try { d = JSON.parse(d); } catch { d = {}; } }
@@ -1730,6 +1732,9 @@
             <div class="card-date">⏰ ${formatDate(evt.created_at)}</div>
           </div>
         `;
+       } catch (errEvt) {
+         console.error('⚠️ Événement ignoré (erreur rendu):', evt.id, errEvt);
+       }
       });
 
       container.innerHTML = html;
