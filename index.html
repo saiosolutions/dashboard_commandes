@@ -1131,10 +1131,17 @@
         </div>
       ` : '';
 
-      const instructionsLivraisonHtml = cmd.instructions_livraison ? `
+// Lit l'heure souhaitée dans l'objet instructions_livraison (gère objet OU string JSON)
+      let heureSouhaitee = null;
+      if (cmd.instructions_livraison) {
+        let il = cmd.instructions_livraison;
+        if (typeof il === 'string') { try { il = JSON.parse(il); } catch { il = null; } }
+        if (il && il.heure_souhaitee) heureSouhaitee = il.heure_souhaitee;
+      }
+      const instructionsLivraisonHtml = heureSouhaitee ? `
         <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #2196f3;">
-          <strong>📝 Instructions de livraison</strong><br>
-          <span style="color: #666; font-size: 14px;">${cmd.instructions_livraison}</span>
+          <strong>⏰ Heure souhaitée</strong><br>
+          <span style="color: #666; font-size: 14px;">Pour ${heureSouhaitee}</span>
         </div>
       ` : '';
 
