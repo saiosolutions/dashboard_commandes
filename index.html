@@ -1131,17 +1131,25 @@
         </div>
       ` : '';
 
-// Lit l'heure souhaitée dans l'objet instructions_livraison (gère objet OU string JSON)
+// Lit heure ET date souhaitées dans instructions_livraison (gère objet OU string JSON)
       let heureSouhaitee = null;
+      let dateSouhaitee = null;
       if (cmd.instructions_livraison) {
         let il = cmd.instructions_livraison;
         if (typeof il === 'string') { try { il = JSON.parse(il); } catch { il = null; } }
         if (il && il.heure_souhaitee) heureSouhaitee = il.heure_souhaitee;
+        if (il && il.date_souhaitee)  dateSouhaitee  = il.date_souhaitee;
       }
-      const instructionsLivraisonHtml = heureSouhaitee ? `
+      // Construit le texte : "lundi 29 juin à 13:00", ou l'un des deux seul
+      let texteSouhaite = '';
+      const dateFrSouhaitee = formatDateSouhaitee(dateSouhaitee);
+      if (dateFrSouhaitee && heureSouhaitee) texteSouhaite = dateFrSouhaitee + ' à ' + heureSouhaitee;
+      else if (dateFrSouhaitee)              texteSouhaite = dateFrSouhaitee;
+      else if (heureSouhaitee)               texteSouhaite = 'Pour ' + heureSouhaitee;
+      const instructionsLivraisonHtml = texteSouhaite ? `
         <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #2196f3;">
-          <strong>⏰ Heure souhaitée</strong><br>
-          <span style="color: #666; font-size: 14px;">Pour ${heureSouhaitee}</span>
+          <strong>⏰ Souhaité</strong><br>
+          <span style="color: #666; font-size: 14px;">${texteSouhaite}</span>
         </div>
       ` : '';
 
@@ -2887,19 +2895,14 @@
     // ========================================
     // HELPERS
     // ========================================
-    function formatDate(dateStr) {
-      return new Date(dateStr).toLocaleString('fr-FR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
-      });
+    // "2026-06-29" -> "lundi 29 juin" (heure/date souhaitée des commandes différées)
+    function formatDateSouhaitee(dateStr) {
+      if (!dateStr) return null;
+      try {
+        const [y, m, d] = String(dateStr).split('-').map(n => parseInt(n, 10));
+        const dt = new Date(y, m - 1, d, 12, 0, 0);
+        if (isNaN(dt.getTime())) return null;
+        return dt.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      } catch { return null; }
     }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      const searchClients = document.getElementById('search-clients');
-      if (searchClients) {
-        searchClients.addEventListener('input', loadClients);
-      }
-    });
-  </script>
-</body>
 </html>
