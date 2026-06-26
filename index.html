@@ -2896,7 +2896,7 @@
     // HELPERS
     // ========================================
     // "2026-06-29" -> "lundi 29 juin" (heure/date souhaitée des commandes différées)
-    function formatDateSouhaitee(dateStr) {
+function formatDateSouhaitee(dateStr) {
       if (!dateStr) return null;
       try {
         const [y, m, d] = String(dateStr).split('-').map(n => parseInt(n, 10));
@@ -2912,3 +2912,13 @@
         hour: '2-digit', minute: '2-digit'
       });
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchClients = document.getElementById('search-clients');
+      if (searchClients) {
+        searchClients.addEventListener('input', loadClients);
+      }
+    });
+  </script>
+</body>
+</html>
