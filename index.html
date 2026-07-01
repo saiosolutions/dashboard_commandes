@@ -3,8 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>L'Oasis Admin</title>
+  <title>Back-Office - Administration Agents IA</title>
   <style>
+    :root {
+      --dark: #5f6873;         /* gris moyen (bandeau) — teinte G */
+      --dark-2: #6b7480;       /* gris moyen secondaire */
+      --ink: #2b2f36;          /* texte principal */
+      --muted: #7a828c;        /* texte secondaire */
+      --line: #e6e8ec;         /* bordures */
+      --bg: #f4f5f7;           /* fond général */
+      --card: #ffffff;         /* cartes */
+      --accent: #3a4048;       /* accent sobre (boutons foncés) */
+      --accent-hover: #4a515b;
+      --ok: #2e7d46;
+      --ok-bg: #e6f4ea;
+      --warn: #b26a00;
+      --warn-bg: #fff3e0;
+      --err: #c0392b;
+      --err-bg: #fdecea;
+      --info: #2c6e9c;
+      --info-bg: #e7f1f8;
+    }
     * {
       margin: 0;
       padding: 0;
@@ -13,8 +32,9 @@
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: var(--bg);
       min-height: 100vh;
+      color: var(--ink);
     }
 
     /* LOGIN SCREEN */
@@ -24,752 +44,373 @@
       align-items: center;
       justify-content: center;
       padding: 20px;
+      background: var(--dark);
     }
     .login-box {
       background: white;
-      border-radius: 20px;
+      border-radius: 16px;
       padding: 40px;
       max-width: 400px;
       width: 100%;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
     }
-    .login-logo {
-      text-align: center;
-      font-size: 48px;
-      margin-bottom: 10px;
-    }
-    .login-title {
-      text-align: center;
-      font-size: 24px;
-      font-weight: bold;
-      margin-bottom: 10px;
-      color: #333;
-    }
-    .login-subtitle {
-      text-align: center;
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 30px;
-    }
-    .input-group {
-      margin-bottom: 20px;
-    }
-    .input-group label {
-      display: block;
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 8px;
-      font-weight: 500;
-    }
+    .login-logo { text-align: center; font-size: 44px; margin-bottom: 10px; }
+    .login-title { text-align: center; font-size: 22px; font-weight: 700; margin-bottom: 8px; color: var(--ink); }
+    .login-subtitle { text-align: center; font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+    .input-group { margin-bottom: 20px; }
+    .input-group label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
     .input-group input {
-      width: 100%;
-      padding: 14px;
-      border: 2px solid #e0e0e0;
-      border-radius: 10px;
-      font-size: 16px;
-      transition: all 0.3s;
+      width: 100%; padding: 14px; border: 2px solid var(--line);
+      border-radius: 10px; font-size: 16px; transition: all 0.2s;
     }
-    .input-group input:focus {
-      outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
+    .input-group input:focus { outline: none; border-color: var(--dark); }
     .btn-login {
-      width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: transform 0.2s;
+      width: 100%; padding: 14px; background: var(--accent); color: white;
+      border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: background 0.2s;
     }
-    .btn-login:active {
-      transform: scale(0.98);
-    }
+    .btn-login:hover { background: var(--accent-hover); }
     .error-message {
-      background-color: #ffebee;
-      color: #c62828;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      font-size: 14px;
-      text-align: center;
+      background-color: var(--err-bg); color: var(--err); padding: 12px;
+      border-radius: 8px; margin-bottom: 20px; font-size: 14px; text-align: center;
     }
 
     /* DASHBOARD */
-    .dashboard {
-      display: none;
-      background-color: #f5f5f5;
-      min-height: 100vh;
-    }
-    .dashboard.show {
-      display: block;
-    }
+    .dashboard { display: none; background-color: var(--bg); min-height: 100vh; }
+    .dashboard.show { display: block; }
 
-    /* HEADER */
+    /* HEADER — bandeau uni gris foncé */
     .header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      padding: 20px;
+      background: var(--dark);
+      padding: 16px 20px;
       color: white;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .header-left h1 {
-      font-size: 24px;
-      margin: 0 0 4px 0;
-    }
-    .header-left p {
-      font-size: 14px;
-      opacity: 0.9;
-      margin: 0;
-    }
+    .header-left h1 { font-size: 20px; margin: 0 0 2px 0; font-weight: 700; }
+    .header-left p { font-size: 13px; opacity: 0.75; margin: 0; }
     .btn-logout {
-      padding: 8px 16px;
-      background: rgba(255,255,255,0.2);
-      color: white;
-      border: 1px solid rgba(255,255,255,0.3);
-      border-radius: 8px;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
+      padding: 8px 16px; background: rgba(255,255,255,0.12); color: white;
+      border: 1px solid rgba(255,255,255,0.25); border-radius: 8px;
+      font-size: 14px; cursor: pointer; transition: all 0.2s;
     }
-    .btn-logout:hover {
-      background: rgba(255,255,255,0.3);
-    }
+    .btn-logout:hover { background: rgba(255,255,255,0.22); }
 
     /* TABS */
     .tabs {
-      display: flex;
-      background: white;
-      border-bottom: 3px solid #f0f0f0;
+      display: flex; background: white; border-bottom: 1px solid var(--line);
       overflow-x: auto;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
     .tab {
-      padding: 18px 28px;
-      cursor: pointer;
-      border-bottom: 4px solid transparent;
-      font-size: 15px;
-      font-weight: 600;
-      color: #999;
-      white-space: nowrap;
-      transition: all 0.3s;
-      position: relative;
+      padding: 15px 22px; cursor: pointer; border-bottom: 3px solid transparent;
+      font-size: 14px; font-weight: 600; color: var(--muted); white-space: nowrap;
+      transition: all 0.2s;
     }
-    .tab:hover {
-      background: linear-gradient(to bottom, #f8f9fa, white);
-      color: #667eea;
-    }
-    .tab.active {
-      color: #667eea;
-      border-bottom-color: #667eea;
-      background: linear-gradient(to bottom, #f8f9fa, white);
-    }
+    .tab:hover { color: var(--ink); background: #fafbfc; }
+    .tab.active { color: var(--ink); border-bottom-color: var(--dark); }
 
     /* CONTAINER */
-    .container {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 20px;
-    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 18px 20px; }
 
     /* TAB CONTENT */
-    .tab-content {
-      display: none;
-    }
-    .tab-content.active {
-      display: block;
-    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 
     /* BUTTONS */
     .btn {
-      padding: 10px 20px;
-      border-radius: 10px;
-      border: none;
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.3s;
-      font-weight: 600;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 9px 18px; border-radius: 8px; border: none; font-size: 14px;
+      cursor: pointer; transition: all 0.2s; font-weight: 600;
     }
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
-    .btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-    }
-    .btn-secondary {
-      background: linear-gradient(135deg, #e0e0e0 0%, #f5f5f5 100%);
-      color: #333;
-    }
-    .btn-success {
-      background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
-      color: white;
-    }
-    .btn-danger {
-      background: linear-gradient(135deg, #f44336 0%, #ef5350 100%);
-      color: white;
-    }
-    .btn-sm {
-      padding: 6px 12px;
-      font-size: 12px;
-    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-secondary { background: #eceef1; color: var(--ink); }
+    .btn-secondary:hover { background: #e2e5e9; }
+    .btn-success { background: var(--ok); color: white; }
+    .btn-danger { background: var(--err); color: white; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
 
     /* TOOLBAR */
     .toolbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-      gap: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px; flex-wrap: wrap; gap: 10px;
     }
-    .toolbar-left {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
+    .toolbar-left { display: flex; gap: 10px; flex-wrap: wrap; }
+    .toolbar select, .toolbar input {
+      padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px;
+      font-size: 14px; background: white;
     }
 
     /* TABLE */
     .table-container {
-      background: white;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      background: white; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow-x: auto;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    thead {
-      background: #f8f9fa;
-    }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #fafbfc; }
     th {
-      padding: 12px;
-      text-align: left;
-      font-size: 13px;
-      font-weight: 600;
-      color: #666;
-      border-bottom: 2px solid #e0e0e0;
+      padding: 11px 12px; text-align: left; font-size: 12px; font-weight: 700;
+      color: var(--muted); border-bottom: 1px solid var(--line);
+      text-transform: uppercase; letter-spacing: 0.03em;
     }
-    td {
-      padding: 12px;
-      font-size: 14px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-    tbody tr:hover {
-      background: #f8f9fa;
-    }
+    td { padding: 10px 12px; font-size: 14px; border-bottom: 1px solid #f2f3f5; }
+    tbody tr:hover { background: #fafbfc; }
 
     /* BADGE */
     .badge {
-      display: inline-block;
-      padding: 4px 8px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 500;
+      display: inline-block; padding: 3px 8px; border-radius: 6px;
+      font-size: 12px; font-weight: 600;
     }
-    .badge-success {
-      background: #e8f5e9;
-      color: #4caf50;
-    }
-    .badge-danger {
-      background: #ffebee;
-      color: #f44336;
-    }
-    .badge-warning {
-      background: #fff3e0;
-      color: #ff9800;
-    }
-    .badge-info {
-      background: #e3f2fd;
-      color: #2196f3;
-    }
-    .badge-anonymous {
-      background: #ffebee;
-      color: #c62828;
-      font-weight: bold;
-    }
-    .badge-different {
-      background: #fff3e0;
-      color: #f57c00;
-      font-weight: bold;
-    }
+    .badge-success { background: var(--ok-bg); color: var(--ok); }
+    .badge-danger { background: var(--err-bg); color: var(--err); }
+    .badge-warning { background: var(--warn-bg); color: var(--warn); }
+    .badge-info { background: var(--info-bg); color: var(--info); }
+    .badge-anonymous { background: var(--err-bg); color: var(--err); font-weight: bold; }
+    .badge-different { background: var(--warn-bg); color: var(--warn); font-weight: bold; }
+    .badge-livraison { background: var(--info-bg); color: var(--info); }
+    .badge-emporter { background: var(--warn-bg); color: var(--warn); }
+    .badge-surplace { background: #efe9f5; color: #6b4a8a; }
+    .badge-averifier { background: var(--warn-bg); color: var(--warn); font-weight: bold; }
 
-    /* MODAL */
+    /* ============================================ */
+    /* MODAL — corrigé pour scroll mobile */
+    /* ============================================ */
     .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 1000;
-      overflow-y: auto;
-      padding: 20px;
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); z-index: 1000;
+      overflow-y: auto; padding: 0;
     }
-    .modal.show {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+    .modal.show { display: block; }
+    /* Le conteneur interne gère le scroll et l'entête collante */
     .modal-content {
-      background: white;
-      border-radius: 16px;
-      padding: 24px;
-      max-width: 600px;
-      width: 100%;
-      max-height: 90vh;
-      overflow-y: auto;
+      background: white; border-radius: 14px;
+      max-width: 600px; width: calc(100% - 24px);
+      margin: 16px auto; max-height: calc(100vh - 32px);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    /* Formulaires : le <form> qui suit le header doit pouvoir défiler */
+    .modal-content > form {
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 20px; min-height: 0;
     }
     .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 18px 20px; border-bottom: 1px solid var(--line);
+      background: white; z-index: 2; flex-shrink: 0;
     }
-    .modal-header h2 {
-      font-size: 20px;
-      margin: 0;
-    }
+    .modal-header h2 { font-size: 18px; margin: 0; }
+    .modal-body { padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .btn-close {
-      background: none;
-      border: none;
-      font-size: 28px;
-      color: #999;
-      cursor: pointer;
-      width: 32px;
-      height: 32px;
-      padding: 0;
+      background: none; border: none; font-size: 26px; color: var(--muted);
+      cursor: pointer; width: 32px; height: 32px; padding: 0; line-height: 1;
     }
-    .form-group {
-      margin-bottom: 16px;
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--ink); }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px; border: 1px solid var(--line);
+      border-radius: 8px; font-size: 14px; font-family: inherit;
     }
-    .form-group label {
-      display: block;
-      font-size: 14px;
-      font-weight: 500;
-      margin-bottom: 6px;
-      color: #333;
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      outline: none; border-color: var(--dark);
     }
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-      width: 100%;
-      padding: 10px;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      font-size: 14px;
-      font-family: inherit;
-    }
-    .form-group input:focus,
-    .form-group select:focus,
-    .form-group textarea:focus {
-      outline: none;
-      border-color: #667eea;
-    }
-    .form-group textarea {
-      resize: vertical;
-      min-height: 80px;
-    }
+    .form-group textarea { resize: vertical; min-height: 70px; }
     .form-actions {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      margin-top: 24px;
+      display: flex; gap: 10px; justify-content: flex-end;
+      margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line);
     }
 
-    /* LOADING */
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: #666;
-    }
+    /* LOADING / NO DATA */
+    .loading { text-align: center; padding: 40px; color: var(--muted); }
+    .no-data { text-align: center; padding: 40px; color: #a0a6ae; }
 
-    /* NO DATA */
-    .no-data {
-      text-align: center;
-      padding: 40px;
-      color: #999;
+    /* ============================================ */
+    /* LIGNES FINES — commandes & journal d'appel */
+    /* ============================================ */
+    .row-list {
+      background: white; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
-
-    /* COMMANDE CARD (pour onglet commandes) */
-    .commande-card {
-      background: white;
-      border: 2px solid #f0f0f0;
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
+    .row-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px; border-bottom: 1px solid #f2f3f5;
+      cursor: pointer; transition: background 0.15s; font-size: 14px;
     }
-    .commande-card:hover {
-      border-color: #667eea;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    .row-item:last-child { border-bottom: none; }
+    .row-item:hover { background: #fafbfc; }
+    .row-num {
+      font-weight: 700; color: var(--ink); font-size: 13px;
+      width: 118px; min-width: 118px; flex-shrink: 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 12px;
-    }
-    .card-numero {
-      font-weight: bold;
-      font-size: 16px;
-    }
-    .card-prix {
-      font-size: 20px;
-      font-weight: bold;
-      color: #667eea;
-    }
-    .card-client {
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 8px;
-    }
-    .badge-livraison {
-      background: #e3f2fd;
-      color: #1976d2;
-    }
-    .badge-emporter {
-      background: #fff3e0;
-      color: #f57c00;
-    }
-    .badge-surplace {
-      background: #f3e5f5;
-      color: #7b1fa2;
-    }
+    .row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .row-client { font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .row-price { font-weight: 700; color: var(--ink); font-size: 15px; white-space: nowrap; }
+    .row-date { font-size: 11px; color: var(--muted); white-space: nowrap; text-align: right; min-width: 84px; }
+    .row-badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
 
     /* FILTERS */
-    .filters {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 16px;
-      flex-wrap: wrap;
-    }
-    .btn-filter {
-      padding: 12px 20px;
-      background: white;
-      color: #666;
-      border: 2px solid #e0e0e0;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 600;
-      transition: all 0.3s;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .btn-filter:hover {
-      border-color: #667eea;
-      color: #667eea;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(102, 126, 234, 0.2);
-    }
-    .btn-filter.active {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border-color: #667eea;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-    }
+    .filters { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
 
-    /* LOG VIEWER */
-    .log-entry {
-      background: white;
-      border-left: 4px solid #e0e0e0;
-      padding: 12px;
-      margin-bottom: 8px;
-      border-radius: 4px;
-      font-family: 'Courier New', monospace;
-      font-size: 13px;
+    /* BANDEAU RÉCAPITULATIF (agrégé période) */
+    .recap-bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .recap-bar:empty { display: none; }
+    .recap-card {
+      flex: 1; min-width: 130px;
+      background: white; border: 1px solid var(--line); border-radius: 10px;
+      padding: 12px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
-    .log-entry.error {
-      border-left-color: #f44336;
-      background: #ffebee;
+    .recap-label {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px;
     }
-    .log-entry.warning {
-      border-left-color: #ff9800;
-      background: #fff3e0;
+    .recap-value { font-size: 20px; font-weight: 800; color: var(--ink); }
+    .recap-value.cost { color: var(--info); }
+
+    .btn-filter {
+      padding: 8px 14px; background: white; color: var(--muted);
+      border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 600; transition: all 0.2s;
     }
-    .log-entry.info {
-      border-left-color: #2196f3;
-    }
-    .log-timestamp {
-      color: #999;
-      font-size: 11px;
-      margin-bottom: 4px;
-    }
-    .log-message {
-      color: #333;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
+    .btn-filter:hover { border-color: var(--dark); color: var(--ink); }
+    .btn-filter.active { background: var(--accent); color: white; border-color: var(--accent); }
 
     /* CHECKBOX */
-    .checkbox-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .checkbox-group input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-    }
+    .checkbox-group { display: flex; align-items: center; gap: 8px; }
+    .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; }
 
     /* DATE PICKER MODAL */
     .date-picker-modal {
-      background: white;
-      border-radius: 16px;
-      padding: 24px;
-      max-width: 400px;
-      width: 100%;
+      background: white; border-radius: 14px; padding: 22px;
+      max-width: 400px; width: calc(100% - 24px); margin: 40px auto;
     }
 
     /* ADRESSES LIST */
-    .adresses-list {
-      margin-top: 12px;
-      padding: 12px;
-      background: #f8f9fa;
-      border-radius: 8px;
-    }
+    .adresses-list { margin-top: 12px; padding: 12px; background: #fafbfc; border-radius: 8px; }
     .adresse-item {
-      padding: 8px;
-      background: white;
-      border-radius: 6px;
-      margin-bottom: 8px;
-      font-size: 13px;
-      border-left: 3px solid #667eea;
+      padding: 8px; background: white; border-radius: 6px; margin-bottom: 8px;
+      font-size: 13px; border-left: 3px solid var(--dark);
     }
-    .adresse-item:last-child {
-      margin-bottom: 0;
-    }
+    .adresse-item:last-child { margin-bottom: 0; }
 
-    /* PASTILLES ÉVÉNEMENTS */
-    .pastille-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-      justify-content: flex-end;
-    }
+    /* PASTILLES */
+    .pastille-container { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
     .pastille {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 3px 7px;
-      border-radius: 10px;
-      font-size: 10px;
-      font-weight: 600;
-      white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px;
+      border-radius: 6px; font-size: 10px; font-weight: 600; white-space: nowrap;
     }
-    .pastille-success {
-      background: #e8f5e9;
-      color: #2e7d32;
-    }
-    .pastille-danger {
-      background: #ffebee;
-      color: #c62828;
-    }
-    .pastille-unknown {
-      background: #f5f5f5;
-      color: #9e9e9e;
-    }
-    .pastille-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .dot-success { background: #4caf50; }
-    .dot-danger  { background: #f44336; }
-    .dot-unknown { background: #9e9e9e; }
+    .pastille-success { background: var(--ok-bg); color: var(--ok); }
+    .pastille-danger { background: var(--err-bg); color: var(--err); }
+    .pastille-unknown { background: #f0f1f3; color: #9098a1; }
+    .pastille-warning { background: var(--warn-bg); color: var(--warn); }
+    .pastille-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .dot-success { background: var(--ok); }
+    .dot-danger { background: var(--err); }
+    .dot-unknown { background: #9098a1; }
+    .dot-warning { background: var(--warn); }
 
-    /* PASTILLE + BADGE "À VÉRIFIER" */
-    .pastille-warning {
-      background: #fff3e0;
-      color: #e65100;
-    }
-    .dot-warning { background: #ff9800; }
-    .badge-averifier {
-      background: #fff3e0;
-      color: #e65100;
-      font-weight: bold;
-    }
     .anomalie-box {
-      background: #fff3e0;
-      border-left: 4px solid #ff9800;
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
+      background: var(--warn-bg); border-left: 4px solid var(--warn);
+      padding: 12px 16px; border-radius: 8px; margin-bottom: 16px;
     }
-    .anomalie-item {
-      font-size: 14px;
-      color: #e65100;
-      padding: 3px 0;
-    }
+    .anomalie-item { font-size: 14px; color: var(--warn); padding: 3px 0; }
+    .info-manquante { color: var(--err); font-style: italic; font-size: 13px; }
 
-    /* INFO MANQUANTE */
-    .info-manquante {
-      color: #f44336;
-      font-style: italic;
-      font-size: 13px;
-    }
-
-    /* ============================================ */
-    /* 🆕 SECTION OPTIONS PRODUITS (nouvelle) */
-    /* ============================================ */
+    /* SECTION OPTIONS PRODUITS */
     .prod-block {
-      background: #ffffff;
-      border: 1px solid #e6e2ee;
-      border-radius: 14px;
-      margin-bottom: 16px;
-      overflow: hidden;
-      box-shadow: 0 2px 10px rgba(42,36,56,0.05);
+      background: #ffffff; border: 1px solid var(--line); border-radius: 12px;
+      margin-bottom: 14px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .prod-block-head {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 15px 18px;
-      background: linear-gradient(to right, #f8f7fe, white);
-      border-bottom: 1px solid #e6e2ee;
-      flex-wrap: wrap;
+      display: flex; align-items: center; gap: 12px; padding: 13px 16px;
+      background: #fafbfc; border-bottom: 1px solid var(--line); flex-wrap: wrap;
     }
-    .prod-block-name {
-      font-weight: 800;
-      font-size: 16px;
-      color: #2a2438;
-    }
+    .prod-block-name { font-weight: 700; font-size: 15px; color: var(--ink); }
     .prod-block-size {
-      font-size: 11px;
-      font-weight: 800;
-      background: #eee9fa;
-      color: #764ba2;
-      padding: 3px 9px;
-      border-radius: 6px;
+      font-size: 11px; font-weight: 700; background: #eceef1; color: var(--ink);
+      padding: 3px 9px; border-radius: 6px;
     }
-    .prod-block-compo {
-      font-size: 12px;
-      color: #8b8398;
-      width: 100%;
-      margin-top: 2px;
-    }
-    .prod-block-price {
-      margin-left: auto;
-      font-weight: 800;
-      color: #667eea;
-      font-size: 17px;
-    }
-    .opt-intro {
-      font-size: 12px;
-      color: #8b8398;
-      padding: 12px 18px 4px;
-    }
-    .opt-grid {
-      padding: 8px 18px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+    .prod-block-compo { font-size: 12px; color: var(--muted); width: 100%; margin-top: 2px; }
+    .prod-block-price { margin-left: auto; font-weight: 700; color: var(--ink); font-size: 16px; }
+    .opt-intro { font-size: 12px; color: var(--muted); padding: 10px 16px 2px; }
+    .opt-grid { padding: 6px 16px 12px; display: flex; flex-direction: column; gap: 8px; }
     .opt-card {
-      border: 1.5px solid #e6e2ee;
-      border-radius: 11px;
-      padding: 13px 15px;
-      display: flex;
-      gap: 14px;
-      align-items: center;
-      flex-wrap: wrap;
+      border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px;
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
     }
     .opt-cat-pill {
-      font-size: 11px;
-      font-weight: 800;
-      padding: 4px 10px;
-      border-radius: 999px;
-      white-space: nowrap;
+      font-size: 11px; font-weight: 700; padding: 3px 9px;
+      border-radius: 6px; white-space: nowrap;
     }
-    .cat-viande { background: #f8e9e5; color: #c0563f; }
-    .cat-sauce { background: #f7edd8; color: #b8892b; }
-    .cat-fromage { background: #e9f0e0; color: #6b8e4e; }
-    .cat-sauce_tasty { background: #f3e2ee; color: #a3477f; }
-    .cat-autre { background: #e3f2fd; color: #2196f3; }
-    .opt-libelle {
-      font-size: 13px;
-      color: #2a2438;
-      font-weight: 600;
+    .cat-viande { background: #f6e7e3; color: #a2472f; }
+    .cat-sauce { background: #f5ead6; color: #97701f; }
+    .cat-fromage { background: #e7efdf; color: #567a3e; }
+    .cat-sauce_tasty { background: #f1e2ec; color: #8a3a6c; }
+    .cat-autre { background: var(--info-bg); color: var(--info); }
+    .opt-libelle { font-size: 13px; color: var(--ink); font-weight: 600; }
+    .opt-comportement {
+      font-size: 11px; color: var(--ink); background: #eceef1;
+      border-radius: 6px; padding: 3px 9px; font-weight: 600;
     }
-    .opt-fields {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .opt-field {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
+    .opt-fields { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .opt-field { display: flex; flex-direction: column; gap: 2px; }
     .opt-field .lbl {
-      font-size: 10px;
-      font-weight: 700;
-      color: #8b8398;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.03em;
     }
     .opt-field .val {
-      font-size: 14px;
-      font-weight: 700;
-      color: #2a2438;
-      background: #fbfaff;
-      border: 1px solid #e6e2ee;
-      border-radius: 6px;
-      padding: 3px 10px;
-      min-width: 44px;
-      text-align: center;
+      font-size: 14px; font-weight: 700; color: var(--ink); background: #fafbfc;
+      border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px;
+      min-width: 42px; text-align: center;
     }
-    .opt-oblig-yes { color: #3a9d5d; }
-    .opt-oblig-no { color: #b0668a; }
-    .opt-actions {
-      margin-left: auto;
-      display: flex;
-      gap: 6px;
-    }
-    .opt-comportement {
-      font-size: 11px;
-      color: #764ba2;
-      background: #f3f0fb;
-      border-radius: 6px;
-      padding: 3px 9px;
-      font-weight: 600;
-    }
+    .opt-oblig-yes { color: var(--ok); }
+    .opt-oblig-no { color: var(--muted); }
+    .opt-actions { margin-left: auto; display: flex; gap: 6px; }
     .add-opt-btn {
-      margin: 0 18px 18px;
-      border: 1.5px dashed #667eea;
-      color: #764ba2;
-      background: #f8f7fe;
-      border-radius: 10px;
-      padding: 11px;
-      text-align: center;
-      font-size: 13px;
-      font-weight: 700;
-      cursor: pointer;
+      margin: 0 16px 16px; border: 1px dashed var(--dark); color: var(--ink);
+      background: #fafbfc; border-radius: 8px; padding: 10px; text-align: center;
+      font-size: 13px; font-weight: 600; cursor: pointer;
     }
-    .add-opt-btn:hover {
-      background: #eee9fa;
-    }
+    .add-opt-btn:hover { background: #f0f1f3; }
     .options-help {
-      background: #fff8ec;
-      border: 1px solid #f0e2c4;
-      border-left: 4px solid #d9a441;
-      border-radius: 10px;
-      padding: 14px 16px;
-      font-size: 13.5px;
-      margin-bottom: 20px;
-      color: #7a5c1a;
+      background: var(--info-bg); border: 1px solid #cfe1ee; border-left: 4px solid var(--info);
+      border-radius: 8px; padding: 13px 15px; font-size: 13.5px; margin-bottom: 18px; color: #2c5a7a;
+    }
+
+    /* ============================================ */
+    /* RESPONSIVE — tablette & smartphone */
+    /* ============================================ */
+    @media (max-width: 768px) {
+      .container { padding: 14px 12px; }
+      .header { padding: 14px 16px; }
+      .header-left h1 { font-size: 17px; }
+      .header-left p { font-size: 12px; }
+      .tab { padding: 13px 16px; font-size: 13px; }
+      .row-item { gap: 8px; padding: 10px 12px; align-items: flex-start; }
+      .row-num { width: 90px; min-width: 90px; }
+      .row-right {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .row-date { order: 2; min-width: 0; }
+      .row-price { order: 1; }
+      .modal-content { width: calc(100% - 16px); margin: 8px auto; max-height: calc(100vh - 16px); }
+      .modal-body { padding: 16px; }
+      .toolbar { flex-direction: column; align-items: stretch; }
+      .toolbar-left { flex-direction: column; }
+      .toolbar select, .toolbar input { width: 100%; }
+      th, td { padding: 8px; font-size: 13px; }
+      .opt-card { gap: 8px; }
+      .opt-fields { gap: 8px; }
+    }
+    @media (max-width: 480px) {
+      .header-left p { display: none; }
+      .row-num { min-width: 50px; font-size: 12px; }
+      .prod-block-price { margin-left: 0; }
     }
   </style>
 </head>
@@ -778,8 +419,8 @@
   <div id="login-screen" class="login-container">
     <div class="login-box">
       <div class="login-logo">🔒</div>
-      <h1 class="login-title">L'Oasis Admin</h1>
-      <p class="login-subtitle">Interface d'administration</p>
+      <h1 class="login-title">Back-Office</h1>
+      <p class="login-subtitle">Administration Agents IA</p>
 
       <div id="login-error"></div>
 
@@ -803,8 +444,8 @@
     <!-- HEADER -->
     <div class="header">
       <div class="header-left">
-        <h1>🌮 L'Oasis Admin</h1>
-        <p>Interface de gestion complète</p>
+        <h1>Administration Agents IA</h1>
+        <p id="header-resto">L'Oasis Food</p>
       </div>
       <button class="btn-logout" onclick="logout()">Déconnexion</button>
     </div>
@@ -812,9 +453,9 @@
     <!-- TABS -->
     <div class="tabs">
       <div class="tab active" onclick="switchTab('commandes')">📦 Commandes</div>
-      <div class="tab" onclick="switchTab('parametrages')">⚙️ Paramétrages</div>
+      <div class="tab" onclick="switchTab('logs')">📞 Journal d'appel</div>
       <div class="tab" onclick="switchTab('clients')">👥 Clients</div>
-      <div class="tab" onclick="switchTab('logs')">📋 Logs</div>
+      <div class="tab" onclick="switchTab('parametrages')">⚙️ Paramétrages</div>
     </div>
 
     <!-- TAB: COMMANDES -->
@@ -936,11 +577,13 @@
         <div class="filters">
           <button class="btn-filter active" id="log-filter-all" onclick="setLogFilter('all')">Tous</button>
           <button class="btn-filter" id="log-filter-today" onclick="setLogFilter('today')">Aujourd'hui</button>
-          <button class="btn-filter" id="log-filter-date" onclick="showLogDatePicker()">📅 Date</button>
+          <button class="btn-filter" id="log-filter-date" onclick="showLogDatePicker()">📅 Choisir une date</button>
+          <button class="btn-filter" id="log-filter-range" onclick="showLogDateRangePicker()">📆 Plage de dates</button>
           <button class="btn-filter" id="log-filter-success" onclick="setLogStatut('success')">✅ Succès</button>
           <button class="btn-filter" id="log-filter-failure" onclick="setLogStatut('failure')">❌ Échec</button>
           <button class="btn btn-secondary" onclick="loadLogs()">🔄 Actualiser</button>
         </div>
+        <div id="logs-recap" class="recap-bar"></div>
         <div id="logs-content"></div>
       </div>
     </div>
@@ -1173,7 +816,7 @@
         content.innerHTML = '<div class="no-data">Aucune commande</div>';
         return;
       }
-      let html = '';
+      let rows = '';
       commandes.forEach(cmd => {
         const typeBadge = cmd.type_livraison === 'livraison' ? 'livraison' :
                          cmd.type_livraison === 'a_emporter' ? 'emporter' : 'surplace';
@@ -1186,27 +829,25 @@
         const telDeclare = cmd.adresse_livraison?.telephone;
         let warningBadge = '';
         if (callerId === 'anonymous') {
-          warningBadge = '<span class="badge badge-anonymous">⚠️ ANONYMOUS</span> ';
+          warningBadge = '<span class="badge badge-anonymous">⚠️</span> ';
         } else if (callerId && telDeclare && callerId !== telDeclare) {
-          warningBadge = '<span class="badge badge-different">🔄 NUMÉRO DIFFÉRENT</span> ';
+          warningBadge = '<span class="badge badge-different">🔄</span> ';
         }
-        html += `
-          <div class="commande-card" onclick="openCommandeDetail('${cmd.id}')">
-            <div class="card-header">
-              <span class="card-numero">#${cmd.numero_commande}</span>
-              <span class="card-prix">${cmd.prix}€</span>
+        rows += `
+          <div class="row-item" onclick="openCommandeDetail('${cmd.id}')">
+            <span class="row-num">#${cmd.numero_commande}</span>
+            <div class="row-main">
+              <span class="row-client">${warningBadge}${nomClient}</span>
+              <span class="row-sub">📞 ${telClient} • <span class="badge badge-${typeBadge}">${typeText}</span></span>
             </div>
-            <div class="card-client">
-              ${warningBadge}👤 <strong>${nomClient}</strong> • 📞 ${telClient}
+            <div class="row-right">
+              <span class="row-price">${cmd.prix}€</span>
+              <span class="row-date">${formatDate(cmd.created_at)}</span>
             </div>
-            <div>
-              <span class="badge badge-${typeBadge}">${typeText}</span>
-            </div>
-            <div class="card-date">⏰ ${formatDate(cmd.created_at)}</div>
           </div>
         `;
       });
-      content.innerHTML = html;
+      content.innerHTML = '<div class="row-list">' + rows + '</div>';
     }
 
     function openCommandeDetail(id) {
@@ -1292,32 +933,32 @@
       ` : '';
       const modal = document.getElementById('modal-commande');
       modal.innerHTML = `
-        <div style="padding: 20px;" onclick="event.stopPropagation()">
-          <div style="background: white; border-radius: 16px; padding: 24px; max-width: 600px; margin: 0 auto;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-              <h2>Commande #${cmd.numero_commande}</h2>
-              <button onclick="closeModal('modal-commande')" style="background: none; border: none; font-size: 28px; cursor: pointer;">×</button>
-            </div>
-            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>Commande #${cmd.numero_commande}</h2>
+            <button class="btn-close" onclick="closeModal('modal-commande')">×</button>
+          </div>
+          <div class="modal-body">
+            <div style="background: #fafbfc; padding: 14px; border-radius: 8px; margin-bottom: 14px;">
               <strong>👤 Client</strong><br>
               ${clientInfoHtml}
             </div>
             ${cmd.adresse_livraison ? `
-              <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+              <div style="background: #fafbfc; padding: 14px; border-radius: 8px; margin-bottom: 14px;">
                 <strong>${typeText}</strong><br>
                 ${adresseHtml}
                 ${instructionsAccesHtml}
               </div>
             ` : ''}
             ${instructionsLivraisonHtml}
-            <div style="margin-bottom: 20px;">
+            <div style="margin-bottom: 16px;">
               <strong>📦 Articles</strong>
               <div style="margin-top: 12px;">${articlesHtml}</div>
             </div>
-            <div style="border-top: 2px solid #ddd; padding-top: 16px; font-size: 20px; font-weight: bold; text-align: right;">
+            <div style="border-top: 1px solid var(--line); padding-top: 14px; font-size: 18px; font-weight: bold; text-align: right;">
               Total: ${cmd.prix}€
             </div>
-            <div style="margin-top: 20px; font-size: 13px; color: #999;">
+            <div style="margin-top: 16px; font-size: 13px; color: var(--muted);">
               <div>Reçue le: ${formatDate(cmd.created_at)}</div>
               <div>Statut: ${cmd.statut_commande || 'N/A'}</div>
             </div>
@@ -1901,6 +1542,22 @@
       return `${min}min ${sec}sec`;
     }
 
+    // Calcule le coût total d'un appel en dollars
+    // Formule : (crédits × 0,00015) + (minutes × 0,01)
+    function calculerCoutAppel(credits, dureeSecondes) {
+      const c = Number(credits) || 0;
+      const d = Number(dureeSecondes) || 0;
+      const coutCredits = c * 0.00015;
+      const coutComm = (d / 60) * 0.01;
+      return coutCredits + coutComm;
+    }
+
+    // Formate le coût en dollars (ex. "0,26 $")
+    function formatCout(credits, dureeSecondes) {
+      const total = calculerCoutAppel(credits, dureeSecondes);
+      return total.toFixed(2).replace('.', ',') + ' $';
+    }
+
     function renderPastille(value, label) {
       if (value === null || value === undefined) {
         return `<span class="pastille pastille-unknown"><span class="pastille-dot dot-unknown"></span>${label}</span>`;
@@ -1967,6 +1624,51 @@
       loadLogs();
     }
 
+    function showLogDateRangePicker() {
+      const now = new Date();
+      const startDefault = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const endDefault = now.toISOString().split('T')[0];
+      const modal = document.getElementById('modal-date');
+      modal.innerHTML = `
+        <div class="date-picker-modal" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>📆 Plage de dates</h2>
+            <button class="btn-close" onclick="closeModal('modal-date')">×</button>
+          </div>
+          <div class="form-group">
+            <label>Date de début</label>
+            <input type="date" id="log-date-start" value="${startDefault}">
+          </div>
+          <div class="form-group">
+            <label>Date de fin</label>
+            <input type="date" id="log-date-end" value="${endDefault}">
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-secondary" onclick="closeModal('modal-date')">Annuler</button>
+            <button class="btn btn-primary" onclick="applyLogDateRangeFilter()">Appliquer</button>
+          </div>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-date');
+    }
+
+    function applyLogDateRangeFilter() {
+      const startValue = document.getElementById('log-date-start').value;
+      const endValue = document.getElementById('log-date-end').value;
+      if (!startValue || !endValue) {
+        alert('Veuillez remplir les deux dates');
+        return;
+      }
+      currentLogFilter.type = 'range';
+      currentLogFilter.startDate = startValue + 'T00:00:00';
+      currentLogFilter.endDate   = endValue + 'T23:59:59';
+      document.querySelectorAll('#tab-logs .btn-filter').forEach(b => b.classList.remove('active'));
+      document.getElementById('log-filter-range').classList.add('active');
+      closeModal('modal-date');
+      loadLogs();
+    }
+
     async function loadLogs() {
       const container = document.getElementById('logs-content');
       container.innerHTML = '<div class="loading">🔄 Chargement des événements...</div>';
@@ -1980,7 +1682,7 @@
         if (currentLogFilter.type === 'today') {
           const today = new Date().toISOString().split('T')[0];
           query = query.gte('created_at', today + 'T00:00:00').lte('created_at', today + 'T23:59:59');
-        } else if (currentLogFilter.type === 'date' && currentLogFilter.startDate) {
+        } else if ((currentLogFilter.type === 'date' || currentLogFilter.type === 'range') && currentLogFilter.startDate) {
           query = query.gte('created_at', currentLogFilter.startDate).lte('created_at', currentLogFilter.endDate);
         }
         if (currentLogFilter.statut === 'success') {
@@ -1999,11 +1701,47 @@
 
     function renderEvenements() {
       const container = document.getElementById('logs-content');
+      const recapEl = document.getElementById('logs-recap');
       if (evenements.length === 0) {
         container.innerHTML = '<div class="no-data">Aucun événement trouvé</div>';
+        if (recapEl) recapEl.innerHTML = '';
         return;
       }
-      let html = '';
+
+      // Calcul de l'agrégé sur la période affichée
+      let totalAppels = 0;
+      let totalSecondes = 0;
+      let totalCout = 0;
+      evenements.forEach(evt => {
+        let dd = evt.details || {};
+        if (typeof dd === 'string') { try { dd = JSON.parse(dd); } catch { dd = {}; } }
+        const duree = Number(evt.duree_appel || dd.duree_appel || 0);
+        const credits = Number(dd.cout_credits || 0);
+        totalAppels += 1;
+        totalSecondes += duree;
+        totalCout += calculerCoutAppel(credits, duree);
+      });
+      const totalMin = Math.floor(totalSecondes / 60);
+      const totalSec = totalSecondes % 60;
+      const tempsCumule = totalMin > 0 ? `${totalMin}min ${totalSec}s` : `${totalSec}s`;
+      if (recapEl) {
+        recapEl.innerHTML = `
+          <div class="recap-card">
+            <div class="recap-label">Appels</div>
+            <div class="recap-value">${totalAppels}</div>
+          </div>
+          <div class="recap-card">
+            <div class="recap-label">Temps cumulé</div>
+            <div class="recap-value">${tempsCumule}</div>
+          </div>
+          <div class="recap-card">
+            <div class="recap-label">Coût cumulé</div>
+            <div class="recap-value cost">${totalCout.toFixed(2).replace('.', ',')} $</div>
+          </div>
+        `;
+      }
+
+      let rows = '';
       evenements.forEach(evt => {
        try {
         let d = evt.details || {};
@@ -2013,59 +1751,42 @@
         const typeL     = d.type_livraison || null;
         const numero    = d.numero_commande || evt.call_id || 'N/A';
         const anomalies = Array.isArray(d.anomalies) ? d.anomalies : [];
-        const commandeCreee = d.commande_creee === true;
+        const duree     = evt.duree_appel || d.duree_appel || null;
         const prix = d.montant_annonce != null ? d.montant_annonce
                    : (d.prix_total != null ? d.prix_total : null);
         let statutBadge;
         if (evt.statut === 'success') {
-          statutBadge = '<span class="badge badge-success">✅ Validée</span>';
+          statutBadge = '<span class="badge badge-success">✅</span>';
         } else if (evt.statut === 'a_verifier') {
-          statutBadge = '<span class="badge badge-averifier">⚠️ À vérifier</span>';
+          statutBadge = '<span class="badge badge-averifier">⚠️</span>';
         } else {
-          statutBadge = '<span class="badge badge-danger">❌ Échec</span>';
+          statutBadge = '<span class="badge badge-danger">❌</span>';
         }
-        const typeBadge = typeL === 'livraison' ? 'livraison' :
-                          typeL === 'a_emporter' ? 'emporter' :
-                          typeL === 'sur_place'  ? 'surplace' : 'info';
-        const typeText  = typeL === 'livraison'  ? `🛵 Livraison${d.adresse?.ville ? ' → ' + d.adresse.ville : ''}` :
+        const typeText  = typeL === 'livraison'  ? '🛵 Livraison' :
                           typeL === 'a_emporter' ? '🛍️ À emporter' :
-                          typeL === 'sur_place'  ? '🍽️ Sur place' : '❓ N/A';
-        const confirmeeBrut = d.commande_confirmee_brut;
-        const confirmeeVal = confirmeeBrut == null ? null : (String(confirmeeBrut).toLowerCase() !== 'false');
-        const pastilles = `
-          <div class="pastille-container">
-            ${renderPastille(commandeCreee, 'Commande créée')}
-            ${renderPastille(confirmeeVal, 'Confirmée')}
-            ${anomalies.length > 0
-              ? `<span class="pastille pastille-warning"><span class="pastille-dot dot-warning"></span>${anomalies.length} à vérifier</span>`
-              : ''}
-          </div>
-        `;
-        html += `
-          <div class="commande-card" onclick="openEvenementDetail('${evt.id}')">
-            <div class="card-header" style="align-items: flex-start;">
-              <span class="card-numero">#${numero}</span>
-              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
-                <span class="card-prix">${prix !== null ? prix + '€' : '—'}</span>
-                ${statutBadge}
-                ${pastilles}
-              </div>
+                          typeL === 'sur_place'  ? '🍽️ Sur place' : '❓';
+        const dureeText = duree ? ` • ⏱️ ${formatDuree(duree)}` : '';
+        const anoBadge = anomalies.length > 0
+          ? `<span class="badge badge-warning">${anomalies.length} ⚠️</span>` : '';
+        rows += `
+          <div class="row-item" onclick="openEvenementDetail('${evt.id}')">
+            <span class="row-num">#${numero}</span>
+            <div class="row-main">
+              <span class="row-client">${nom || '<span class="info-manquante">info manquante</span>'}</span>
+              <span class="row-sub">📞 ${telephone || 'N/A'} • ${typeText}${dureeText}</span>
             </div>
-            <div class="card-client">
-              👤 <strong>${nom || '<span class="info-manquante">info manquante</span>'}</strong>
-              • 📞 ${telephone || '<span class="info-manquante">info manquante</span>'}
+            <div class="row-right">
+              <span class="row-price">${prix !== null ? prix + '€' : '—'}</span>
+              ${statutBadge}${anoBadge}
+              <span class="row-date">${formatDate(evt.created_at)}</span>
             </div>
-            <div>
-              <span class="badge badge-${typeBadge}">${typeText}</span>
-            </div>
-            <div class="card-date">⏰ ${formatDate(evt.created_at)}</div>
           </div>
         `;
        } catch (errEvt) {
          console.error('⚠️ Événement ignoré (erreur rendu):', evt.id, errEvt);
        }
       });
-      container.innerHTML = html;
+      container.innerHTML = '<div class="row-list">' + rows + '</div>';
     }
 
     function openEvenementDetail(id) {
@@ -2165,7 +1886,8 @@
           <strong>📞 Informations appel</strong>
           <div style="margin-top: 10px; display: flex; gap: 20px; flex-wrap: wrap;">
             <div style="font-size: 14px;">⏱️ Durée : <strong>${duree}</strong></div>
-            <div style="font-size: 14px;">💳 Coût : <strong>${credits !== null ? credits + ' crédits' : 'N/A'}</strong></div>
+            <div style="font-size: 14px;">💰 Coût : <strong>${credits !== null ? formatCout(credits, evt.duree_appel || d.duree_appel) : 'N/A'}</strong></div>
+            ${credits !== null ? `<div style="font-size: 12px; color: #999; align-self: center;">(${credits} crédits)</div>` : ''}
           </div>
           ${pastillesModal}
         </div>
@@ -2178,17 +1900,17 @@
       ` : '';
       const modal = document.getElementById('modal-commande');
       modal.innerHTML = `
-        <div style="padding: 20px;" onclick="event.stopPropagation()">
-          <div style="background: white; border-radius: 16px; padding: 24px; max-width: 600px; margin: 0 auto;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-              <div>
-                <h2 style="margin: 0 0 4px 0;">Événement #${numero}</h2>
-                <span class="badge ${evt.statut === 'success' ? 'badge-success' : evt.statut === 'a_verifier' ? 'badge-averifier' : 'badge-danger'}">
-                  ${evt.statut === 'success' ? '✅ Succès' : evt.statut === 'a_verifier' ? '⚠️ À vérifier' : '❌ Échec'}
-                </span>
-              </div>
-              <button onclick="closeModal('modal-commande')" style="background: none; border: none; font-size: 28px; cursor: pointer;">×</button>
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <div>
+              <h2 style="margin: 0 0 4px 0;">Événement #${numero}</h2>
+              <span class="badge ${evt.statut === 'success' ? 'badge-success' : evt.statut === 'a_verifier' ? 'badge-averifier' : 'badge-danger'}">
+                ${evt.statut === 'success' ? '✅ Succès' : evt.statut === 'a_verifier' ? '⚠️ À vérifier' : '❌ Échec'}
+              </span>
             </div>
+            <button class="btn-close" onclick="closeModal('modal-commande')">×</button>
+          </div>
+          <div class="modal-body">
             ${erreurHtml}
             ${anomalies.length > 0 ? `
               <div class="anomalie-box">
@@ -2198,21 +1920,21 @@
                 </div>
               </div>
             ` : ''}
-            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+            <div style="background: #fafbfc; padding: 14px; border-radius: 8px; margin-bottom: 14px;">
               <strong>👤 Client</strong><br>
               ${nomHtml}<br>${telHtml}
             </div>
             ${adresseHtml}
-            <div style="margin-bottom: 20px;">
+            <div style="margin-bottom: 16px;">
               <strong>📦 Articles</strong>
               <div style="margin-top: 12px;">${articlesHtml}</div>
             </div>
-            <div style="border-top: 2px solid #ddd; padding-top: 16px; font-size: 20px; font-weight: bold; text-align: right; margin-bottom: 16px;">
+            <div style="border-top: 1px solid var(--line); padding-top: 14px; font-size: 18px; font-weight: bold; text-align: right; margin-bottom: 14px;">
               Total : ${prix !== null ? prix + '€' : '<span class="info-manquante">info manquante</span>'}
             </div>
             ${infosAppelHtml}
             ${resumeHtml}
-            <div style="margin-top: 20px; font-size: 13px; color: #999;">
+            <div style="margin-top: 16px; font-size: 13px; color: var(--muted);">
               <div>Enregistré le : ${formatDate(evt.created_at)}</div>
               <div>Type : ${evt.type_evenement || 'N/A'}</div>
             </div>
