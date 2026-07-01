@@ -589,7 +589,7 @@
     .dot-danger  { background: #f44336; }
     .dot-unknown { background: #9e9e9e; }
 
-    /* 🆕 PASTILLE + BADGE "À VÉRIFIER" (ajout V10, ne touche pas à l'existant) */
+    /* PASTILLE + BADGE "À VÉRIFIER" */
     .pastille-warning {
       background: #fff3e0;
       color: #e65100;
@@ -618,6 +618,158 @@
       color: #f44336;
       font-style: italic;
       font-size: 13px;
+    }
+
+    /* ============================================ */
+    /* 🆕 SECTION OPTIONS PRODUITS (nouvelle) */
+    /* ============================================ */
+    .prod-block {
+      background: #ffffff;
+      border: 1px solid #e6e2ee;
+      border-radius: 14px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      box-shadow: 0 2px 10px rgba(42,36,56,0.05);
+    }
+    .prod-block-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 15px 18px;
+      background: linear-gradient(to right, #f8f7fe, white);
+      border-bottom: 1px solid #e6e2ee;
+      flex-wrap: wrap;
+    }
+    .prod-block-name {
+      font-weight: 800;
+      font-size: 16px;
+      color: #2a2438;
+    }
+    .prod-block-size {
+      font-size: 11px;
+      font-weight: 800;
+      background: #eee9fa;
+      color: #764ba2;
+      padding: 3px 9px;
+      border-radius: 6px;
+    }
+    .prod-block-compo {
+      font-size: 12px;
+      color: #8b8398;
+      width: 100%;
+      margin-top: 2px;
+    }
+    .prod-block-price {
+      margin-left: auto;
+      font-weight: 800;
+      color: #667eea;
+      font-size: 17px;
+    }
+    .opt-intro {
+      font-size: 12px;
+      color: #8b8398;
+      padding: 12px 18px 4px;
+    }
+    .opt-grid {
+      padding: 8px 18px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .opt-card {
+      border: 1.5px solid #e6e2ee;
+      border-radius: 11px;
+      padding: 13px 15px;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .opt-cat-pill {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .cat-viande { background: #f8e9e5; color: #c0563f; }
+    .cat-sauce { background: #f7edd8; color: #b8892b; }
+    .cat-fromage { background: #e9f0e0; color: #6b8e4e; }
+    .cat-sauce_tasty { background: #f3e2ee; color: #a3477f; }
+    .cat-autre { background: #e3f2fd; color: #2196f3; }
+    .opt-libelle {
+      font-size: 13px;
+      color: #2a2438;
+      font-weight: 600;
+    }
+    .opt-fields {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .opt-field {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .opt-field .lbl {
+      font-size: 10px;
+      font-weight: 700;
+      color: #8b8398;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .opt-field .val {
+      font-size: 14px;
+      font-weight: 700;
+      color: #2a2438;
+      background: #fbfaff;
+      border: 1px solid #e6e2ee;
+      border-radius: 6px;
+      padding: 3px 10px;
+      min-width: 44px;
+      text-align: center;
+    }
+    .opt-oblig-yes { color: #3a9d5d; }
+    .opt-oblig-no { color: #b0668a; }
+    .opt-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 6px;
+    }
+    .opt-comportement {
+      font-size: 11px;
+      color: #764ba2;
+      background: #f3f0fb;
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-weight: 600;
+    }
+    .add-opt-btn {
+      margin: 0 18px 18px;
+      border: 1.5px dashed #667eea;
+      color: #764ba2;
+      background: #f8f7fe;
+      border-radius: 10px;
+      padding: 11px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .add-opt-btn:hover {
+      background: #eee9fa;
+    }
+    .options-help {
+      background: #fff8ec;
+      border: 1px solid #f0e2c4;
+      border-left: 4px solid #d9a441;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13.5px;
+      margin-bottom: 20px;
+      color: #7a5c1a;
     }
   </style>
 </head>
@@ -688,6 +840,7 @@
           <div class="toolbar-left">
             <select id="param-section" onchange="switchParamSection(this.value)">
               <option value="produits">Produits</option>
+              <option value="options">Options produits</option>
               <option value="attributs">Attributs</option>
               <option value="zones">Zones de livraison</option>
               <option value="familles">Familles de produits</option>
@@ -710,13 +863,35 @@
           <div id="produits-table"></div>
         </div>
 
+        <!-- 🆕 SECTION OPTIONS PRODUITS -->
+        <div id="param-options" class="param-section" style="display:none;">
+          <div class="options-help">
+            💡 Ici tu définis, pour chaque produit composable, les <strong>groupes d'options</strong>
+            que l'agent proposera au client (viandes, sauces...). Chaque champ est simple :
+            <strong>Min/Max</strong> = combien le client peut choisir, <strong>Obligatoire</strong> =
+            l'agent doit toujours poser la question, <strong>Inclus</strong> = combien sont compris dans le prix.
+          </div>
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <input type="text" id="search-options" placeholder="Rechercher un produit..." style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+              <select id="filter-options-categorie" onchange="renderProduitOptions()">
+                <option value="">Toutes catégories</option>
+              </select>
+            </div>
+          </div>
+          <div id="options-content">
+            <div class="loading">Chargement...</div>
+          </div>
+        </div>
+
         <div id="param-attributs" class="param-section" style="display:none;">
           <div class="toolbar">
             <select id="filter-attr-categorie" onchange="loadAttributs()">
               <option value="">Toutes catégories</option>
-              <option value="viande">Viandes</option>
-              <option value="fromage">Fromages</option>
-              <option value="sauce">Sauces</option>
+              <option value="VIANDE">Viandes</option>
+              <option value="FROMAGE">Fromages</option>
+              <option value="SAUCE">Sauces</option>
+              <option value="SAUCE_TASTY">Sauces Tasty</option>
             </select>
           </div>
           <div id="attributs-table"></div>
@@ -797,6 +972,7 @@
     let zones = [];
     let familles = [];
     let clients = [];
+    let produitOptions = [];      // 🆕 stocke les lignes de produit_options (avec le produit joint)
 
     // ========================================
     // LOGIN
@@ -810,25 +986,16 @@
     async function handleLogin(e) {
       e.preventDefault();
       const password = document.getElementById('password').value;
-
-      console.log('🔐 Tentative de connexion...');
-      console.log('📝 Mot de passe saisi:', password);
-
       try {
         const hash = await sha256(password);
-        console.log('🔑 Hash généré:', hash);
-        console.log('🎯 Hash attendu:', PASSWORD_HASH);
-        console.log('✅ Match?', hash === PASSWORD_HASH);
-
         if (hash === PASSWORD_HASH) {
           localStorage.setItem('loasis_logged_in', 'true');
           showDashboard();
         } else {
           document.getElementById('login-error').innerHTML =
-            '<div class="error-message">❌ Mot de passe incorrect<br>Mot de passe par défaut: loasis2024</div>';
+            '<div class="error-message">❌ Mot de passe incorrect</div>';
         }
       } catch (error) {
-        console.error('❌ Erreur:', error);
         document.getElementById('login-error').innerHTML =
           '<div class="error-message">❌ Erreur: ' + error.message + '</div>';
       }
@@ -918,7 +1085,6 @@
       loadCommandes();
     }
 
-    // ✅ Sélecteur de date SANS heure
     function showDatePicker() {
       const modal = document.getElementById('modal-date');
       modal.innerHTML = `
@@ -941,7 +1107,6 @@
       modal.onclick = () => closeModal('modal-date');
     }
 
-    // ✅ Sélecteur de plage de dates SANS heures
     function showDateRangePicker() {
       const now = new Date();
       const startDefault = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -975,14 +1140,11 @@
     function applyDateFilter() {
       const dateValue = document.getElementById('date-single').value;
       if (!dateValue) return;
-
       const startDate = dateValue + 'T00:00:00';
       const endDate = dateValue + 'T23:59:59';
-
       currentFilter = {type: 'custom', startDate, endDate};
       document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
       document.getElementById('filter-date').classList.add('active');
-
       closeModal('modal-date');
       loadCommandes();
     }
@@ -990,55 +1152,44 @@
     function applyDateRangeFilter() {
       const startValue = document.getElementById('date-start').value;
       const endValue = document.getElementById('date-end').value;
-
       if (!startValue || !endValue) {
         alert('Veuillez remplir les deux dates');
         return;
       }
-
       currentFilter = {
         type: 'range',
         startDate: startValue + 'T00:00:00',
         endDate: endValue + 'T23:59:59'
       };
-
       document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
       document.getElementById('filter-range').classList.add('active');
-
       closeModal('modal-date');
       loadCommandes();
     }
 
     function renderCommandes() {
       const content = document.getElementById('commandes-content');
-
       if (commandes.length === 0) {
         content.innerHTML = '<div class="no-data">Aucune commande</div>';
         return;
       }
-
       let html = '';
       commandes.forEach(cmd => {
         const typeBadge = cmd.type_livraison === 'livraison' ? 'livraison' :
                          cmd.type_livraison === 'a_emporter' ? 'emporter' : 'surplace';
-
         const typeText = cmd.type_livraison === 'livraison' ?
           `🛵 Livraison${cmd.adresse_livraison?.ville ? ' → ' + cmd.adresse_livraison.ville : ''}` :
           cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
-
         const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
         const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
-
         const callerId = cmd.adresse_livraison?.caller_id;
         const telDeclare = cmd.adresse_livraison?.telephone;
-
         let warningBadge = '';
         if (callerId === 'anonymous') {
           warningBadge = '<span class="badge badge-anonymous">⚠️ ANONYMOUS</span> ';
         } else if (callerId && telDeclare && callerId !== telDeclare) {
           warningBadge = '<span class="badge badge-different">🔄 NUMÉRO DIFFÉRENT</span> ';
         }
-
         html += `
           <div class="commande-card" onclick="openCommandeDetail('${cmd.id}')">
             <div class="card-header">
@@ -1055,17 +1206,14 @@
           </div>
         `;
       });
-
       content.innerHTML = html;
     }
 
     function openCommandeDetail(id) {
       const cmd = commandes.find(c => c.id === id);
       if (!cmd) return;
-
       const typeText = cmd.type_livraison === 'livraison' ? '🛵 Livraison' :
                       cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
-
       let articlesHtml = '';
       if (cmd.produits_commandes) {
         cmd.produits_commandes.forEach(item => {
@@ -1079,7 +1227,6 @@
             if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
             if (a.supplements) attrHtml += `<div>➕ ${Array.isArray(a.supplements) ? a.supplements.join(', ') : a.supplements}</div>`;
           }
-
           articlesHtml += `
             <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
               <div style="display: flex; justify-content: space-between;">
@@ -1092,15 +1239,11 @@
           `;
         });
       }
-
       const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
       const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
-
       const callerId = cmd.adresse_livraison?.caller_id;
       const telDeclare = cmd.adresse_livraison?.telephone;
-
       let clientInfoHtml = `${nomClient}<br><span style="color: #999;">${telClient}</span>`;
-
       if (callerId === 'anonymous') {
         clientInfoHtml = `
           <span class="badge badge-anonymous" style="display: inline-block; margin-bottom: 8px;">⚠️ ANONYMOUS</span><br>
@@ -1116,22 +1259,18 @@
           <span style="color: #f57c00; font-size: 12px;">📱 Caller ID: ${callerId}</span>
         `;
       }
-
       const adresseHtml = cmd.adresse_livraison ? `
         <div style="color: #666; font-size: 14px; line-height: 1.6;">
           ${cmd.adresse_livraison.rue || ''}<br>
           ${cmd.adresse_livraison.code_postal || ''} ${cmd.adresse_livraison.ville || cmd.adresse_livraison.Ville || ''}
         </div>
       ` : '<div style="color: #999;">Aucune adresse</div>';
-
       const instructionsAccesHtml = cmd.adresse_livraison?.instructions_acces ? `
         <div style="background: #fff3e0; padding: 12px; border-radius: 8px; margin-top: 12px; border-left: 4px solid #ff9800;">
           <strong>🔑 Instructions d'accès</strong><br>
           <span style="color: #666; font-size: 14px;">${cmd.adresse_livraison.instructions_acces}</span>
         </div>
       ` : '';
-
-// Lit heure ET date souhaitées dans instructions_livraison (gère objet OU string JSON)
       let heureSouhaitee = null;
       let dateSouhaitee = null;
       if (cmd.instructions_livraison) {
@@ -1140,7 +1279,6 @@
         if (il && il.heure_souhaitee) heureSouhaitee = il.heure_souhaitee;
         if (il && il.date_souhaitee)  dateSouhaitee  = il.date_souhaitee;
       }
-      // Construit le texte : "lundi 29 juin à 13:00", ou l'un des deux seul
       let texteSouhaite = '';
       const dateFrSouhaitee = formatDateSouhaitee(dateSouhaitee);
       if (dateFrSouhaitee && heureSouhaitee) texteSouhaite = dateFrSouhaitee + ' à ' + heureSouhaitee;
@@ -1152,7 +1290,6 @@
           <span style="color: #666; font-size: 14px;">${texteSouhaite}</span>
         </div>
       ` : '';
-
       const modal = document.getElementById('modal-commande');
       modal.innerHTML = `
         <div style="padding: 20px;" onclick="event.stopPropagation()">
@@ -1203,17 +1340,17 @@
       document.querySelectorAll('.param-section').forEach(s => s.style.display = 'none');
       document.getElementById('param-' + section).style.display = 'block';
 
-      // Masquer le bouton "Ajouter" sur la section Messages d'accueil
+      // Masquer le bouton "Ajouter" sur Messages (rien à ajouter là)
       const btnAdd = document.getElementById('btn-add-param');
       if (btnAdd) {
         btnAdd.style.display = (section === 'messages') ? 'none' : '';
       }
-
       loadParamData();
     }
 
     async function loadParamData() {
       if (currentParamSection === 'produits') await loadProduits();
+      else if (currentParamSection === 'options') await loadProduitOptions();   // 🆕
       else if (currentParamSection === 'attributs') await loadAttributs();
       else if (currentParamSection === 'zones') await loadZones();
       else if (currentParamSection === 'familles') await loadFamilles();
@@ -1223,7 +1360,6 @@
     async function loadProduits() {
       const container = document.getElementById('produits-table');
       container.innerHTML = '<div class="loading">Chargement...</div>';
-
       try {
         const { data, error } = await supabaseClient
           .from('produits')
@@ -1231,15 +1367,12 @@
           .eq('business_id', BUSINESS_ID)
           .order('categorie', { ascending: true })
           .order('nom', { ascending: true });
-
         if (error) throw error;
         produits = data || [];
-
         const categories = [...new Set(produits.map(p => p.categorie).filter(Boolean))];
         const filterSelect = document.getElementById('filter-categorie');
         filterSelect.innerHTML = '<option value="">Toutes catégories</option>' +
           categories.map(c => `<option value="${c}">${c}</option>`).join('');
-
         renderProduitsTable();
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
@@ -1249,25 +1382,17 @@
     function renderProduitsTable() {
       const search = (document.getElementById('search-produits')?.value || '').toLowerCase();
       const catFilter = document.getElementById('filter-categorie')?.value || '';
-
       let filtered = produits.filter(p => {
         const matchSearch = !search || p.nom.toLowerCase().includes(search);
         const matchCat = !catFilter || p.categorie === catFilter;
         return matchSearch && matchCat;
       });
-
       const html = `
         <div class="table-container">
           <table>
             <thead>
               <tr>
-                <th>Nom</th>
-                <th>Catégorie</th>
-                <th>Prix</th>
-                <th>Taille</th>
-                <th>Type</th>
-                <th>Actif</th>
-                <th>Actions</th>
+                <th>Nom</th><th>Catégorie</th><th>Prix</th><th>Taille</th><th>Type</th><th>Actif</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1290,9 +1415,7 @@
           </table>
         </div>
       `;
-
       document.getElementById('produits-table').innerHTML = html;
-
       const searchInput = document.getElementById('search-produits');
       if (searchInput) {
         searchInput.removeEventListener('input', renderProduitsTable);
@@ -1300,10 +1423,289 @@
       }
     }
 
+    // ========================================
+    // 🆕 OPTIONS PRODUITS
+    // ========================================
+    async function loadProduitOptions() {
+      const container = document.getElementById('options-content');
+      container.innerHTML = '<div class="loading">🔄 Chargement des options...</div>';
+      try {
+        // On charge les produits composables + leurs options (jointure)
+        const { data, error } = await supabaseClient
+          .from('produits')
+          .select('id, nom, categorie, prix, taille, details, type_produit, produit_options(*)')
+          .eq('business_id', BUSINESS_ID)
+          .eq('type_produit', 'produit_composable')
+          .order('categorie', { ascending: true })
+          .order('nom', { ascending: true });
+        if (error) throw error;
+        produitOptions = data || [];
+
+        // Remplir le filtre catégories
+        const categories = [...new Set(produitOptions.map(p => p.categorie).filter(Boolean))];
+        const filterSelect = document.getElementById('filter-options-categorie');
+        filterSelect.innerHTML = '<option value="">Toutes catégories</option>' +
+          categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+        renderProduitOptions();
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
+      }
+    }
+
+    function catPillClass(cat) {
+      const c = (cat || '').toLowerCase();
+      if (c === 'viande') return 'cat-viande';
+      if (c === 'sauce') return 'cat-sauce';
+      if (c === 'fromage') return 'cat-fromage';
+      if (c === 'sauce_tasty') return 'cat-sauce_tasty';
+      return 'cat-autre';
+    }
+
+    function renderProduitOptions() {
+      const container = document.getElementById('options-content');
+      const search = (document.getElementById('search-options')?.value || '').toLowerCase();
+      const catFilter = document.getElementById('filter-options-categorie')?.value || '';
+
+      let filtered = produitOptions.filter(p => {
+        const matchSearch = !search || p.nom.toLowerCase().includes(search);
+        const matchCat = !catFilter || p.categorie === catFilter;
+        return matchSearch && matchCat;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="no-data">Aucun produit trouvé</div>';
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(prod => {
+        // Trier les options par position
+        const opts = (prod.produit_options || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+
+        let optsHtml = '';
+        if (opts.length === 0) {
+          optsHtml = '<div style="padding: 4px 18px 12px; color:#999; font-size:13px;">Aucun groupe d\'options pour ce produit.</div>';
+        } else {
+          optsHtml = '<div class="opt-grid">';
+          opts.forEach(o => {
+            const obligTxt = o.obligatoire
+              ? '<span class="opt-oblig-yes">Oui</span>'
+              : '<span class="opt-oblig-no">Non</span>';
+            optsHtml += `
+              <div class="opt-card">
+                <span class="opt-cat-pill ${catPillClass(o.categorie_attribut)}">${o.categorie_attribut}</span>
+                ${o.libelle ? `<span class="opt-libelle">${o.libelle}</span>` : ''}
+                <span class="opt-comportement">${o.comportement || 'ajout'}</span>
+                <div class="opt-fields">
+                  <div class="opt-field"><span class="lbl">Min</span><span class="val">${o.min}</span></div>
+                  <div class="opt-field"><span class="lbl">Max</span><span class="val">${o.max}</span></div>
+                  <div class="opt-field"><span class="lbl">Obligatoire</span><span class="val">${obligTxt}</span></div>
+                  <div class="opt-field"><span class="lbl">Inclus</span><span class="val">${o.inclus_gratuit}</span></div>
+                </div>
+                <div class="opt-actions">
+                  <button class="btn btn-sm btn-secondary" onclick="editOption('${o.id}')">✏️</button>
+                  <button class="btn btn-sm btn-danger" onclick="deleteOption('${o.id}')">🗑️</button>
+                </div>
+              </div>
+            `;
+          });
+          optsHtml += '</div>';
+        }
+
+        html += `
+          <div class="prod-block">
+            <div class="prod-block-head">
+              <span class="prod-block-name">${prod.nom}</span>
+              ${prod.taille ? `<span class="prod-block-size">Taille ${prod.taille}</span>` : ''}
+              <span class="prod-block-price">${prod.prix}€</span>
+              ${prod.details ? `<div class="prod-block-compo">📋 ${prod.details}</div>` : ''}
+            </div>
+            <div class="opt-intro">Groupes d'options de ce produit :</div>
+            ${optsHtml}
+            <div class="add-opt-btn" onclick="openAddOption('${prod.id}', '${prod.nom.replace(/'/g, "\\'")}')">➕ Ajouter un groupe d'options</div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+
+      const searchInput = document.getElementById('search-options');
+      if (searchInput) {
+        searchInput.removeEventListener('input', renderProduitOptions);
+        searchInput.addEventListener('input', renderProduitOptions);
+      }
+    }
+
+    // Formulaire commun (ajout ET édition) pour un groupe d'options
+    function optionFormHtml(titre, data, submitJs) {
+      const d = data || {};
+      const cats = ['VIANDE', 'SAUCE', 'FROMAGE', 'SAUCE_TASTY'];
+      const comps = [
+        ['ajout', 'Ajout (additionne les prix)'],
+        ['choix_multiple', 'Choix multiple (jusqu\'à Max)'],
+        ['choix_unique', 'Choix unique (un seul)'],
+        ['retrait', 'Retrait (enlève des éléments)']
+      ];
+      return `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>${titre}</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="${submitJs}">
+            <div class="form-group">
+              <label>Catégorie d'attribut *</label>
+              <select name="categorie_attribut" required>
+                ${cats.map(c => `<option value="${c}" ${d.categorie_attribut === c ? 'selected' : ''}>${c}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Libellé (texte annoncé par l'agent, ex. « Sauce burger »)</label>
+              <input type="text" name="libelle" value="${d.libelle ? d.libelle.replace(/"/g, '&quot;') : ''}" placeholder="Laisser vide = utilise le nom de la catégorie">
+            </div>
+            <div class="form-group">
+              <label>Comportement *</label>
+              <select name="comportement" required>
+                ${comps.map(([v, t]) => `<option value="${v}" ${(d.comportement || 'ajout') === v ? 'selected' : ''}>${t}</option>`).join('')}
+              </select>
+            </div>
+            <div style="display:flex; gap:12px;">
+              <div class="form-group" style="flex:1;">
+                <label>Min *</label>
+                <input type="number" name="min" value="${d.min != null ? d.min : 0}" required>
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label>Max *</label>
+                <input type="number" name="max" value="${d.max != null ? d.max : 1}" required>
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label>Inclus gratuit *</label>
+                <input type="number" name="inclus_gratuit" value="${d.inclus_gratuit != null ? d.inclus_gratuit : 0}" required>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Position (ordre d'affichage)</label>
+              <input type="number" name="position" value="${d.position != null ? d.position : 0}">
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group">
+                <input type="checkbox" name="obligatoire" ${d.obligatoire ? 'checked' : ''}>
+                <label>Obligatoire (l'agent doit toujours poser la question)</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      `;
+    }
+
+    function openAddOption(produitId, produitNom) {
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = optionFormHtml(
+        `➕ Ajouter un groupe — ${produitNom}`,
+        {},
+        `createOption(event, '${produitId}')`
+      );
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function createOption(e, produitId) {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      try {
+        const { error } = await supabaseClient
+          .from('produit_options')
+          .insert({
+            business_id: BUSINESS_ID,
+            produit_id: produitId,
+            categorie_attribut: f.get('categorie_attribut'),
+            libelle: f.get('libelle') || null,
+            comportement: f.get('comportement'),
+            min: parseInt(f.get('min')) || 0,
+            max: parseInt(f.get('max')) || 1,
+            inclus_gratuit: parseInt(f.get('inclus_gratuit')) || 0,
+            position: parseInt(f.get('position')) || 0,
+            obligatoire: f.get('obligatoire') === 'on'
+          });
+        if (error) throw error;
+        alert('✅ Groupe d\'options créé');
+        closeModal('modal-edit');
+        loadProduitOptions();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    }
+
+    function findOptionById(id) {
+      for (const prod of produitOptions) {
+        const found = (prod.produit_options || []).find(o => o.id === id);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function editOption(id) {
+      const opt = findOptionById(id);
+      if (!opt) return;
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = optionFormHtml(
+        `✏️ Modifier le groupe d'options`,
+        opt,
+        `saveOption(event, '${id}')`
+      );
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function saveOption(e, id) {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      try {
+        const { error } = await supabaseClient
+          .from('produit_options')
+          .update({
+            categorie_attribut: f.get('categorie_attribut'),
+            libelle: f.get('libelle') || null,
+            comportement: f.get('comportement'),
+            min: parseInt(f.get('min')) || 0,
+            max: parseInt(f.get('max')) || 1,
+            inclus_gratuit: parseInt(f.get('inclus_gratuit')) || 0,
+            position: parseInt(f.get('position')) || 0,
+            obligatoire: f.get('obligatoire') === 'on'
+          })
+          .eq('id', id);
+        if (error) throw error;
+        alert('✅ Groupe d\'options mis à jour');
+        closeModal('modal-edit');
+        loadProduitOptions();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    }
+
+    async function deleteOption(id) {
+      if (!confirm('Supprimer ce groupe d\'options ? Cette action est irréversible.')) return;
+      try {
+        const { error } = await supabaseClient
+          .from('produit_options')
+          .delete()
+          .eq('id', id);
+        if (error) throw error;
+        alert('✅ Groupe supprimé');
+        loadProduitOptions();
+      } catch (error) {
+        alert('❌ Erreur: ' + error.message);
+      }
+    }
+
     async function loadAttributs() {
       const container = document.getElementById('attributs-table');
       container.innerHTML = '<div class="loading">Chargement...</div>';
-
       try {
         const { data, error } = await supabaseClient
           .from('attributs')
@@ -1311,24 +1713,16 @@
           .eq('business_id', BUSINESS_ID)
           .order('categorie', { ascending: true })
           .order('nom', { ascending: true });
-
         if (error) throw error;
         attributs = data || [];
-
         const catFilter = document.getElementById('filter-attr-categorie').value;
-        const filtered = catFilter ? attributs.filter(a => a.categorie.toLowerCase() === catFilter) : attributs;
-
+        const filtered = catFilter ? attributs.filter(a => a.categorie === catFilter) : attributs;
         const html = `
           <div class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Nom</th>
-                  <th>Catégorie</th>
-                  <th>Prix supplément</th>
-                  <th>Type entité</th>
-                  <th>Actif</th>
-                  <th>Actions</th>
+                  <th>Nom</th><th>Catégorie</th><th>Prix supplément</th><th>Type entité</th><th>Actif</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1349,7 +1743,6 @@
             </table>
           </div>
         `;
-
         container.innerHTML = html;
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
@@ -1359,29 +1752,20 @@
     async function loadZones() {
       const container = document.getElementById('zones-table');
       container.innerHTML = '<div class="loading">Chargement...</div>';
-
       try {
         const { data, error } = await supabaseClient
           .from('zones_service')
           .select('*')
           .eq('business_id', BUSINESS_ID)
           .order('nom', { ascending: true });
-
         if (error) throw error;
         zones = data || [];
-
         const html = `
           <div class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Nom</th>
-                  <th>Code postal</th>
-                  <th>Minimum</th>
-                  <th>Frais</th>
-                  <th>Type zone</th>
-                  <th>Actif</th>
-                  <th>Actions</th>
+                  <th>Nom</th><th>Code postal</th><th>Minimum</th><th>Frais</th><th>Type zone</th><th>Actif</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1403,7 +1787,6 @@
             </table>
           </div>
         `;
-
         container.innerHTML = html;
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
@@ -1413,27 +1796,19 @@
     async function loadFamilles() {
       const container = document.getElementById('familles-table');
       container.innerHTML = '<div class="loading">Chargement...</div>';
-
       try {
         const { data, error } = await supabaseClient
           .from('produit_familles')
           .select('*')
           .eq('business_id', BUSINESS_ID)
           .order('position', { ascending: true });
-
         if (error) throw error;
         familles = data || [];
-
         const html = `
           <div class="table-container">
             <table>
               <thead>
-                <tr>
-                  <th>Nom</th>
-                  <th>Position</th>
-                  <th>Actif</th>
-                  <th>Actions</th>
-                </tr>
+                <tr><th>Nom</th><th>Position</th><th>Actif</th><th>Actions</th></tr>
               </thead>
               <tbody>
                 ${familles.map(f => `
@@ -1451,7 +1826,6 @@
             </table>
           </div>
         `;
-
         container.innerHTML = html;
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
@@ -1459,27 +1833,22 @@
     }
 
     // ========================================
-    // CLIENTS - ✅ CORRECTION: sans jointure adresses
+    // CLIENTS
     // ========================================
     async function loadClients() {
       const container = document.getElementById('clients-table');
       container.innerHTML = '<div class="loading">Chargement...</div>';
-
       try {
         let query = supabaseClient
           .from('client')
           .select('*')
           .eq('business_id', BUSINESS_ID)
           .order('created_at', { ascending: false });
-
         const segment = document.getElementById('filter-segment').value;
         if (segment) query = query.eq('segment', segment);
-
         const { data, error } = await query.limit(200);
         if (error) throw error;
-
         clients = data || [];
-
         const search = document.getElementById('search-clients').value.toLowerCase();
         const filtered = clients.filter(c =>
           !search ||
@@ -1487,20 +1856,12 @@
           c.telephone?.includes(search) ||
           c.email?.toLowerCase().includes(search)
         );
-
         const html = `
           <div class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Nom</th>
-                  <th>Téléphone</th>
-                  <th>Email</th>
-                  <th>Commandes</th>
-                  <th>Points</th>
-                  <th>Segment</th>
-                  <th>Actif</th>
-                  <th>Actions</th>
+                  <th>Nom</th><th>Téléphone</th><th>Email</th><th>Commandes</th><th>Points</th><th>Segment</th><th>Actif</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1522,7 +1883,6 @@
             </table>
           </div>
         `;
-
         container.innerHTML = html;
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
@@ -1532,8 +1892,6 @@
     // ========================================
     // LOGS - ÉVÉNEMENTS POST-CALL
     // ========================================
-
-    // Formate une durée en secondes → "3min 20sec"
     function formatDuree(seconds) {
       if (!seconds && seconds !== 0) return 'N/A';
       const min = Math.floor(seconds / 60);
@@ -1543,26 +1901,16 @@
       return `${min}min ${sec}sec`;
     }
 
-    // Génère une pastille avec label et couleur selon la valeur
     function renderPastille(value, label) {
-      // null/undefined = gris (info non dispo)
       if (value === null || value === undefined) {
-        return `<span class="pastille pastille-unknown">
-          <span class="pastille-dot dot-unknown"></span>${label}
-        </span>`;
+        return `<span class="pastille pastille-unknown"><span class="pastille-dot dot-unknown"></span>${label}</span>`;
       }
-      // true = vert, false = rouge
       if (value === true) {
-        return `<span class="pastille pastille-success">
-          <span class="pastille-dot dot-success"></span>${label}
-        </span>`;
+        return `<span class="pastille pastille-success"><span class="pastille-dot dot-success"></span>${label}</span>`;
       }
-      return `<span class="pastille pastille-danger">
-        <span class="pastille-dot dot-danger"></span>${label}
-      </span>`;
+      return `<span class="pastille pastille-danger"><span class="pastille-dot dot-danger"></span>${label}</span>`;
     }
 
-    // Filtre date
     function setLogFilter(type) {
       currentLogFilter = {type, startDate: null, endDate: null, statut: currentLogFilter.statut};
       document.querySelectorAll('#tab-logs .btn-filter').forEach(b => b.classList.remove('active'));
@@ -1571,9 +1919,7 @@
       loadLogs();
     }
 
-    // Filtre statut succès/échec
     function setLogStatut(statut) {
-      // Si déjà actif, on désactive
       if (currentLogFilter.statut === statut) {
         currentLogFilter.statut = null;
         document.getElementById('log-filter-success').classList.remove('active');
@@ -1587,7 +1933,6 @@
       loadLogs();
     }
 
-    // Sélecteur de date pour les logs
     function showLogDatePicker() {
       const modal = document.getElementById('modal-date');
       modal.innerHTML = `
@@ -1622,11 +1967,9 @@
       loadLogs();
     }
 
-    // Chargement principal des événements
     async function loadLogs() {
       const container = document.getElementById('logs-content');
       container.innerHTML = '<div class="loading">🔄 Chargement des événements...</div>';
-
       try {
         let query = supabaseClient
           .from('evenements')
@@ -1634,66 +1977,45 @@
           .eq('business_id', BUSINESS_ID)
           .order('created_at', { ascending: false })
           .limit(100);
-
-        // Filtre date
         if (currentLogFilter.type === 'today') {
           const today = new Date().toISOString().split('T')[0];
           query = query.gte('created_at', today + 'T00:00:00').lte('created_at', today + 'T23:59:59');
         } else if (currentLogFilter.type === 'date' && currentLogFilter.startDate) {
           query = query.gte('created_at', currentLogFilter.startDate).lte('created_at', currentLogFilter.endDate);
         }
-
-        // Filtre statut
         if (currentLogFilter.statut === 'success') {
           query = query.eq('statut', 'success');
         } else if (currentLogFilter.statut === 'failure') {
-          // tout sauf success (error, a_verifier)
           query = query.neq('statut', 'success');
         }
-
         const { data, error } = await query;
         if (error) throw error;
-
         evenements = data || [];
         renderEvenements();
-
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
       }
     }
 
-    // Rendu des cartes événements (format V10 : anomalies + statut a_verifier)
     function renderEvenements() {
       const container = document.getElementById('logs-content');
-
       if (evenements.length === 0) {
         container.innerHTML = '<div class="no-data">Aucun événement trouvé</div>';
         return;
       }
-
       let html = '';
-
       evenements.forEach(evt => {
        try {
-        // Récupérer les détails (JSONB, peut être objet ou string)
         let d = evt.details || {};
         if (typeof d === 'string') { try { d = JSON.parse(d); } catch { d = {}; } }
-
-        // Infos client
         const nom       = evt.client_nom || d.nom || null;
         const telephone = evt.client_telephone || d.telephone || null;
         const typeL     = d.type_livraison || null;
         const numero    = d.numero_commande || evt.call_id || 'N/A';
-
-        // Anomalies + commande créée (format V10), avec repli sur ancien format
         const anomalies = Array.isArray(d.anomalies) ? d.anomalies : [];
         const commandeCreee = d.commande_creee === true;
-
-        // Prix : montant annoncé au client (V10), repli sur prix_total (ancien)
         const prix = d.montant_annonce != null ? d.montant_annonce
                    : (d.prix_total != null ? d.prix_total : null);
-
-        // Badge statut : success / a_verifier / error
         let statutBadge;
         if (evt.statut === 'success') {
           statutBadge = '<span class="badge badge-success">✅ Validée</span>';
@@ -1702,21 +2024,14 @@
         } else {
           statutBadge = '<span class="badge badge-danger">❌ Échec</span>';
         }
-
-        // Badge type livraison
         const typeBadge = typeL === 'livraison' ? 'livraison' :
                           typeL === 'a_emporter' ? 'emporter' :
                           typeL === 'sur_place'  ? 'surplace' : 'info';
-
         const typeText  = typeL === 'livraison'  ? `🛵 Livraison${d.adresse?.ville ? ' → ' + d.adresse.ville : ''}` :
                           typeL === 'a_emporter' ? '🛍️ À emporter' :
                           typeL === 'sur_place'  ? '🍽️ Sur place' : '❓ N/A';
-
-        // Confirmation : true sauf si "false" explicite, null si absent
         const confirmeeBrut = d.commande_confirmee_brut;
         const confirmeeVal = confirmeeBrut == null ? null : (String(confirmeeBrut).toLowerCase() !== 'false');
-
-        // Pastilles format V10 + compteur d'anomalies
         const pastilles = `
           <div class="pastille-container">
             ${renderPastille(commandeCreee, 'Commande créée')}
@@ -1726,7 +2041,6 @@
               : ''}
           </div>
         `;
-
         html += `
           <div class="commande-card" onclick="openEvenementDetail('${evt.id}')">
             <div class="card-header" style="align-items: flex-start;">
@@ -1751,34 +2065,27 @@
          console.error('⚠️ Événement ignoré (erreur rendu):', evt.id, errEvt);
        }
       });
-
       container.innerHTML = html;
     }
 
-    // Modale de détail d'un événement
     function openEvenementDetail(id) {
       try {
       const evt = evenements.find(e => e.id === id);
       if (!evt) return;
-
       let d = evt.details || {};
       if (typeof d === 'string') { try { d = JSON.parse(d); } catch { d = {}; } }
       const anomalies = Array.isArray(d.anomalies) ? d.anomalies : [];
-      // Adresse : si c'est un objet → direct, si c'est une string JSON → parser,
-      // si c'est une string invalide (ex: "À EMPORTER") → null
       const adresse = (() => {
         if (!d.adresse) return null;
         if (typeof d.adresse !== 'string') return d.adresse;
         try { return JSON.parse(d.adresse); } catch { return null; }
       })();
-      // Articles : même protection
       const articles = (() => {
         if (!d.articles) return [];
         if (Array.isArray(d.articles)) return d.articles;
         if (typeof d.articles !== 'string') return [];
         try { return JSON.parse(d.articles); } catch { return []; }
       })();
-
       const nom       = evt.client_nom || d.nom || null;
       const telephone = evt.client_telephone || d.telephone || null;
       const typeL     = d.type_livraison || null;
@@ -1787,32 +2094,19 @@
       const duree     = formatDuree(evt.duree_appel || d.duree_appel);
       const credits   = d.cout_credits ?? null;
       const resume    = d.resume || null;
-
-      // Type livraison texte
       const typeText = typeL === 'livraison'  ? '🛵 Livraison' :
                        typeL === 'a_emporter' ? '🛍️ À emporter' :
                        typeL === 'sur_place'  ? '🍽️ Sur place' : '❓ Non renseigné';
-
-      // Bloc client
-      const nomHtml = nom
-        ? `<strong>${nom}</strong>`
-        : `<span class="info-manquante">⚠️ Nom manquant</span>`;
-
-      const telHtml = telephone
-        ? `<span style="color: #999;">${telephone}</span>`
-        : `<span class="info-manquante">⚠️ Téléphone manquant</span>`;
-
-      // Bloc adresse
+      const nomHtml = nom ? `<strong>${nom}</strong>` : `<span class="info-manquante">⚠️ Nom manquant</span>`;
+      const telHtml = telephone ? `<span style="color: #999;">${telephone}</span>` : `<span class="info-manquante">⚠️ Téléphone manquant</span>`;
       let adresseHtml = '';
       if (typeL === 'livraison') {
         const rue  = adresse?.rue  || null;
         const cp   = adresse?.code_postal || null;
         const ville = adresse?.ville || null;
-
         const rueHtml   = rue   ? rue   : `<span class="info-manquante">⚠️ Rue manquante</span>`;
         const cpHtml    = cp    ? cp    : `<span class="info-manquante">⚠️ Code postal manquant</span>`;
         const villeHtml = ville ? ville : `<span class="info-manquante">⚠️ Ville manquante</span>`;
-
         adresseHtml = `
           <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
             <strong>${typeText}</strong>
@@ -1828,8 +2122,6 @@
           </div>
         `;
       }
-
-      // Bloc articles (avec prix si disponible)
       let articlesHtml = '';
       if (articles.length > 0) {
         articles.forEach(item => {
@@ -1840,12 +2132,7 @@
           if (item.fromages)     attrHtml += `<div style="font-size:12px;color:#666;">🧀 ${item.fromages}</div>`;
           if (item.supplements)  attrHtml += `<div style="font-size:12px;color:#666;">➕ ${item.supplements}</div>`;
           if (item.modifications)attrHtml += `<div style="font-size:12px;color:#f57c00;">💬 ${item.modifications}</div>`;
-
-          // Prix par article (disponible si la commande a été validée)
-          const prixArticle = item.prix_total != null
-            ? `<strong style="color:#667eea;">${item.prix_total}€</strong>`
-            : '';
-
+          const prixArticle = item.prix_total != null ? `<strong style="color:#667eea;">${item.prix_total}€</strong>` : '';
           articlesHtml += `
             <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -1859,8 +2146,6 @@
       } else {
         articlesHtml = '<div style="color: #999; font-size: 14px;">Aucun article enregistré</div>';
       }
-
-      // Pastilles dans la modale (format V10)
       const confirmeeBrut = d.commande_confirmee_brut;
       const confirmeeVal = confirmeeBrut == null ? null : (String(confirmeeBrut).toLowerCase() !== 'false');
       const pastillesModal = `
@@ -1869,44 +2154,32 @@
           ${renderPastille(confirmeeVal, 'Confirmée')}
         </div>
       `;
-
-      // Bloc résumé
       const resumeHtml = resume ? `
         <div style="background: #e3f2fd; padding: 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #2196f3;">
           <strong>📝 Résumé de l'appel</strong>
           <div style="color: #555; font-size: 14px; line-height: 1.6; margin-top: 8px;">${resume}</div>
         </div>
       ` : '';
-
-      // Bloc infos appel
       const infosAppelHtml = `
         <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
           <strong>📞 Informations appel</strong>
           <div style="margin-top: 10px; display: flex; gap: 20px; flex-wrap: wrap;">
-            <div style="font-size: 14px;">
-              ⏱️ Durée : <strong>${duree}</strong>
-            </div>
-            <div style="font-size: 14px;">
-              💳 Coût : <strong>${credits !== null ? credits + ' crédits' : 'N/A'}</strong>
-            </div>
+            <div style="font-size: 14px;">⏱️ Durée : <strong>${duree}</strong></div>
+            <div style="font-size: 14px;">💳 Coût : <strong>${credits !== null ? credits + ' crédits' : 'N/A'}</strong></div>
           </div>
           ${pastillesModal}
         </div>
       `;
-
-      // Erreur si présente
       const erreurHtml = evt.error_message ? `
         <div style="background: #ffebee; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #f44336;">
           <strong>❌ Erreur</strong><br>
           <span style="font-size: 14px; color: #c62828;">${evt.error_message}</span>
         </div>
       ` : '';
-
       const modal = document.getElementById('modal-commande');
       modal.innerHTML = `
         <div style="padding: 20px;" onclick="event.stopPropagation()">
           <div style="background: white; border-radius: 16px; padding: 24px; max-width: 600px; margin: 0 auto;">
-
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
               <div>
                 <h2 style="margin: 0 0 4px 0;">Événement #${numero}</h2>
@@ -1916,9 +2189,7 @@
               </div>
               <button onclick="closeModal('modal-commande')" style="background: none; border: none; font-size: 28px; cursor: pointer;">×</button>
             </div>
-
             ${erreurHtml}
-
             ${anomalies.length > 0 ? `
               <div class="anomalie-box">
                 <strong>⚠️ Points à vérifier</strong>
@@ -1927,38 +2198,29 @@
                 </div>
               </div>
             ` : ''}
-
             <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
               <strong>👤 Client</strong><br>
               ${nomHtml}<br>${telHtml}
             </div>
-
             ${adresseHtml}
-
             <div style="margin-bottom: 20px;">
               <strong>📦 Articles</strong>
               <div style="margin-top: 12px;">${articlesHtml}</div>
             </div>
-
             <div style="border-top: 2px solid #ddd; padding-top: 16px; font-size: 20px; font-weight: bold; text-align: right; margin-bottom: 16px;">
               Total : ${prix !== null ? prix + '€' : '<span class="info-manquante">info manquante</span>'}
             </div>
-
             ${infosAppelHtml}
-
             ${resumeHtml}
-
             <div style="margin-top: 20px; font-size: 13px; color: #999;">
               <div>Enregistré le : ${formatDate(evt.created_at)}</div>
               <div>Type : ${evt.type_evenement || 'N/A'}</div>
             </div>
-
           </div>
         </div>
       `;
       modal.classList.add('show');
       modal.onclick = () => closeModal('modal-commande');
-
       } catch(err) {
         console.error('❌ Erreur openEvenementDetail:', err);
         alert('Erreur: ' + err.message);
@@ -1966,53 +2228,42 @@
     }
 
     // ========================================
-    // ✅ MESSAGES D'ACCUEIL
+    // MESSAGES D'ACCUEIL
     // ========================================
     async function loadMessagesAccueil() {
       const container = document.getElementById('messages-content');
       container.innerHTML = '<div class="loading">🔄 Chargement...</div>';
-
       try {
         const { data, error } = await supabaseClient
           .from('business')
           .select('messages_accueil')
           .eq('id', BUSINESS_ID)
           .single();
-
         if (error) throw error;
-
         const m = data.messages_accueil || {};
-
-        // Échappe les chevrons pour un affichage correct dans les textarea
         const esc = (txt) => (txt || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
         container.innerHTML = `
           <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 800px;">
             <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
               💡 Ces phrases sont dites par l'assistant vocal dès le décrochage.
               Utilisez <strong>{{nom_client}}</strong> pour insérer le nom du client.
             </p>
-
             <div class="form-group">
               <label>✅ Ouvert — Client connu</label>
               <textarea id="msg-ouvert_connu" style="min-height: 70px;">${esc(m.ouvert_connu)}</textarea>
             </div>
-
             <div class="form-group">
               <label>✅ Ouvert — Client inconnu</label>
               <textarea id="msg-ouvert_inconnu" style="min-height: 70px;">${esc(m.ouvert_inconnu)}</textarea>
             </div>
-
             <div class="form-group">
               <label>🌙 Fermé — Client connu</label>
               <textarea id="msg-ferme_connu" style="min-height: 70px;">${esc(m.ferme_connu)}</textarea>
             </div>
-
             <div class="form-group">
               <label>🌙 Fermé — Client inconnu</label>
               <textarea id="msg-ferme_inconnu" style="min-height: 70px;">${esc(m.ferme_inconnu)}</textarea>
             </div>
-
             <div class="form-actions">
               <button class="btn btn-primary" onclick="saveMessagesAccueil()">💾 Enregistrer</button>
             </div>
@@ -2030,13 +2281,11 @@
         ferme_connu:    document.getElementById('msg-ferme_connu').value.trim(),
         ferme_inconnu:  document.getElementById('msg-ferme_inconnu').value.trim()
       };
-
       try {
         const { error } = await supabaseClient
           .from('business')
           .update({ messages_accueil: messages })
           .eq('id', BUSINESS_ID);
-
         if (error) throw error;
         alert('✅ Messages d\'accueil enregistrés');
       } catch (error) {
@@ -2045,11 +2294,13 @@
     }
 
     // ========================================
-    // ✅ CRUD - BOUTON AJOUTER
+    // CRUD - BOUTON AJOUTER
     // ========================================
     async function openAddModal() {
       if (currentParamSection === 'produits') {
         await openAddProduit();
+      } else if (currentParamSection === 'options') {
+        alert('Pour ajouter un groupe d\'options, utilisez le bouton « ➕ Ajouter un groupe d\'options » sous le produit concerné.');
       } else if (currentParamSection === 'attributs') {
         await openAddAttribut();
       } else if (currentParamSection === 'zones') {
@@ -2059,20 +2310,16 @@
       }
     }
 
-    // ✅ AJOUTER PRODUIT
     async function openAddProduit() {
-      // Charger les familles
       const { data: famillesData } = await supabaseClient
         .from('produit_familles')
         .select('*')
         .eq('business_id', BUSINESS_ID)
         .eq('actif', true)
         .order('position');
-
       const famillesOptions = (famillesData || [])
         .map(f => `<option value="${f.id}">${f.nom}</option>`)
         .join('');
-
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -2081,47 +2328,15 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="createProduit(event)">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" required>
-            </div>
-            <div class="form-group">
-              <label>Catégorie *</label>
-              <input type="text" name="categorie" required>
-            </div>
-            <div class="form-group">
-              <label>Prix (€) *</label>
-              <input type="number" step="0.01" name="prix" required>
-            </div>
-            <div class="form-group">
-              <label>Taille</label>
-              <input type="text" name="taille">
-            </div>
-            <div class="form-group">
-              <label>Détails</label>
-              <textarea name="details"></textarea>
-            </div>
-            <div class="form-group">
-              <label>Type de produit</label>
-              <input type="text" name="type_produit" value="produit_standard">
-            </div>
-            <div class="form-group">
-              <label>Famille</label>
-              <select name="famille_id">
-                <option value="">Aucune</option>
-                ${famillesOptions}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Position</label>
-              <input type="number" name="position" value="0">
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" checked>
-                <label>Actif</label>
-              </div>
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" required></div>
+            <div class="form-group"><label>Catégorie *</label><input type="text" name="categorie" required></div>
+            <div class="form-group"><label>Prix (€) *</label><input type="number" step="0.01" name="prix" required></div>
+            <div class="form-group"><label>Taille</label><input type="text" name="taille"></div>
+            <div class="form-group"><label>Détails</label><textarea name="details"></textarea></div>
+            <div class="form-group"><label>Type de produit</label><input type="text" name="type_produit" value="produit_standard"></div>
+            <div class="form-group"><label>Famille</label><select name="famille_id"><option value="">Aucune</option>${famillesOptions}</select></div>
+            <div class="form-group"><label>Position</label><input type="number" name="position" value="0"></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" checked><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Créer</button>
@@ -2136,7 +2351,6 @@
     async function createProduit(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('produits')
@@ -2152,9 +2366,7 @@
             position: parseInt(formData.get('position')) || 0,
             actif: formData.get('actif') === 'on'
           });
-
         if (error) throw error;
-
         alert('✅ Produit créé');
         closeModal('modal-edit');
         loadProduits();
@@ -2163,7 +2375,6 @@
       }
     }
 
-    // ✅ AJOUTER ATTRIBUT
     async function openAddAttribut() {
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
@@ -2173,36 +2384,20 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="createAttribut(event)">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" required>
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" required></div>
             <div class="form-group">
               <label>Catégorie *</label>
               <select name="categorie" required>
-                <option value="viande">Viande</option>
-                <option value="fromage">Fromage</option>
-                <option value="sauce">Sauce</option>
+                <option value="VIANDE">Viande</option>
+                <option value="FROMAGE">Fromage</option>
+                <option value="SAUCE">Sauce</option>
+                <option value="SAUCE_TASTY">Sauce Tasty</option>
               </select>
             </div>
-            <div class="form-group">
-              <label>Prix supplément (€)</label>
-              <input type="number" step="0.01" name="prix_supplement" value="0">
-            </div>
-            <div class="form-group">
-              <label>Type entité</label>
-              <input type="text" name="type_entite" value="produit">
-            </div>
-            <div class="form-group">
-              <label>Position</label>
-              <input type="number" name="position" value="0">
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" checked>
-                <label>Actif</label>
-              </div>
-            </div>
+            <div class="form-group"><label>Prix supplément (€)</label><input type="number" step="0.01" name="prix_supplement" value="0"></div>
+            <div class="form-group"><label>Type entité</label><input type="text" name="type_entite" value="produit"></div>
+            <div class="form-group"><label>Position</label><input type="number" name="position" value="0"></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" checked><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Créer</button>
@@ -2217,7 +2412,6 @@
     async function createAttribut(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('attributs')
@@ -2230,9 +2424,7 @@
             position: parseInt(formData.get('position')) || 0,
             actif: formData.get('actif') === 'on'
           });
-
         if (error) throw error;
-
         alert('✅ Attribut créé');
         closeModal('modal-edit');
         loadAttributs();
@@ -2241,7 +2433,6 @@
       }
     }
 
-    // ✅ AJOUTER ZONE
     async function openAddZone() {
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
@@ -2251,36 +2442,13 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="createZone(event)">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" required>
-            </div>
-            <div class="form-group">
-              <label>Code postal</label>
-              <input type="text" name="code_postal">
-            </div>
-            <div class="form-group">
-              <label>Type de zone *</label>
-              <input type="text" name="type_zone" value="livraison" required>
-            </div>
-            <div class="form-group">
-              <label>Montant minimum (€)</label>
-              <input type="number" step="0.01" name="montant_minimum" value="0">
-            </div>
-            <div class="form-group">
-              <label>Frais de service (€)</label>
-              <input type="number" step="0.01" name="frais_service" value="0">
-            </div>
-            <div class="form-group">
-              <label>Rayon (km)</label>
-              <input type="number" name="rayon_km">
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" checked>
-                <label>Actif</label>
-              </div>
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" required></div>
+            <div class="form-group"><label>Code postal</label><input type="text" name="code_postal"></div>
+            <div class="form-group"><label>Type de zone *</label><input type="text" name="type_zone" value="livraison" required></div>
+            <div class="form-group"><label>Montant minimum (€)</label><input type="number" step="0.01" name="montant_minimum" value="0"></div>
+            <div class="form-group"><label>Frais de service (€)</label><input type="number" step="0.01" name="frais_service" value="0"></div>
+            <div class="form-group"><label>Rayon (km)</label><input type="number" name="rayon_km"></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" checked><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Créer</button>
@@ -2295,7 +2463,6 @@
     async function createZone(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('zones_service')
@@ -2309,9 +2476,7 @@
             rayon_km: formData.get('rayon_km') ? parseInt(formData.get('rayon_km')) : null,
             actif: formData.get('actif') === 'on'
           });
-
         if (error) throw error;
-
         alert('✅ Zone créée');
         closeModal('modal-edit');
         loadZones();
@@ -2320,7 +2485,6 @@
       }
     }
 
-    // ✅ AJOUTER FAMILLE
     async function openAddFamille() {
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
@@ -2330,20 +2494,9 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="createFamille(event)">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" required>
-            </div>
-            <div class="form-group">
-              <label>Position</label>
-              <input type="number" name="position" value="0">
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" checked>
-                <label>Actif</label>
-              </div>
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" required></div>
+            <div class="form-group"><label>Position</label><input type="number" name="position" value="0"></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" checked><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Créer</button>
@@ -2358,7 +2511,6 @@
     async function createFamille(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('produit_familles')
@@ -2368,9 +2520,7 @@
             position: parseInt(formData.get('position')) || 0,
             actif: formData.get('actif') === 'on'
           });
-
         if (error) throw error;
-
         alert('✅ Famille créée');
         closeModal('modal-edit');
         loadFamilles();
@@ -2380,26 +2530,20 @@
     }
 
     // ========================================
-    // ✅ CRUD - ÉDITION (CHAMPS CORRECTS)
+    // CRUD - ÉDITION
     // ========================================
-
-    // ✅ ÉDITION PRODUIT - CHAMPS CORRECTS
     async function editProduit(id) {
       const produit = produits.find(p => p.id === id);
       if (!produit) return;
-
-      // Charger les familles
       const { data: famillesData } = await supabaseClient
         .from('produit_familles')
         .select('*')
         .eq('business_id', BUSINESS_ID)
         .eq('actif', true)
         .order('position');
-
       const famillesOptions = (famillesData || [])
         .map(f => `<option value="${f.id}" ${produit.famille_id === f.id ? 'selected' : ''}>${f.nom}</option>`)
         .join('');
-
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -2408,47 +2552,15 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="saveProduit(event, '${id}')">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" value="${produit.nom}" required>
-            </div>
-            <div class="form-group">
-              <label>Catégorie</label>
-              <input type="text" name="categorie" value="${produit.categorie || ''}">
-            </div>
-            <div class="form-group">
-              <label>Prix (€) *</label>
-              <input type="number" step="0.01" name="prix" value="${produit.prix}" required>
-            </div>
-            <div class="form-group">
-              <label>Taille</label>
-              <input type="text" name="taille" value="${produit.taille || ''}">
-            </div>
-            <div class="form-group">
-              <label>Détails</label>
-              <textarea name="details">${produit.details || ''}</textarea>
-            </div>
-            <div class="form-group">
-              <label>Type de produit</label>
-              <input type="text" name="type_produit" value="${produit.type_produit || 'produit_standard'}">
-            </div>
-            <div class="form-group">
-              <label>Famille</label>
-              <select name="famille_id">
-                <option value="">Aucune</option>
-                ${famillesOptions}
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Position</label>
-              <input type="number" name="position" value="${produit.position || 0}">
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" ${produit.actif ? 'checked' : ''}>
-                <label>Actif</label>
-              </div>
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" value="${produit.nom}" required></div>
+            <div class="form-group"><label>Catégorie</label><input type="text" name="categorie" value="${produit.categorie || ''}"></div>
+            <div class="form-group"><label>Prix (€) *</label><input type="number" step="0.01" name="prix" value="${produit.prix}" required></div>
+            <div class="form-group"><label>Taille</label><input type="text" name="taille" value="${produit.taille || ''}"></div>
+            <div class="form-group"><label>Détails</label><textarea name="details">${produit.details || ''}</textarea></div>
+            <div class="form-group"><label>Type de produit</label><input type="text" name="type_produit" value="${produit.type_produit || 'produit_standard'}"></div>
+            <div class="form-group"><label>Famille</label><select name="famille_id"><option value="">Aucune</option>${famillesOptions}</select></div>
+            <div class="form-group"><label>Position</label><input type="number" name="position" value="${produit.position || 0}"></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" ${produit.actif ? 'checked' : ''}><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
@@ -2463,7 +2575,6 @@
     async function saveProduit(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('produits')
@@ -2479,9 +2590,7 @@
             actif: formData.get('actif') === 'on'
           })
           .eq('id', id);
-
         if (error) throw error;
-
         alert('✅ Produit mis à jour');
         closeModal('modal-edit');
         loadProduits();
@@ -2492,13 +2601,8 @@
 
     async function deleteProduit(id) {
       if (!confirm('Supprimer ce produit? Cette action est irréversible.')) return;
-
       try {
-        const { error } = await supabaseClient
-          .from('produits')
-          .delete()
-          .eq('id', id);
-
+        const { error } = await supabaseClient.from('produits').delete().eq('id', id);
         if (error) throw error;
         alert('✅ Produit supprimé');
         loadProduits();
@@ -2507,11 +2611,9 @@
       }
     }
 
-    // ✅ ÉDITION ATTRIBUT - CHAMPS CORRECTS
     async function editAttribut(id) {
       const attribut = attributs.find(a => a.id === id);
       if (!attribut) return;
-
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -2520,36 +2622,20 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="saveAttribut(event, '${id}')">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" value="${attribut.nom}" required>
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" value="${attribut.nom}" required></div>
             <div class="form-group">
               <label>Catégorie *</label>
               <select name="categorie" required>
-                <option value="viande" ${attribut.categorie === 'viande' ? 'selected' : ''}>Viande</option>
-                <option value="fromage" ${attribut.categorie === 'fromage' ? 'selected' : ''}>Fromage</option>
-                <option value="sauce" ${attribut.categorie === 'sauce' ? 'selected' : ''}>Sauce</option>
+                <option value="VIANDE" ${attribut.categorie === 'VIANDE' ? 'selected' : ''}>Viande</option>
+                <option value="FROMAGE" ${attribut.categorie === 'FROMAGE' ? 'selected' : ''}>Fromage</option>
+                <option value="SAUCE" ${attribut.categorie === 'SAUCE' ? 'selected' : ''}>Sauce</option>
+                <option value="SAUCE_TASTY" ${attribut.categorie === 'SAUCE_TASTY' ? 'selected' : ''}>Sauce Tasty</option>
               </select>
             </div>
-            <div class="form-group">
-              <label>Prix supplément (€)</label>
-              <input type="number" step="0.01" name="prix_supplement" value="${attribut.prix_supplement || 0}">
-            </div>
-            <div class="form-group">
-              <label>Type entité</label>
-              <input type="text" name="type_entite" value="${attribut.type_entite || 'produit'}">
-            </div>
-            <div class="form-group">
-              <label>Position</label>
-              <input type="number" name="position" value="${attribut.position || 0}">
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" ${attribut.actif ? 'checked' : ''}>
-                <label>Actif</label>
-              </div>
-            </div>
+            <div class="form-group"><label>Prix supplément (€)</label><input type="number" step="0.01" name="prix_supplement" value="${attribut.prix_supplement || 0}"></div>
+            <div class="form-group"><label>Type entité</label><input type="text" name="type_entite" value="${attribut.type_entite || 'produit'}"></div>
+            <div class="form-group"><label>Position</label><input type="number" name="position" value="${attribut.position || 0}"></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" ${attribut.actif ? 'checked' : ''}><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
@@ -2564,7 +2650,6 @@
     async function saveAttribut(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('attributs')
@@ -2577,9 +2662,7 @@
             actif: formData.get('actif') === 'on'
           })
           .eq('id', id);
-
         if (error) throw error;
-
         alert('✅ Attribut mis à jour');
         closeModal('modal-edit');
         loadAttributs();
@@ -2590,13 +2673,8 @@
 
     async function deleteAttribut(id) {
       if (!confirm('Supprimer cet attribut? Cette action est irréversible.')) return;
-
       try {
-        const { error } = await supabaseClient
-          .from('attributs')
-          .delete()
-          .eq('id', id);
-
+        const { error } = await supabaseClient.from('attributs').delete().eq('id', id);
         if (error) throw error;
         alert('✅ Attribut supprimé');
         loadAttributs();
@@ -2605,11 +2683,9 @@
       }
     }
 
-    // ✅ ÉDITION ZONE - CHAMPS CORRECTS
     async function editZone(id) {
       const zone = zones.find(z => z.id === id);
       if (!zone) return;
-
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -2618,36 +2694,13 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="saveZone(event, '${id}')">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" value="${zone.nom}" required>
-            </div>
-            <div class="form-group">
-              <label>Code postal</label>
-              <input type="text" name="code_postal" value="${zone.code_postal || ''}">
-            </div>
-            <div class="form-group">
-              <label>Type de zone *</label>
-              <input type="text" name="type_zone" value="${zone.type_zone}" required>
-            </div>
-            <div class="form-group">
-              <label>Montant minimum (€) *</label>
-              <input type="number" step="0.01" name="montant_minimum" value="${zone.montant_minimum}" required>
-            </div>
-            <div class="form-group">
-              <label>Frais de service (€) *</label>
-              <input type="number" step="0.01" name="frais_service" value="${zone.frais_service}" required>
-            </div>
-            <div class="form-group">
-              <label>Rayon (km)</label>
-              <input type="number" name="rayon_km" value="${zone.rayon_km || ''}">
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" ${zone.actif ? 'checked' : ''}>
-                <label>Actif</label>
-              </div>
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" value="${zone.nom}" required></div>
+            <div class="form-group"><label>Code postal</label><input type="text" name="code_postal" value="${zone.code_postal || ''}"></div>
+            <div class="form-group"><label>Type de zone *</label><input type="text" name="type_zone" value="${zone.type_zone}" required></div>
+            <div class="form-group"><label>Montant minimum (€) *</label><input type="number" step="0.01" name="montant_minimum" value="${zone.montant_minimum}" required></div>
+            <div class="form-group"><label>Frais de service (€) *</label><input type="number" step="0.01" name="frais_service" value="${zone.frais_service}" required></div>
+            <div class="form-group"><label>Rayon (km)</label><input type="number" name="rayon_km" value="${zone.rayon_km || ''}"></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" ${zone.actif ? 'checked' : ''}><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
@@ -2662,7 +2715,6 @@
     async function saveZone(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('zones_service')
@@ -2676,9 +2728,7 @@
             actif: formData.get('actif') === 'on'
           })
           .eq('id', id);
-
         if (error) throw error;
-
         alert('✅ Zone mise à jour');
         closeModal('modal-edit');
         loadZones();
@@ -2689,13 +2739,8 @@
 
     async function deleteZone(id) {
       if (!confirm('Supprimer cette zone? Cette action est irréversible.')) return;
-
       try {
-        const { error} = await supabaseClient
-          .from('zones_service')
-          .delete()
-          .eq('id', id);
-
+        const { error} = await supabaseClient.from('zones_service').delete().eq('id', id);
         if (error) throw error;
         alert('✅ Zone supprimée');
         loadZones();
@@ -2704,11 +2749,9 @@
       }
     }
 
-    // ✅ ÉDITION FAMILLE
     async function editFamille(id) {
       const famille = familles.find(f => f.id === id);
       if (!famille) return;
-
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -2717,20 +2760,9 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="saveFamille(event, '${id}')">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" value="${famille.nom}" required>
-            </div>
-            <div class="form-group">
-              <label>Position *</label>
-              <input type="number" name="position" value="${famille.position}" required>
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" ${famille.actif ? 'checked' : ''}>
-                <label>Actif</label>
-              </div>
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" value="${famille.nom}" required></div>
+            <div class="form-group"><label>Position *</label><input type="number" name="position" value="${famille.position}" required></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" ${famille.actif ? 'checked' : ''}><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
@@ -2745,7 +2777,6 @@
     async function saveFamille(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('produit_familles')
@@ -2755,9 +2786,7 @@
             actif: formData.get('actif') === 'on'
           })
           .eq('id', id);
-
         if (error) throw error;
-
         alert('✅ Famille mise à jour');
         closeModal('modal-edit');
         loadFamilles();
@@ -2768,13 +2797,8 @@
 
     async function deleteFamille(id) {
       if (!confirm('Supprimer cette famille? Cette action est irréversible.')) return;
-
       try {
-        const { error } = await supabaseClient
-          .from('produit_familles')
-          .delete()
-          .eq('id', id);
-
+        const { error } = await supabaseClient.from('produit_familles').delete().eq('id', id);
         if (error) throw error;
         alert('✅ Famille supprimée');
         loadFamilles();
@@ -2783,38 +2807,9 @@
       }
     }
 
-    // ✅ ÉDITION CLIENT
     async function editClient(id) {
       const client = clients.find(c => c.id === id);
       if (!client) return;
-
-      // Charger les adresses séparément
-      const { data: adresses } = await supabaseClient
-        .from('adresse_clients')
-        .select('*')
-        .eq('client_id', id);
-
-      let adressesHtml = '';
-      if (adresses && adresses.length > 0) {
-        adressesHtml = `
-          <div class="adresses-list">
-            <strong>📍 Adresses enregistrées:</strong>
-            ${adresses.map(adr => `
-              <div class="adresse-item">
-                <div><strong>${adr.nom || 'Sans nom'}</strong></div>
-                <div style="font-size: 12px; color: #666;">
-                  ${adr.rue || ''}<br>
-                  ${adr.code_postal || ''} ${adr.ville || adr.Ville || ''}
-                  ${adr.instructions_acces ? '<br>🔑 ' + adr.instructions_acces : ''}
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        `;
-      } else {
-        adressesHtml = '<div style="color: #999; font-size: 14px; margin-top: 12px;">Aucune adresse enregistrée</div>';
-      }
-
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -2823,18 +2818,9 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <form onsubmit="saveClient(event, '${id}')">
-            <div class="form-group">
-              <label>Nom *</label>
-              <input type="text" name="nom" value="${client.nom || ''}" required>
-            </div>
-            <div class="form-group">
-              <label>Téléphone *</label>
-              <input type="tel" name="telephone" value="${client.telephone}" required>
-            </div>
-            <div class="form-group">
-              <label>Email</label>
-              <input type="email" name="email" value="${client.email || ''}">
-            </div>
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" value="${client.nom || ''}" required></div>
+            <div class="form-group"><label>Téléphone *</label><input type="tel" name="telephone" value="${client.telephone}" required></div>
+            <div class="form-group"><label>Email</label><input type="email" name="email" value="${client.email || ''}"></div>
             <div class="form-group">
               <label>Segment</label>
               <select name="segment">
@@ -2843,17 +2829,8 @@
                 <option value="vip" ${client.segment === 'vip' ? 'selected' : ''}>VIP</option>
               </select>
             </div>
-            <div class="form-group">
-              <label>Points de fidélité</label>
-              <input type="number" name="points" value="${client.points || 0}">
-            </div>
-            <div class="form-group">
-              <div class="checkbox-group">
-                <input type="checkbox" name="actif" ${client.actif ? 'checked' : ''}>
-                <label>Actif</label>
-              </div>
-            </div>
-            ${adressesHtml}
+            <div class="form-group"><label>Points de fidélité</label><input type="number" name="points" value="${client.points || 0}"></div>
+            <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" ${client.actif ? 'checked' : ''}><label>Actif</label></div></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
@@ -2868,7 +2845,6 @@
     async function saveClient(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
-
       try {
         const { error } = await supabaseClient
           .from('client')
@@ -2881,9 +2857,7 @@
             actif: formData.get('actif') === 'on'
           })
           .eq('id', id);
-
         if (error) throw error;
-
         alert('✅ Client mis à jour');
         closeModal('modal-edit');
         loadClients();
@@ -2892,11 +2866,10 @@
       }
     }
 
-// ========================================
+    // ========================================
     // HELPERS
     // ========================================
-    // "2026-06-29" -> "lundi 29 juin" (heure/date souhaitée des commandes différées)
-function formatDateSouhaitee(dateStr) {
+    function formatDateSouhaitee(dateStr) {
       if (!dateStr) return null;
       try {
         const [y, m, d] = String(dateStr).split('-').map(n => parseInt(n, 10));
@@ -2912,13 +2885,6 @@ function formatDateSouhaitee(dateStr) {
         hour: '2-digit', minute: '2-digit'
       });
     }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      const searchClients = document.getElementById('search-clients');
-      if (searchClients) {
-        searchClients.addEventListener('input', loadClients);
-      }
-    });
   </script>
 </body>
 </html>
