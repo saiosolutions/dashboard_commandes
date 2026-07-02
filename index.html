@@ -379,6 +379,38 @@
       border-radius: 8px; padding: 13px 15px; font-size: 13.5px; margin-bottom: 18px; color: #2c5a7a;
     }
 
+    /* ÉDITEUR HORAIRES */
+    .day-row {
+      background: white; border: 1px solid var(--line); border-radius: 12px;
+      margin-bottom: 10px; padding: 14px 18px; display: flex; align-items: flex-start;
+      gap: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .day-row.closed { background: #fafafa; }
+    .day-name { font-weight: 800; font-size: 15px; width: 90px; flex-shrink: 0; padding-top: 6px; }
+    .h-toggle { display: flex; align-items: center; gap: 8px; flex-shrink: 0; width: 110px; padding-top: 4px; }
+    .h-switch { width: 44px; height: 24px; border-radius: 999px; position: relative; cursor: pointer; flex-shrink: 0; }
+    .h-switch.on { background: var(--success, #3a7d44); }
+    .h-switch.off { background: #cfd4da; }
+    .h-switch .knob { position: absolute; top: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.3); transition: left .15s; }
+    .h-switch.on .knob { left: 22px; }
+    .h-switch.off .knob { left: 2px; }
+    .h-toggle-label { font-size: 12px; font-weight: 700; }
+    .h-toggle-label.open { color: var(--success, #3a7d44); }
+    .h-toggle-label.close { color: var(--muted); }
+    .creneaux-col { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .h-creneau { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .h-time { width: 74px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; font-size: 14px; text-align: center; font-family: monospace; }
+    .h-arrow { color: var(--muted); font-size: 13px; }
+    .del-creneau { color: var(--err, #c0392b); background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px 6px; }
+    .add-creneau { background: none; border: 1px dashed #b8c0ca; color: var(--info); border-radius: 7px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; align-self: flex-start; margin-top: 2px; }
+    .continu-badge { font-size: 11px; background: var(--success-bg, #e8f3ea); color: var(--success, #3a7d44); padding: 3px 9px; border-radius: 999px; font-weight: 700; }
+    .h-closed-text { color: var(--muted); font-style: italic; font-size: 14px; padding-top: 6px; }
+    @media (max-width: 640px) {
+      .day-row { flex-direction: column; gap: 10px; }
+      .day-name { width: auto; padding-top: 0; }
+      .h-toggle { padding-top: 0; }
+    }
+
     /* MODE SÉLECTION (ajout groupé de règles) */
     .sel-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
     .prod-check {
@@ -534,12 +566,14 @@
         <div class="toolbar">
           <div class="toolbar-left">
             <select id="param-section" onchange="switchParamSection(this.value)">
-              <option value="produits">Produits</option>
-              <option value="options">Options produits</option>
-              <option value="attributs">Attributs</option>
-              <option value="zones">Zones de livraison</option>
               <option value="familles">Familles de produits</option>
+              <option value="produits">Produits</option>
+              <option value="attributs">Attributs</option>
+              <option value="options">Options produits</option>
+              <option value="zones">Zones de livraison</option>
+              <option value="horaires">Horaires</option>
               <option value="messages">Messages d'accueil</option>
+              <option value="agent">Agent IA</option>
             </select>
             <button class="btn btn-primary" id="btn-add-param" onclick="openAddModal()">➕ Ajouter</button>
           </div>
@@ -600,12 +634,38 @@
           <div id="zones-table"></div>
         </div>
 
+        <div id="param-horaires" class="param-section" style="display:none;">
+          <div class="options-help">
+            🕐 Configure les horaires jour par jour. Chaque jour peut avoir <strong>un ou plusieurs créneaux</strong> :
+            un seul pour une journée continue (ex : 11h→23h), deux pour un service midi + soir, ou plus si besoin.
+            Utilise l'interrupteur pour ouvrir/fermer un jour.
+          </div>
+          <div id="horaires-content">
+            <div class="loading">Chargement...</div>
+          </div>
+        </div>
+
         <div id="param-familles" class="param-section" style="display:none;">
           <div id="familles-table"></div>
         </div>
 
         <div id="param-messages" class="param-section" style="display:none;">
           <div id="messages-content"></div>
+        </div>
+
+        <div id="param-agent" class="param-section" style="display:none;">
+          <div class="options-help">
+            🤖 Ici tu configures le comportement de ton agent vocal : les <strong>règles</strong>
+            qu'il doit suivre (questions à poser, déductions, exclusivités, prononciation) et la
+            <strong>génération du KB_MENU</strong> à coller dans ElevenLabs.
+          </div>
+          <div class="sel-toolbar">
+            <button class="btn btn-primary" onclick="genererKbMenu()">📄 Générer le KB_MENU</button>
+            <button class="btn btn-secondary" onclick="openAddRegle()">➕ Ajouter une règle</button>
+          </div>
+          <div id="regles-content">
+            <div class="loading">Chargement...</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1064,10 +1124,10 @@
       document.querySelectorAll('.param-section').forEach(s => s.style.display = 'none');
       document.getElementById('param-' + section).style.display = 'block';
 
-      // Masquer le bouton "Ajouter" sur Messages (rien à ajouter là)
+      // Masquer le bouton "Ajouter" sur Messages et Agent (ils ont leurs propres boutons)
       const btnAdd = document.getElementById('btn-add-param');
       if (btnAdd) {
-        btnAdd.style.display = (section === 'messages') ? 'none' : '';
+        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires') ? 'none' : '';
       }
       loadParamData();
     }
@@ -1077,8 +1137,10 @@
       else if (currentParamSection === 'options') await loadProduitOptions();   // 🆕
       else if (currentParamSection === 'attributs') await loadAttributs();
       else if (currentParamSection === 'zones') await loadZones();
+      else if (currentParamSection === 'horaires') await loadHoraires();   // 🆕
       else if (currentParamSection === 'familles') await loadFamilles();
       else if (currentParamSection === 'messages') await loadMessagesAccueil();
+      else if (currentParamSection === 'agent') await loadRegles();   // 🆕
     }
 
     async function loadProduits() {
@@ -1175,6 +1237,576 @@
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
       }
+    }
+
+    // ========================================
+    // RÈGLES DE COMPORTEMENT (Agent IA)
+    // ========================================
+    let reglesAgent = [];
+    let famillesCache = [];
+    let produitsCache = [];
+
+    const TYPES_REGLE = [
+      ['question', '❓ Question à poser'],
+      ['deduction', '📏 Déduction (taille, etc.)'],
+      ['exclusivite', '⚠️ Exclusivité d\'attributs'],
+      ['prononciation', '🔤 Prononciation / nom exact'],
+      ['autre', '• Autre instruction']
+    ];
+
+    function labelType(t) {
+      const found = TYPES_REGLE.find(x => x[0] === t);
+      return found ? found[1] : ('• ' + t);
+    }
+
+    async function loadRegles() {
+      const container = document.getElementById('regles-content');
+      container.innerHTML = '<div class="loading">🔄 Chargement des règles...</div>';
+      try {
+        // Charger règles + familles + produits (pour les menus déroulants et l'affichage)
+        const [reglesRes, famRes, prodRes] = await Promise.all([
+          supabaseClient.from('regles_categorie')
+            .select('*').eq('business_id', BUSINESS_ID)
+            .order('position', { ascending: true }),
+          supabaseClient.from('produit_familles')
+            .select('id, nom').eq('business_id', BUSINESS_ID).order('nom'),
+          supabaseClient.from('produits')
+            .select('id, nom, categorie').eq('business_id', BUSINESS_ID).order('nom')
+        ]);
+        if (reglesRes.error) throw reglesRes.error;
+        reglesAgent = reglesRes.data || [];
+        famillesCache = famRes.data || [];
+        produitsCache = prodRes.data || [];
+        renderRegles();
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
+      }
+    }
+
+    function nomCible(r) {
+      if (r.famille_id) {
+        const f = famillesCache.find(x => x.id === r.famille_id);
+        return { niveau: 'Famille', nom: f ? f.nom : '(famille inconnue)' };
+      }
+      if (r.produit_id) {
+        const p = produitsCache.find(x => x.id === r.produit_id);
+        return { niveau: 'Produit', nom: p ? p.nom : '(produit inconnu)' };
+      }
+      return { niveau: '?', nom: '?' };
+    }
+
+    function renderRegles() {
+      const container = document.getElementById('regles-content');
+      if (reglesAgent.length === 0) {
+        container.innerHTML = '<div class="no-data">Aucune règle. Clique sur « Ajouter une règle » pour commencer.</div>';
+        return;
+      }
+      // Grouper par niveau puis cible
+      let html = '<div class="table-container"><table><thead><tr>' +
+        '<th>Type</th><th>Cible</th><th>Contenu</th><th>Actif</th><th>Actions</th>' +
+        '</tr></thead><tbody>';
+      reglesAgent.forEach(r => {
+        const c = nomCible(r);
+        html += `
+          <tr>
+            <td>${labelType(r.type_regle)}</td>
+            <td><span class="badge badge-info">${c.niveau}</span> ${c.nom}</td>
+            <td style="max-width:340px;">${r.contenu}</td>
+            <td><span class="badge ${r.actif ? 'badge-success' : 'badge-danger'}">${r.actif ? 'Oui' : 'Non'}</span></td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="editRegle('${r.id}')">✏️</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteRegle('${r.id}')">🗑️</button>
+            </td>
+          </tr>
+        `;
+      });
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    // Formulaire commun ajout/édition d'une règle
+    function regleFormHtml(titre, data, submitJs) {
+      const d = data || {};
+      const cibleType = d.produit_id ? 'produit' : 'famille';
+      const famOptions = famillesCache.map(f =>
+        `<option value="${f.id}" ${d.famille_id === f.id ? 'selected' : ''}>${f.nom}</option>`).join('');
+      const prodOptions = produitsCache.map(p =>
+        `<option value="${p.id}" ${d.produit_id === p.id ? 'selected' : ''}>${p.nom}</option>`).join('');
+      const typeOptions = TYPES_REGLE.map(([v, t]) =>
+        `<option value="${v}" ${(d.type_regle || 'question') === v ? 'selected' : ''}>${t}</option>`).join('');
+      return `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>${titre}</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="${submitJs}">
+            <div class="form-group">
+              <label>Cette règle s'applique à *</label>
+              <select name="cible_type" onchange="toggleCibleRegle(this.value)">
+                <option value="famille" ${cibleType === 'famille' ? 'selected' : ''}>Une famille entière</option>
+                <option value="produit" ${cibleType === 'produit' ? 'selected' : ''}>Un produit précis</option>
+              </select>
+            </div>
+            <div class="form-group" id="grp-famille" style="${cibleType === 'produit' ? 'display:none;' : ''}">
+              <label>Famille *</label>
+              <select name="famille_id">${famOptions}</select>
+            </div>
+            <div class="form-group" id="grp-produit" style="${cibleType === 'famille' ? 'display:none;' : ''}">
+              <label>Produit *</label>
+              <select name="produit_id">${prodOptions}</select>
+            </div>
+            <div class="form-group">
+              <label>Type de règle *</label>
+              <select name="type_regle" required>${typeOptions}</select>
+            </div>
+            <div class="form-group">
+              <label>Contenu (texte lu par l'agent) *</label>
+              <textarea name="contenu" required placeholder="Ex : Demander : Salade, tomate, oignon ?">${d.contenu ? d.contenu.replace(/</g, '&lt;') : ''}</textarea>
+            </div>
+            <div class="form-group">
+              <div class="checkbox-group">
+                <input type="checkbox" name="actif" ${d.actif === false ? '' : 'checked'}>
+                <label>Règle active</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      `;
+    }
+
+    // Bascule l'affichage famille/produit selon le choix
+    function toggleCibleRegle(type) {
+      document.getElementById('grp-famille').style.display = (type === 'famille') ? '' : 'none';
+      document.getElementById('grp-produit').style.display = (type === 'produit') ? '' : 'none';
+    }
+
+    async function openAddRegle() {
+      // S'assurer que les familles/produits sont chargés
+      if (famillesCache.length === 0 || produitsCache.length === 0) await loadRegles();
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = regleFormHtml('➕ Ajouter une règle', {}, 'createRegle(event)');
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    function litFormRegle(form) {
+      const f = new FormData(form);
+      const cibleType = f.get('cible_type');
+      return {
+        business_id: BUSINESS_ID,
+        famille_id: cibleType === 'famille' ? f.get('famille_id') : null,
+        produit_id: cibleType === 'produit' ? f.get('produit_id') : null,
+        type_regle: f.get('type_regle'),
+        contenu: f.get('contenu'),
+        actif: f.get('actif') === 'on'
+      };
+    }
+
+    async function createRegle(e) {
+      e.preventDefault();
+      try {
+        const payload = litFormRegle(e.target);
+        const { error } = await supabaseClient.from('regles_categorie').insert(payload);
+        if (error) throw error;
+        alert('✅ Règle créée');
+        closeModal('modal-edit');
+        loadRegles();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    function editRegle(id) {
+      const r = reglesAgent.find(x => x.id === id);
+      if (!r) return;
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = regleFormHtml('✏️ Modifier la règle', r, `saveRegle(event, '${id}')`);
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function saveRegle(e, id) {
+      e.preventDefault();
+      try {
+        const payload = litFormRegle(e.target);
+        delete payload.business_id;
+        const { error } = await supabaseClient.from('regles_categorie').update(payload).eq('id', id);
+        if (error) throw error;
+        alert('✅ Règle mise à jour');
+        closeModal('modal-edit');
+        loadRegles();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    async function deleteRegle(id) {
+      if (!confirm('Supprimer cette règle ? Cette action est irréversible.')) return;
+      try {
+        const { error } = await supabaseClient.from('regles_categorie').delete().eq('id', id);
+        if (error) throw error;
+        alert('✅ Règle supprimée');
+        loadRegles();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    // ========================================
+    // ÉDITEUR HORAIRES
+    // ========================================
+    const JOURS_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+    // Structure de travail : { lundi: {ouvert:false, creneaux:[{ouv:'11:00',fer:'14:30'}]}, ... }
+    let horairesData = {};
+
+    // Convertit "HH:MM:SS" ou "HH:MM" en "HH:MM"
+    function hhmm(t) {
+      if (!t) return '';
+      return String(t).slice(0, 5);
+    }
+
+    async function loadHoraires() {
+      const container = document.getElementById('horaires-content');
+      container.innerHTML = '<div class="loading">🔄 Chargement des horaires...</div>';
+      try {
+        const { data, error } = await supabaseClient
+          .from('business_horaires')
+          .select('*')
+          .eq('business_id', BUSINESS_ID)
+          .order('numero_tranche', { ascending: true });
+        if (error) throw error;
+
+        // Construire la structure de travail par jour
+        horairesData = {};
+        JOURS_SEMAINE.forEach(j => { horairesData[j] = { ouvert: false, creneaux: [] }; });
+        (data || []).forEach(row => {
+          const j = row.jour;
+          if (!horairesData[j]) horairesData[j] = { ouvert: false, creneaux: [] };
+          horairesData[j].creneaux.push({ ouv: hhmm(row.heure_ouverture), fer: hhmm(row.heure_fermeture) });
+          // Un jour est "ouvert" si au moins un créneau est est_ouvert=true
+          if (row.est_ouvert) horairesData[j].ouvert = true;
+        });
+        // Si un jour ouvert n'a aucun créneau (cas limite), lui en donner un par défaut
+        JOURS_SEMAINE.forEach(j => {
+          if (horairesData[j].creneaux.length === 0) {
+            horairesData[j].creneaux.push({ ouv: '11:00', fer: '14:30' });
+          }
+        });
+        renderHoraires();
+      } catch (error) {
+        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
+      }
+    }
+
+    function renderHoraires() {
+      const container = document.getElementById('horaires-content');
+      let html = '';
+      JOURS_SEMAINE.forEach(jour => {
+        const d = horairesData[jour];
+        const nomJour = jour.charAt(0).toUpperCase() + jour.slice(1);
+        html += `<div class="day-row ${d.ouvert ? '' : 'closed'}">
+          <span class="day-name">${nomJour}</span>
+          <div class="h-toggle">
+            <div class="h-switch ${d.ouvert ? 'on' : 'off'}" onclick="toggleJour('${jour}')"><div class="knob"></div></div>
+            <span class="h-toggle-label ${d.ouvert ? 'open' : 'close'}">${d.ouvert ? 'Ouvert' : 'Fermé'}</span>
+          </div>`;
+        if (!d.ouvert) {
+          html += `<div class="h-closed-text">Fermé toute la journée</div>`;
+        } else {
+          html += `<div class="creneaux-col">`;
+          d.creneaux.forEach((c, i) => {
+            const estSeul = d.creneaux.length === 1;
+            html += `<div class="h-creneau">
+              <input class="h-time" value="${c.ouv}" onchange="majCreneau('${jour}',${i},'ouv',this.value)" placeholder="11:00">
+              <span class="h-arrow">→</span>
+              <input class="h-time" value="${c.fer}" onchange="majCreneau('${jour}',${i},'fer',this.value)" placeholder="23:00">
+              ${estSeul
+                ? '<span class="continu-badge">journée continue</span>'
+                : `<button class="del-creneau" onclick="retirerCreneau('${jour}',${i})" title="Retirer ce créneau">✕</button>`}
+            </div>`;
+          });
+          html += `<button class="add-creneau" onclick="ajouterCreneau('${jour}')">+ Ajouter un créneau</button>`;
+          html += `</div>`;
+        }
+        html += `</div>`;
+      });
+      html += `<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+        <button class="btn btn-secondary" onclick="loadHoraires()">Annuler</button>
+        <button class="btn btn-primary" onclick="sauvegarderHoraires()">💾 Enregistrer les horaires</button>
+      </div>`;
+      container.innerHTML = html;
+    }
+
+    function toggleJour(jour) {
+      horairesData[jour].ouvert = !horairesData[jour].ouvert;
+      // Si on rouvre un jour sans créneau, en ajouter un
+      if (horairesData[jour].ouvert && horairesData[jour].creneaux.length === 0) {
+        horairesData[jour].creneaux.push({ ouv: '11:00', fer: '14:30' });
+      }
+      renderHoraires();
+    }
+
+    function majCreneau(jour, index, champ, valeur) {
+      if (horairesData[jour] && horairesData[jour].creneaux[index]) {
+        horairesData[jour].creneaux[index][champ] = valeur.trim();
+      }
+    }
+
+    function ajouterCreneau(jour) {
+      horairesData[jour].creneaux.push({ ouv: '18:00', fer: '22:30' });
+      renderHoraires();
+    }
+
+    function retirerCreneau(jour, index) {
+      horairesData[jour].creneaux.splice(index, 1);
+      // Ne jamais laisser un jour ouvert sans créneau
+      if (horairesData[jour].creneaux.length === 0) {
+        horairesData[jour].creneaux.push({ ouv: '11:00', fer: '14:30' });
+      }
+      renderHoraires();
+    }
+
+    // Valide un format HH:MM
+    function heureValide(t) {
+      return /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+    }
+
+    async function sauvegarderHoraires() {
+      // Vérifier les formats d'heure avant d'écrire
+      for (const jour of JOURS_SEMAINE) {
+        const d = horairesData[jour];
+        if (!d.ouvert) continue;
+        for (const c of d.creneaux) {
+          if (!heureValide(c.ouv) || !heureValide(c.fer)) {
+            alert(`⛔ Heure invalide pour ${jour} : "${c.ouv}" ou "${c.fer}". Format attendu : HH:MM (ex : 11:00).`);
+            return;
+          }
+        }
+      }
+      try {
+        // Stratégie simple et fiable : supprimer toutes les lignes du business, réinsérer proprement
+        const { error: delErr } = await supabaseClient
+          .from('business_horaires')
+          .delete()
+          .eq('business_id', BUSINESS_ID);
+        if (delErr) throw delErr;
+
+        // Construire les lignes à insérer (7 jours, avec est_ouvert selon le jour)
+        const lignes = [];
+        JOURS_SEMAINE.forEach(jour => {
+          const d = horairesData[jour];
+          d.creneaux.forEach((c, i) => {
+            lignes.push({
+              business_id: BUSINESS_ID,
+              jour: jour,
+              numero_tranche: i + 1,
+              heure_ouverture: c.ouv + ':00',
+              heure_fermeture: c.fer + ':00',
+              est_ouvert: d.ouvert
+            });
+          });
+        });
+
+        const { error: insErr } = await supabaseClient
+          .from('business_horaires')
+          .insert(lignes);
+        if (insErr) throw insErr;
+
+        alert('✅ Horaires enregistrés');
+        loadHoraires();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message + '\n\nTes horaires n\'ont peut-être pas été sauvegardés. Recharge la page et réessaie.');
+      }
+    }
+
+    // ========================================
+    // GÉNÉRATEUR KB_MENU (lit toute la base → texte)
+    // ========================================
+    function kbFormatPrix(p) {
+      return Number(p).toFixed(2).replace('.', ',') + '€';
+    }
+
+    function kbDecrireOption(o) {
+      const cat = (o.categorie_attribut || '').toLowerCase();
+      const nomLisible = o.libelle
+        || (cat === 'viande' ? 'viande(s)' : cat === 'sauce' ? 'sauce(s)'
+           : cat === 'fromage' ? 'fromage(s)' : cat.replace('_', ' '));
+      let desc = '';
+      if (o.inclus_gratuit > 0) {
+        desc = `${o.inclus_gratuit} ${nomLisible} incluse(s)`;
+        if (o.max > o.inclus_gratuit) desc += `, jusqu'à ${o.max} au choix`;
+      } else if (o.max > 0) {
+        desc = `jusqu'à ${o.max} ${nomLisible} au choix`;
+      } else {
+        desc = nomLisible;
+      }
+      if (o.obligatoire) desc += ' [à demander]';
+      return desc;
+    }
+
+    async function genererKbMenu() {
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-body"><div class="loading">🔄 Génération du KB_MENU depuis la base…</div></div></div>`;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+
+      try {
+        // 1) Tous les produits actifs + leurs options + leur famille (pour l'ordre)
+        const { data: produits, error: e1 } = await supabaseClient
+          .from('produits')
+          .select('id, nom, categorie, prix, taille, details, type_produit, position, famille_id, produit_familles(nom, position), produit_options(*)')
+          .eq('business_id', BUSINESS_ID)
+          .eq('actif', true);
+        if (e1) throw e1;
+
+        // 2) Tous les attributs actifs
+        const { data: attributs, error: e2 } = await supabaseClient
+          .from('attributs')
+          .select('nom, categorie, prix_supplement, position')
+          .eq('business_id', BUSINESS_ID)
+          .eq('actif', true)
+          .order('position', { ascending: true });
+        if (e2) throw e2;
+
+        // 3) Infos business (nom, adresse si dispo)
+        let infoResto = '';
+        try {
+          const { data: biz } = await supabaseClient
+            .from('business').select('nom').eq('id', BUSINESS_ID).single();
+          if (biz && biz.nom) infoResto = `RESTAURANT : ${biz.nom}\n\n`;
+        } catch (_) {}
+
+        // 4) Règles de comportement (par famille et par produit)
+        const { data: regles, error: e4 } = await supabaseClient
+          .from('regles_categorie')
+          .select('famille_id, produit_id, type_regle, contenu, position')
+          .eq('business_id', BUSINESS_ID)
+          .eq('actif', true)
+          .order('position', { ascending: true });
+        if (e4) throw e4;
+
+        // Indexer les règles par famille (via le nom de famille) et par produit (via le nom)
+        // On construit d'abord un index id_famille -> nom et id_produit -> nom
+        const reglesParFamilleId = {};
+        const reglesParProduitId = {};
+        (regles || []).forEach(r => {
+          if (r.famille_id) {
+            if (!reglesParFamilleId[r.famille_id]) reglesParFamilleId[r.famille_id] = [];
+            reglesParFamilleId[r.famille_id].push(r);
+          } else if (r.produit_id) {
+            if (!reglesParProduitId[r.produit_id]) reglesParProduitId[r.produit_id] = [];
+            reglesParProduitId[r.produit_id].push(r);
+          }
+        });
+
+        // Construire le texte
+        let kb = 'MENU COMPLET\n\n' + infoResto;
+
+        // Grouper par catégorie, en respectant l'ordre des familles si dispo
+        const groupes = {};
+        (produits || []).forEach(p => {
+          const cat = p.categorie || 'AUTRES';
+          if (!groupes[cat]) groupes[cat] = { produits: [], ordre: p.produit_familles?.position ?? 999, familleId: p.famille_id };
+          groupes[cat].produits.push(p);
+        });
+        const catsOrdonnees = Object.keys(groupes).sort((a, b) => groupes[a].ordre - groupes[b].ordre);
+
+        // Fonction : formate une règle en ligne lisible avec un préfixe selon le type
+        function formatRegle(r) {
+          const prefixes = {
+            question: '❓',
+            deduction: '📏',
+            exclusivite: '⚠️',
+            prononciation: '🔤'
+          };
+          return `${prefixes[r.type_regle] || '•'} ${r.contenu}`;
+        }
+
+        catsOrdonnees.forEach(cat => {
+          kb += `=== ${cat} ===\n\n`;
+          // Règles de la famille (juste sous le titre de catégorie)
+          const reglesFamille = reglesParFamilleId[groupes[cat].familleId] || [];
+          if (reglesFamille.length > 0) {
+            reglesFamille.forEach(r => { kb += `${formatRegle(r)}\n`; });
+            kb += '\n';
+          }
+          // Trier les produits par position puis nom
+          const prods = groupes[cat].produits.sort((a, b) =>
+            (a.position || 0) - (b.position || 0) || a.nom.localeCompare(b.nom));
+          prods.forEach(p => {
+            kb += `${p.nom} - ${kbFormatPrix(p.prix)}\n`;
+            if (p.details) kb += `  Composition : ${p.details}\n`;
+            const opts = (p.produit_options || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+            opts.forEach(o => { kb += `  - ${kbDecrireOption(o)}\n`; });
+            // Règles spécifiques à ce produit
+            const reglesProduit = reglesParProduitId[p.id] || [];
+            reglesProduit.forEach(r => { kb += `  ${formatRegle(r)}\n`; });
+            kb += '\n';
+          });
+        });
+
+        // Listes d'attributs
+        const parCatAttr = {};
+        (attributs || []).forEach(a => {
+          const c = a.categorie || 'AUTRES';
+          if (!parCatAttr[c]) parCatAttr[c] = [];
+          parCatAttr[c].push(a);
+        });
+        const labels = { VIANDE: 'VIANDES', SAUCE: 'SAUCES STANDARDS', FROMAGE: 'FROMAGES', SAUCE_TASTY: 'SAUCES EXCLUSIVES TASTY CROUSTY' };
+        Object.keys(parCatAttr).forEach(cat => {
+          kb += `=== ${labels[cat] || cat} ===\n\n`;
+          parCatAttr[cat].forEach(a => {
+            const sup = Number(a.prix_supplement) > 0 ? ` (+${kbFormatPrix(a.prix_supplement)})` : '';
+            kb += `- ${a.nom}${sup}\n`;
+          });
+          kb += '\n';
+        });
+
+        // Afficher le résultat dans la modale avec boutons Copier / Télécharger
+        modal.innerHTML = `
+          <div class="modal-content" onclick="event.stopPropagation()" style="max-width:760px;">
+            <div class="modal-header">
+              <h2>📄 KB_MENU généré</h2>
+              <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+            </div>
+            <div class="modal-body">
+              <div style="background:#fff8ec;border:1px solid #f0e2c4;border-left:4px solid #d9a441;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:12px;color:#7a5c1a;">
+                💡 Le KB inclut maintenant les règles de comportement (crudités, déduction de taille, exclusivités, prononciation) définies en base. Compare avec ton KB actuel et ajuste les règles si besoin.
+              </div>
+              <textarea id="kb-output" style="width:100%;min-height:340px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">${kb.replace(/</g, '&lt;')}</textarea>
+              <div class="form-actions">
+                <button class="btn btn-secondary" onclick="copierKb()">📋 Copier</button>
+                <button class="btn btn-primary" onclick="telechargerKb()">⬇️ Télécharger</button>
+              </div>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        modal.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><h2>Erreur</h2><button class="btn-close" onclick="closeModal('modal-edit')">×</button></div><div class="modal-body"><div class="no-data">❌ ${err.message}</div></div></div>`;
+      }
+    }
+
+    function copierKb() {
+      const ta = document.getElementById('kb-output');
+      ta.select();
+      document.execCommand('copy');
+      alert('✅ KB copié dans le presse-papier');
+    }
+
+    function telechargerKb() {
+      const texte = document.getElementById('kb-output').value;
+      const blob = new Blob([texte], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'KB_MENU_genere.txt';
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     function catPillClass(cat) {
@@ -2568,6 +3200,7 @@
         .eq('business_id', BUSINESS_ID)
         .eq('actif', true)
         .order('position');
+      window.__famillesForm = famillesData || [];
       const famillesOptions = (famillesData || [])
         .map(f => `<option value="${f.id}">${f.nom}</option>`)
         .join('');
@@ -2580,12 +3213,17 @@
           </div>
           <form onsubmit="createProduit(event)">
             <div class="form-group"><label>Nom *</label><input type="text" name="nom" required></div>
-            <div class="form-group"><label>Catégorie *</label><input type="text" name="categorie" required></div>
+            <div class="form-group">
+              <label>Famille / Catégorie *</label>
+              <select name="famille_id" required>
+                <option value="">— Choisir une famille —</option>${famillesOptions}
+              </select>
+              <small style="color:var(--muted);font-size:12px;">La catégorie du produit sera celle de la famille choisie.</small>
+            </div>
             <div class="form-group"><label>Prix (€) *</label><input type="number" step="0.01" name="prix" required></div>
             <div class="form-group"><label>Taille</label><input type="text" name="taille"></div>
             <div class="form-group"><label>Détails</label><textarea name="details"></textarea></div>
             <div class="form-group"><label>Type de produit</label><input type="text" name="type_produit" value="produit_standard"></div>
-            <div class="form-group"><label>Famille</label><select name="famille_id"><option value="">Aucune</option>${famillesOptions}</select></div>
             <div class="form-group"><label>Position</label><input type="number" name="position" value="0"></div>
             <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" checked><label>Actif</label></div></div>
             <div class="form-actions">
@@ -2602,18 +3240,23 @@
     async function createProduit(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
+      const familleId = formData.get('famille_id');
+      if (!familleId) { alert('Merci de choisir une famille.'); return; }
+      // La catégorie = le nom de la famille choisie
+      const fam = (window.__famillesForm || []).find(f => f.id === familleId);
+      const categorie = fam ? fam.nom : '';
       try {
         const { error } = await supabaseClient
           .from('produits')
           .insert({
             business_id: BUSINESS_ID,
             nom: formData.get('nom'),
-            categorie: formData.get('categorie'),
+            categorie: categorie,
             prix: parseFloat(formData.get('prix')),
             taille: formData.get('taille') || null,
             details: formData.get('details') || null,
             type_produit: formData.get('type_produit') || 'produit_standard',
-            famille_id: formData.get('famille_id') || null,
+            famille_id: familleId,
             position: parseInt(formData.get('position')) || 0,
             actif: formData.get('actif') === 'on'
           });
@@ -2624,6 +3267,44 @@
       } catch (error) {
         alert('❌ Erreur: ' + error.message);
       }
+    }
+
+    // Construit les <option> du déroulant catégorie à partir des catégories
+    // déjà présentes en base (+ option pour en créer une nouvelle)
+    function optionsCategoriesAttributs(selected) {
+      // Catégories distinctes trouvées dans les attributs chargés
+      const cats = [...new Set((attributs || []).map(a => a.categorie).filter(Boolean))].sort();
+      // Garantir que les 4 catégories historiques sont toujours proposées
+      ['VIANDE', 'SAUCE', 'FROMAGE', 'SAUCE_TASTY'].forEach(c => {
+        if (!cats.includes(c)) cats.push(c);
+      });
+      cats.sort();
+      let opts = cats.map(c =>
+        `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
+      opts += `<option value="__NOUVELLE__">➕ Créer une nouvelle catégorie…</option>`;
+      return opts;
+    }
+
+    // Quand on choisit "Créer une nouvelle catégorie", afficher le champ texte
+    function onChangeCategorieAttribut(select) {
+      const champ = document.getElementById('nouvelle-cat-attribut');
+      if (!champ) return;
+      champ.style.display = (select.value === '__NOUVELLE__') ? 'block' : 'none';
+      if (select.value === '__NOUVELLE__') {
+        const input = champ.querySelector('input');
+        if (input) input.focus();
+      }
+    }
+
+    // Résout la catégorie finale : soit celle du déroulant, soit la nouvelle saisie
+    function resoudreCategorieAttribut(form) {
+      const select = form.querySelector('select[name="categorie"]');
+      if (select && select.value === '__NOUVELLE__') {
+        const input = form.querySelector('input[name="nouvelle_categorie"]');
+        const val = (input && input.value || '').trim().toUpperCase();
+        return val;
+      }
+      return select ? select.value : '';
     }
 
     async function openAddAttribut() {
@@ -2638,12 +3319,12 @@
             <div class="form-group"><label>Nom *</label><input type="text" name="nom" required></div>
             <div class="form-group">
               <label>Catégorie *</label>
-              <select name="categorie" required>
-                <option value="VIANDE">Viande</option>
-                <option value="FROMAGE">Fromage</option>
-                <option value="SAUCE">Sauce</option>
-                <option value="SAUCE_TASTY">Sauce Tasty</option>
+              <select name="categorie" required onchange="onChangeCategorieAttribut(this)">
+                ${optionsCategoriesAttributs('')}
               </select>
+              <div id="nouvelle-cat-attribut" style="display:none;margin-top:8px;">
+                <input type="text" name="nouvelle_categorie" placeholder="Nom de la nouvelle catégorie (ex: TOPPINGS)" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+              </div>
             </div>
             <div class="form-group"><label>Prix supplément (€)</label><input type="number" step="0.01" name="prix_supplement" value="0"></div>
             <div class="form-group"><label>Type entité</label><input type="text" name="type_entite" value="produit"></div>
@@ -2663,13 +3344,15 @@
     async function createAttribut(e) {
       e.preventDefault();
       const formData = new FormData(e.target);
+      const categorie = resoudreCategorieAttribut(e.target);
+      if (!categorie) { alert('Merci d\'indiquer une catégorie.'); return; }
       try {
         const { error } = await supabaseClient
           .from('attributs')
           .insert({
             business_id: BUSINESS_ID,
             nom: formData.get('nom'),
-            categorie: formData.get('categorie'),
+            categorie: categorie,
             prix_supplement: parseFloat(formData.get('prix_supplement')),
             type_entite: formData.get('type_entite') || 'produit',
             position: parseInt(formData.get('position')) || 0,
@@ -2792,6 +3475,7 @@
         .eq('business_id', BUSINESS_ID)
         .eq('actif', true)
         .order('position');
+      window.__famillesForm = famillesData || [];
       const famillesOptions = (famillesData || [])
         .map(f => `<option value="${f.id}" ${produit.famille_id === f.id ? 'selected' : ''}>${f.nom}</option>`)
         .join('');
@@ -2804,12 +3488,17 @@
           </div>
           <form onsubmit="saveProduit(event, '${id}')">
             <div class="form-group"><label>Nom *</label><input type="text" name="nom" value="${produit.nom}" required></div>
-            <div class="form-group"><label>Catégorie</label><input type="text" name="categorie" value="${produit.categorie || ''}"></div>
+            <div class="form-group">
+              <label>Famille / Catégorie *</label>
+              <select name="famille_id" required>
+                <option value="">— Choisir une famille —</option>${famillesOptions}
+              </select>
+              <small style="color:var(--muted);font-size:12px;">La catégorie du produit sera celle de la famille choisie.</small>
+            </div>
             <div class="form-group"><label>Prix (€) *</label><input type="number" step="0.01" name="prix" value="${produit.prix}" required></div>
             <div class="form-group"><label>Taille</label><input type="text" name="taille" value="${produit.taille || ''}"></div>
             <div class="form-group"><label>Détails</label><textarea name="details">${produit.details || ''}</textarea></div>
             <div class="form-group"><label>Type de produit</label><input type="text" name="type_produit" value="${produit.type_produit || 'produit_standard'}"></div>
-            <div class="form-group"><label>Famille</label><select name="famille_id"><option value="">Aucune</option>${famillesOptions}</select></div>
             <div class="form-group"><label>Position</label><input type="number" name="position" value="${produit.position || 0}"></div>
             <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" ${produit.actif ? 'checked' : ''}><label>Actif</label></div></div>
             <div class="form-actions">
@@ -2826,17 +3515,21 @@
     async function saveProduit(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
+      const familleId = formData.get('famille_id');
+      if (!familleId) { alert('Merci de choisir une famille.'); return; }
+      const fam = (window.__famillesForm || []).find(f => f.id === familleId);
+      const categorie = fam ? fam.nom : null;
       try {
         const { error } = await supabaseClient
           .from('produits')
           .update({
             nom: formData.get('nom'),
-            categorie: formData.get('categorie') || null,
+            categorie: categorie,
             prix: parseFloat(formData.get('prix')),
             taille: formData.get('taille') || null,
             details: formData.get('details') || null,
             type_produit: formData.get('type_produit') || 'produit_standard',
-            famille_id: formData.get('famille_id') || null,
+            famille_id: familleId,
             position: parseInt(formData.get('position')) || 0,
             actif: formData.get('actif') === 'on'
           })
@@ -2876,12 +3569,12 @@
             <div class="form-group"><label>Nom *</label><input type="text" name="nom" value="${attribut.nom}" required></div>
             <div class="form-group">
               <label>Catégorie *</label>
-              <select name="categorie" required>
-                <option value="VIANDE" ${attribut.categorie === 'VIANDE' ? 'selected' : ''}>Viande</option>
-                <option value="FROMAGE" ${attribut.categorie === 'FROMAGE' ? 'selected' : ''}>Fromage</option>
-                <option value="SAUCE" ${attribut.categorie === 'SAUCE' ? 'selected' : ''}>Sauce</option>
-                <option value="SAUCE_TASTY" ${attribut.categorie === 'SAUCE_TASTY' ? 'selected' : ''}>Sauce Tasty</option>
+              <select name="categorie" required onchange="onChangeCategorieAttribut(this)">
+                ${optionsCategoriesAttributs(attribut.categorie)}
               </select>
+              <div id="nouvelle-cat-attribut" style="display:none;margin-top:8px;">
+                <input type="text" name="nouvelle_categorie" placeholder="Nom de la nouvelle catégorie (ex: TOPPINGS)" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+              </div>
             </div>
             <div class="form-group"><label>Prix supplément (€)</label><input type="number" step="0.01" name="prix_supplement" value="${attribut.prix_supplement || 0}"></div>
             <div class="form-group"><label>Type entité</label><input type="text" name="type_entite" value="${attribut.type_entite || 'produit'}"></div>
@@ -2901,12 +3594,14 @@
     async function saveAttribut(e, id) {
       e.preventDefault();
       const formData = new FormData(e.target);
+      const categorie = resoudreCategorieAttribut(e.target);
+      if (!categorie) { alert('Merci d\'indiquer une catégorie.'); return; }
       try {
         const { error } = await supabaseClient
           .from('attributs')
           .update({
             nom: formData.get('nom'),
-            categorie: formData.get('categorie'),
+            categorie: categorie,
             prix_supplement: parseFloat(formData.get('prix_supplement')),
             type_entite: formData.get('type_entite'),
             position: parseInt(formData.get('position')) || 0,
