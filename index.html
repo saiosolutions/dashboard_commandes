@@ -379,6 +379,60 @@
       border-radius: 8px; padding: 13px 15px; font-size: 13.5px; margin-bottom: 18px; color: #2c5a7a;
     }
 
+    /* MODE SÉLECTION (ajout groupé de règles) */
+    .sel-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+    .prod-check {
+      width: 20px; height: 20px; border: 2px solid #cfd4da; border-radius: 5px;
+      flex-shrink: 0; cursor: pointer; position: relative; background: white;
+    }
+    .prod-check.on { background: var(--info); border-color: var(--info); }
+    .prod-check.on::after {
+      content: '✓'; color: white; font-size: 13px; font-weight: bold;
+      position: absolute; top: -2px; left: 3px;
+    }
+    .prod-block.selected { border-color: var(--info); box-shadow: 0 0 0 2px rgba(44,110,156,0.15); }
+    .fam-check-btn {
+      font-size: 12px; color: var(--info); cursor: pointer; font-weight: 600;
+      background: none; border: none; padding: 4px 8px;
+    }
+    .fam-group-head {
+      display: flex; align-items: center; gap: 10px; margin: 18px 0 8px;
+      padding-bottom: 6px; border-bottom: 2px solid var(--line);
+    }
+    .fam-group-title { font-weight: 800; font-size: 14px; color: var(--ink); }
+    .fam-group-count { font-size: 12px; color: var(--muted); }
+    .action-bar {
+      position: sticky; bottom: 0; z-index: 10;
+      background: var(--accent); color: white; border-radius: 12px;
+      padding: 13px 18px; display: flex; align-items: center; gap: 14px;
+      margin-top: 16px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); flex-wrap: wrap;
+    }
+    .action-bar .cnt { font-weight: 800; }
+    .action-bar .spacer { margin-left: auto; }
+    .action-bar .btn-white {
+      background: white; color: var(--accent); border: none;
+      padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;
+    }
+    .action-bar .btn-del {
+      background: #ff6b5e; color: white; border: none;
+      padding: 9px 16px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer;
+    }
+    .rule-check-row {
+      display: flex; align-items: center; gap: 11px; padding: 9px 13px;
+      border-bottom: 1px solid #f2f3f5;
+    }
+    .rule-check-row:last-child { border-bottom: none; }
+    .rule-check-row.on { background: var(--err-bg); }
+    .rule-check {
+      width: 18px; height: 18px; border: 2px solid #cfd4da; border-radius: 5px;
+      flex-shrink: 0; cursor: pointer; position: relative; background: white;
+    }
+    .rule-check.on { background: var(--err); border-color: var(--err); }
+    .rule-check.on::after {
+      content: '✓'; color: white; font-size: 12px; font-weight: bold;
+      position: absolute; top: -2px; left: 2px;
+    }
+
     /* ============================================ */
     /* RESPONSIVE — tablette & smartphone */
     /* ============================================ */
@@ -520,6 +574,10 @@
               </select>
             </div>
           </div>
+          <div class="sel-toolbar">
+            <button class="btn btn-secondary" id="btn-mode-select" onclick="toggleModeSelection()">☑ Sélectionner des produits</button>
+            <button class="btn btn-secondary" id="btn-mode-delete" onclick="toggleModeSuppression()">🗑️ Supprimer des règles</button>
+          </div>
           <div id="options-content">
             <div class="loading">Chargement...</div>
           </div>
@@ -616,6 +674,10 @@
     let familles = [];
     let clients = [];
     let produitOptions = [];      // 🆕 stocke les lignes de produit_options (avec le produit joint)
+    let tarifsAppels = { prix_credit: 0.00015, prix_minute: 0.01 };  // tarifs, chargés depuis la base
+    let logsPage = 0;             // page courante du journal (0 = première)
+    const LOGS_PAR_PAGE = 50;     // nombre d'appels chargés par page
+    let logsTousCharges = false;  // true quand il n'y a plus rien à charger
 
     // ========================================
     // LOGIN
@@ -655,7 +717,28 @@
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('dashboard').classList.add('show');
       supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      chargerTarifs();
       loadCommandes();
+    }
+
+    // Charge les tarifs d'appel depuis la base
+    async function chargerTarifs() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('business')
+          .select('tarifs_appels')
+          .eq('id', BUSINESS_ID)
+          .single();
+        if (error) throw error;
+        if (data && data.tarifs_appels) {
+          tarifsAppels = {
+            prix_credit: Number(data.tarifs_appels.prix_credit) || 0.00015,
+            prix_minute: Number(data.tarifs_appels.prix_minute) || 0.01
+          };
+        }
+      } catch (err) {
+        console.error('Erreur chargement tarifs, valeurs par défaut utilisées', err);
+      }
     }
 
     function logout() {
@@ -1178,6 +1261,357 @@
       }
     }
 
+    // ========================================
+    // MODE SÉLECTION — application groupée de règles
+    // ========================================
+    let modeSelection = false;
+    let modeSuppression = false;
+    let produitsSelectionnes = new Set();
+    let reglesSelectionnees = new Set();
+
+    function toggleModeSelection() {
+      modeSelection = !modeSelection;
+      modeSuppression = false;
+      produitsSelectionnes.clear();
+      reglesSelectionnees.clear();
+      const btn = document.getElementById('btn-mode-select');
+      btn.textContent = modeSelection ? '✖ Annuler la sélection' : '☑ Sélectionner des produits';
+      btn.classList.toggle('btn-primary', modeSelection);
+      document.getElementById('btn-mode-delete').textContent = '🗑️ Supprimer des règles';
+      document.getElementById('btn-mode-delete').classList.remove('btn-primary');
+      renderModeView();
+    }
+
+    function toggleModeSuppression() {
+      modeSuppression = !modeSuppression;
+      modeSelection = false;
+      produitsSelectionnes.clear();
+      reglesSelectionnees.clear();
+      const btn = document.getElementById('btn-mode-delete');
+      btn.textContent = modeSuppression ? '✖ Annuler' : '🗑️ Supprimer des règles';
+      btn.classList.toggle('btn-primary', modeSuppression);
+      document.getElementById('btn-mode-select').textContent = '☑ Sélectionner des produits';
+      document.getElementById('btn-mode-select').classList.remove('btn-primary');
+      renderModeView();
+    }
+
+    // Affiche la bonne vue selon le mode actif
+    function renderModeView() {
+      if (modeSelection) renderSelectionProduits();
+      else if (modeSuppression) renderSuppressionRegles();
+      else renderProduitOptions();
+    }
+
+    // Regroupe les produits composables par catégorie (= famille chez toi)
+    function grouperParCategorie() {
+      const groupes = {};
+      produitOptions.forEach(p => {
+        const cat = p.categorie || 'AUTRES';
+        if (!groupes[cat]) groupes[cat] = [];
+        groupes[cat].push(p);
+      });
+      return groupes;
+    }
+
+    // VUE 1 : cocher des produits pour leur appliquer une règle
+    function renderSelectionProduits() {
+      const container = document.getElementById('options-content');
+      const groupes = grouperParCategorie();
+      let html = '<div style="background:#e7f1f8;border-left:4px solid #2c6e9c;border-radius:8px;padding:12px 15px;font-size:13.5px;margin-bottom:14px;color:#2c5a7a;">☑ Coche les produits, puis clique sur « Appliquer une règle » en bas. Utilise « Tout cocher » pour sélectionner une famille entière.</div>';
+
+      Object.keys(groupes).sort().forEach(cat => {
+        const prods = groupes[cat];
+        html += `
+          <div class="fam-group-head">
+            <span class="fam-group-title">${cat}</span>
+            <span class="fam-group-count">${prods.length} produit(s)</span>
+            <button class="fam-check-btn" onclick="cocherFamille('${cat}')" style="margin-left:auto;">☑ Tout cocher</button>
+            <button class="fam-check-btn" onclick="decocherFamille('${cat}')">☐ Décocher</button>
+          </div>
+          <div class="row-list">
+        `;
+        prods.forEach(prod => {
+          const checked = produitsSelectionnes.has(prod.id);
+          const nbRegles = (prod.produit_options || []).length;
+          html += `
+            <div class="row-item" onclick="toggleProduit('${prod.id}')" style="cursor:pointer;">
+              <span class="prod-check ${checked ? 'on' : ''}"></span>
+              <div class="row-main">
+                <span class="row-client">${prod.nom}</span>
+                <span class="row-sub">${nbRegles} règle(s) actuelle(s)${prod.taille ? ' • Taille ' + prod.taille : ''}</span>
+              </div>
+              <div class="row-right">
+                <span class="row-price">${prod.prix}€</span>
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      });
+
+      container.innerHTML = html;
+      renderActionBar();
+    }
+
+    function toggleProduit(id) {
+      if (produitsSelectionnes.has(id)) produitsSelectionnes.delete(id);
+      else produitsSelectionnes.add(id);
+      renderSelectionProduits();
+    }
+
+    function cocherFamille(cat) {
+      const groupes = grouperParCategorie();
+      (groupes[cat] || []).forEach(p => produitsSelectionnes.add(p.id));
+      renderSelectionProduits();
+    }
+
+    function decocherFamille(cat) {
+      const groupes = grouperParCategorie();
+      (groupes[cat] || []).forEach(p => produitsSelectionnes.delete(p.id));
+      renderSelectionProduits();
+    }
+
+    // Barre d'action en bas (mode application)
+    function renderActionBar() {
+      const container = document.getElementById('options-content');
+      const n = produitsSelectionnes.size;
+      let bar = document.getElementById('action-bar-select');
+      if (bar) bar.remove();
+      if (n === 0) return;
+      const div = document.createElement('div');
+      div.id = 'action-bar-select';
+      div.className = 'action-bar';
+      div.innerHTML = `
+        <span class="cnt">${n} produit(s) coché(s)</span>
+        <span class="spacer"></span>
+        <button class="btn-white" onclick="ouvrirAppliquerRegle()">➕ Appliquer une règle</button>
+      `;
+      container.appendChild(div);
+    }
+
+    // Formulaire pour définir la règle à appliquer aux produits cochés
+    function ouvrirAppliquerRegle() {
+      const cats = ['VIANDE', 'SAUCE', 'FROMAGE', 'SAUCE_TASTY'];
+      const comps = [
+        ['ajout', 'Ajout (additionne les prix)'],
+        ['choix_multiple', 'Choix multiple (jusqu\'à Max)'],
+        ['choix_unique', 'Choix unique (un seul)'],
+        ['retrait', 'Retrait (enlève des éléments)']
+      ];
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>➕ Appliquer une règle à ${produitsSelectionnes.size} produit(s)</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="appliquerRegleGroupee(event)">
+            <div style="background:#fff8ec;border:1px solid #f0e2c4;border-left:4px solid #d9a441;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:14px;color:#7a5c1a;">
+              ⚠️ Si un produit a déjà une règle avec la <strong>même catégorie ET le même libellé</strong>, elle sera remplacée. Les règles avec un libellé différent (ex. « Sauce sandwich » vs « Sauce frites ») ne seront pas touchées.
+            </div>
+            <div class="form-group">
+              <label>Catégorie d'attribut *</label>
+              <select name="categorie_attribut" required>
+                ${cats.map(c => `<option value="${c}">${c}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Libellé (texte annoncé par l'agent, ex. « Sauce frites »)</label>
+              <input type="text" name="libelle" placeholder="Laisser vide = utilise le nom de la catégorie">
+            </div>
+            <div class="form-group">
+              <label>Comportement *</label>
+              <select name="comportement" required>
+                ${comps.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}
+              </select>
+            </div>
+            <div style="display:flex; gap:12px;">
+              <div class="form-group" style="flex:1;"><label>Min *</label><input type="number" name="min" value="0" required></div>
+              <div class="form-group" style="flex:1;"><label>Max *</label><input type="number" name="max" value="1" required></div>
+              <div class="form-group" style="flex:1;"><label>Inclus gratuit *</label><input type="number" name="inclus_gratuit" value="0" required></div>
+            </div>
+            <div class="form-group"><label>Position</label><input type="number" name="position" value="0"></div>
+            <div class="form-group">
+              <div class="checkbox-group">
+                <input type="checkbox" name="obligatoire">
+                <label>Obligatoire (l'agent doit toujours poser la question)</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Appliquer aux ${produitsSelectionnes.size} produit(s)</button>
+            </div>
+          </form>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function appliquerRegleGroupee(e) {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const categorie = f.get('categorie_attribut');
+      const libelle = f.get('libelle') || null;
+      const payload = {
+        categorie_attribut: categorie,
+        libelle: libelle,
+        comportement: f.get('comportement'),
+        min: parseInt(f.get('min')) || 0,
+        max: parseInt(f.get('max')) || 1,
+        inclus_gratuit: parseInt(f.get('inclus_gratuit')) || 0,
+        position: parseInt(f.get('position')) || 0,
+        obligatoire: f.get('obligatoire') === 'on'
+      };
+      const ids = Array.from(produitsSelectionnes);
+      let remplaces = 0, crees = 0, erreurs = 0;
+      for (const produitId of ids) {
+        try {
+          // Chercher une règle existante avec même catégorie + même libellé
+          const prod = produitOptions.find(p => p.id === produitId);
+          const existante = (prod?.produit_options || []).find(o =>
+            o.categorie_attribut === categorie &&
+            (o.libelle || null) === libelle
+          );
+          if (existante) {
+            const { error } = await supabaseClient
+              .from('produit_options').update(payload).eq('id', existante.id);
+            if (error) throw error;
+            remplaces++;
+          } else {
+            const { error } = await supabaseClient
+              .from('produit_options')
+              .insert({ business_id: BUSINESS_ID, produit_id: produitId, ...payload });
+            if (error) throw error;
+            crees++;
+          }
+        } catch (err) {
+          console.error('Erreur sur produit', produitId, err);
+          erreurs++;
+        }
+      }
+      closeModal('modal-edit');
+      alert(`✅ Terminé : ${crees} règle(s) créée(s), ${remplaces} remplacée(s)` + (erreurs ? `, ${erreurs} erreur(s)` : ''));
+      // On recharge les données et on sort du mode sélection
+      modeSelection = false;
+      produitsSelectionnes.clear();
+      document.getElementById('btn-mode-select').textContent = '☑ Sélectionner des produits';
+      document.getElementById('btn-mode-select').classList.remove('btn-primary');
+      await loadProduitOptions();
+    }
+
+    // VUE 2 : cocher des règles existantes pour les supprimer
+    function renderSuppressionRegles() {
+      const container = document.getElementById('options-content');
+      const groupes = grouperParCategorie();
+      let html = '<div style="background:#fdecea;border-left:4px solid #c0392b;border-radius:8px;padding:12px 15px;font-size:13.5px;margin-bottom:14px;color:#8a2a1f;">🗑️ Coche les règles à supprimer. Chaque règle affiche son produit, sa catégorie et son libellé pour éviter toute erreur.</div>';
+
+      let totalRegles = 0;
+      Object.keys(groupes).sort().forEach(cat => {
+        const prods = groupes[cat];
+        // Collecter toutes les règles de la famille
+        const regles = [];
+        prods.forEach(prod => {
+          (prod.produit_options || []).forEach(o => {
+            regles.push({ prod, o });
+          });
+        });
+        if (regles.length === 0) return;
+        totalRegles += regles.length;
+        html += `
+          <div class="fam-group-head">
+            <span class="fam-group-title">${cat}</span>
+            <span class="fam-group-count">${regles.length} règle(s)</span>
+            <button class="fam-check-btn" onclick="cocherReglesFamille('${cat}')" style="margin-left:auto;">☑ Tout cocher</button>
+            <button class="fam-check-btn" onclick="decocherReglesFamille('${cat}')">☐ Décocher</button>
+          </div>
+          <div class="row-list">
+        `;
+        regles.forEach(({ prod, o }) => {
+          const checked = reglesSelectionnees.has(o.id);
+          html += `
+            <div class="rule-check-row ${checked ? 'on' : ''}" onclick="toggleRegle('${o.id}')" style="cursor:pointer;">
+              <span class="rule-check ${checked ? 'on' : ''}"></span>
+              <div style="min-width:150px;font-weight:600;font-size:13px;">${prod.nom}</div>
+              <div style="font-size:12px;color:var(--muted);">
+                ${o.categorie_attribut}${o.libelle ? ' • « ' + o.libelle + ' »' : ''} • min ${o.min} / max ${o.max}
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      });
+
+      if (totalRegles === 0) {
+        html += '<div class="no-data">Aucune règle à supprimer.</div>';
+      }
+      container.innerHTML = html;
+      renderDeleteBar();
+    }
+
+    function toggleRegle(id) {
+      if (reglesSelectionnees.has(id)) reglesSelectionnees.delete(id);
+      else reglesSelectionnees.add(id);
+      renderSuppressionRegles();
+    }
+
+    function cocherReglesFamille(cat) {
+      const groupes = grouperParCategorie();
+      (groupes[cat] || []).forEach(prod => {
+        (prod.produit_options || []).forEach(o => reglesSelectionnees.add(o.id));
+      });
+      renderSuppressionRegles();
+    }
+
+    function decocherReglesFamille(cat) {
+      const groupes = grouperParCategorie();
+      (groupes[cat] || []).forEach(prod => {
+        (prod.produit_options || []).forEach(o => reglesSelectionnees.delete(o.id));
+      });
+      renderSuppressionRegles();
+    }
+
+    function renderDeleteBar() {
+      const container = document.getElementById('options-content');
+      const n = reglesSelectionnees.size;
+      let bar = document.getElementById('action-bar-delete');
+      if (bar) bar.remove();
+      if (n === 0) return;
+      const div = document.createElement('div');
+      div.id = 'action-bar-delete';
+      div.className = 'action-bar';
+      div.innerHTML = `
+        <span class="cnt">${n} règle(s) cochée(s)</span>
+        <span class="spacer"></span>
+        <button class="btn-del" onclick="supprimerReglesGroupees()">🗑️ Supprimer les règles cochées</button>
+      `;
+      container.appendChild(div);
+    }
+
+    async function supprimerReglesGroupees() {
+      const n = reglesSelectionnees.size;
+      if (n === 0) return;
+      if (!confirm(`Tu vas supprimer ${n} règle(s). Cette action est irréversible. Confirmer ?`)) return;
+      const ids = Array.from(reglesSelectionnees);
+      let ok = 0, erreurs = 0;
+      for (const id of ids) {
+        try {
+          const { error } = await supabaseClient.from('produit_options').delete().eq('id', id);
+          if (error) throw error;
+          ok++;
+        } catch (err) {
+          console.error('Erreur suppression', id, err);
+          erreurs++;
+        }
+      }
+      alert(`✅ ${ok} règle(s) supprimée(s)` + (erreurs ? `, ${erreurs} erreur(s)` : ''));
+      modeSuppression = false;
+      reglesSelectionnees.clear();
+      document.getElementById('btn-mode-delete').textContent = '🗑️ Supprimer des règles';
+      document.getElementById('btn-mode-delete').classList.remove('btn-primary');
+      await loadProduitOptions();
+    }
+
     // Formulaire commun (ajout ET édition) pour un groupe d'options
     function optionFormHtml(titre, data, submitJs) {
       const d = data || {};
@@ -1543,12 +1977,13 @@
     }
 
     // Calcule le coût total d'un appel en dollars
-    // Formule : (crédits × 0,00015) + (minutes × 0,01)
+    // Formule : (crédits × prix_credit) + (minutes × prix_minute)
+    // Les tarifs viennent de la base (variable tarifsAppels, modifiable dans le journal)
     function calculerCoutAppel(credits, dureeSecondes) {
       const c = Number(credits) || 0;
       const d = Number(dureeSecondes) || 0;
-      const coutCredits = c * 0.00015;
-      const coutComm = (d / 60) * 0.01;
+      const coutCredits = c * (tarifsAppels.prix_credit || 0);
+      const coutComm = (d / 60) * (tarifsAppels.prix_minute || 0);
       return coutCredits + coutComm;
     }
 
@@ -1669,76 +2104,160 @@
       loadLogs();
     }
 
+    // Calcule les bornes de date selon le filtre courant (réutilisé pour liste ET stats)
+    function bornesDatesLog() {
+      let debut = null, fin = null;
+      if (currentLogFilter.type === 'today') {
+        const today = new Date().toISOString().split('T')[0];
+        debut = today + 'T00:00:00';
+        fin   = today + 'T23:59:59';
+      } else if ((currentLogFilter.type === 'date' || currentLogFilter.type === 'range') && currentLogFilter.startDate) {
+        debut = currentLogFilter.startDate;
+        fin   = currentLogFilter.endDate;
+      }
+      return { debut, fin };
+    }
+
+    // Charge la première page (remet à zéro la liste)
     async function loadLogs() {
+      logsPage = 0;
+      logsTousCharges = false;
+      evenements = [];
       const container = document.getElementById('logs-content');
       container.innerHTML = '<div class="loading">🔄 Chargement des événements...</div>';
+      await Promise.all([chargerStatsJournal(), chargerPageLogs(true)]);
+    }
+
+    // Interroge la fonction base pour les totaux EXACTS sur toute la période
+    async function chargerStatsJournal() {
+      const recapEl = document.getElementById('logs-recap');
+      const { debut, fin } = bornesDatesLog();
+      let statutParam = null;
+      if (currentLogFilter.statut === 'success') statutParam = 'success';
+      else if (currentLogFilter.statut === 'failure') statutParam = 'failure';
+      try {
+        const { data, error } = await supabaseClient.rpc('stats_journal_appels', {
+          p_business_id: BUSINESS_ID,
+          p_date_debut: debut,
+          p_date_fin: fin,
+          p_statut: statutParam
+        });
+        if (error) throw error;
+        const stats = (Array.isArray(data) ? data[0] : data) || { nb_appels: 0, total_secondes: 0, total_credits: 0 };
+        afficherRecap(Number(stats.nb_appels), Number(stats.total_secondes), Number(stats.total_credits));
+      } catch (err) {
+        console.error('Erreur stats journal', err);
+        if (recapEl) recapEl.innerHTML = '';
+      }
+    }
+
+    // Affiche le bandeau récapitulatif (compteur exact) + le formulaire de tarifs
+    function afficherRecap(nbAppels, totalSecondes, totalCredits) {
+      const recapEl = document.getElementById('logs-recap');
+      if (!recapEl) return;
+      const totalMin = Math.floor(totalSecondes / 60);
+      const totalSec = totalSecondes % 60;
+      const tempsCumule = totalMin > 0 ? `${totalMin}min ${totalSec}s` : `${totalSec}s`;
+      const coutCredits = totalCredits * (tarifsAppels.prix_credit || 0);
+      const coutComm = (totalSecondes / 60) * (tarifsAppels.prix_minute || 0);
+      const coutTotal = coutCredits + coutComm;
+      recapEl.innerHTML = `
+        <div class="recap-card">
+          <div class="recap-label">Appels</div>
+          <div class="recap-value">${nbAppels}</div>
+        </div>
+        <div class="recap-card">
+          <div class="recap-label">Temps cumulé</div>
+          <div class="recap-value">${tempsCumule}</div>
+        </div>
+        <div class="recap-card">
+          <div class="recap-label">Coût cumulé</div>
+          <div class="recap-value cost">${coutTotal.toFixed(2).replace('.', ',')} $</div>
+        </div>
+        <div class="recap-card" style="flex:1.4;min-width:220px;">
+          <div class="recap-label">Tarifs (modifiables)</div>
+          <div style="display:flex;gap:8px;align-items:flex-end;margin-top:4px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:90px;">
+              <label style="font-size:10px;color:var(--muted);display:block;">$ / crédit</label>
+              <input type="number" id="tarif-credit" step="0.00001" value="${tarifsAppels.prix_credit}"
+                     style="width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:13px;">
+            </div>
+            <div style="flex:1;min-width:90px;">
+              <label style="font-size:10px;color:var(--muted);display:block;">$ / minute</label>
+              <input type="number" id="tarif-minute" step="0.001" value="${tarifsAppels.prix_minute}"
+                     style="width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:13px;">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="sauvegarderTarifs()" style="white-space:nowrap;">💾</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // Sauvegarde les tarifs modifiés dans la base
+    async function sauvegarderTarifs() {
+      const credit = parseFloat(document.getElementById('tarif-credit').value);
+      const minute = parseFloat(document.getElementById('tarif-minute').value);
+      if (isNaN(credit) || isNaN(minute) || credit < 0 || minute < 0) {
+        alert('Merci de saisir des tarifs valides (nombres positifs).');
+        return;
+      }
+      try {
+        const nouveauxTarifs = { prix_credit: credit, prix_minute: minute };
+        const { error } = await supabaseClient
+          .from('business')
+          .update({ tarifs_appels: nouveauxTarifs })
+          .eq('id', BUSINESS_ID);
+        if (error) throw error;
+        tarifsAppels = nouveauxTarifs;
+        alert('✅ Tarifs enregistrés');
+        // Recalcule le compteur et la liste avec les nouveaux tarifs
+        await chargerStatsJournal();
+        renderEvenements();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    // Charge une page d'appels (les ajoute à la liste existante)
+    async function chargerPageLogs(remplace) {
+      const container = document.getElementById('logs-content');
+      const { debut, fin } = bornesDatesLog();
+      const debutIndex = logsPage * LOGS_PAR_PAGE;
+      const finIndex = debutIndex + LOGS_PAR_PAGE - 1;
       try {
         let query = supabaseClient
           .from('evenements')
           .select('*')
           .eq('business_id', BUSINESS_ID)
           .order('created_at', { ascending: false })
-          .limit(100);
-        if (currentLogFilter.type === 'today') {
-          const today = new Date().toISOString().split('T')[0];
-          query = query.gte('created_at', today + 'T00:00:00').lte('created_at', today + 'T23:59:59');
-        } else if ((currentLogFilter.type === 'date' || currentLogFilter.type === 'range') && currentLogFilter.startDate) {
-          query = query.gte('created_at', currentLogFilter.startDate).lte('created_at', currentLogFilter.endDate);
-        }
-        if (currentLogFilter.statut === 'success') {
-          query = query.eq('statut', 'success');
-        } else if (currentLogFilter.statut === 'failure') {
-          query = query.neq('statut', 'success');
-        }
+          .range(debutIndex, finIndex);
+        if (debut) query = query.gte('created_at', debut).lte('created_at', fin);
+        if (currentLogFilter.statut === 'success') query = query.eq('statut', 'success');
+        else if (currentLogFilter.statut === 'failure') query = query.neq('statut', 'success');
         const { data, error } = await query;
         if (error) throw error;
-        evenements = data || [];
+        const page = data || [];
+        if (remplace) evenements = page;
+        else evenements = evenements.concat(page);
+        // Si on a reçu moins que la taille d'une page, il n'y a plus rien après
+        logsTousCharges = page.length < LOGS_PAR_PAGE;
         renderEvenements();
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
       }
     }
 
+    // Bouton "Charger plus"
+    async function chargerPlusLogs() {
+      logsPage += 1;
+      await chargerPageLogs(false);
+    }
+
     function renderEvenements() {
       const container = document.getElementById('logs-content');
-      const recapEl = document.getElementById('logs-recap');
       if (evenements.length === 0) {
         container.innerHTML = '<div class="no-data">Aucun événement trouvé</div>';
-        if (recapEl) recapEl.innerHTML = '';
         return;
-      }
-
-      // Calcul de l'agrégé sur la période affichée
-      let totalAppels = 0;
-      let totalSecondes = 0;
-      let totalCout = 0;
-      evenements.forEach(evt => {
-        let dd = evt.details || {};
-        if (typeof dd === 'string') { try { dd = JSON.parse(dd); } catch { dd = {}; } }
-        const duree = Number(evt.duree_appel || dd.duree_appel || 0);
-        const credits = Number(dd.cout_credits || 0);
-        totalAppels += 1;
-        totalSecondes += duree;
-        totalCout += calculerCoutAppel(credits, duree);
-      });
-      const totalMin = Math.floor(totalSecondes / 60);
-      const totalSec = totalSecondes % 60;
-      const tempsCumule = totalMin > 0 ? `${totalMin}min ${totalSec}s` : `${totalSec}s`;
-      if (recapEl) {
-        recapEl.innerHTML = `
-          <div class="recap-card">
-            <div class="recap-label">Appels</div>
-            <div class="recap-value">${totalAppels}</div>
-          </div>
-          <div class="recap-card">
-            <div class="recap-label">Temps cumulé</div>
-            <div class="recap-value">${tempsCumule}</div>
-          </div>
-          <div class="recap-card">
-            <div class="recap-label">Coût cumulé</div>
-            <div class="recap-value cost">${totalCout.toFixed(2).replace('.', ',')} $</div>
-          </div>
-        `;
       }
 
       let rows = '';
@@ -1786,7 +2305,17 @@
          console.error('⚠️ Événement ignoré (erreur rendu):', evt.id, errEvt);
        }
       });
-      container.innerHTML = '<div class="row-list">' + rows + '</div>';
+      let boutonPlus = '';
+      if (!logsTousCharges) {
+        boutonPlus = `
+          <div style="text-align:center;padding:14px;">
+            <button class="btn btn-secondary" onclick="chargerPlusLogs()">⬇️ Charger 50 appels de plus</button>
+          </div>
+        `;
+      } else if (evenements.length > LOGS_PAR_PAGE) {
+        boutonPlus = `<div style="text-align:center;padding:12px;color:var(--muted);font-size:13px;">Tous les appels de la période sont affichés.</div>`;
+      }
+      container.innerHTML = '<div class="row-list">' + rows + '</div>' + boutonPlus;
     }
 
     function openEvenementDetail(id) {
