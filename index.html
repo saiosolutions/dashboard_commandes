@@ -576,6 +576,8 @@
               <option value="agent">Agent IA</option>
             </select>
             <button class="btn btn-primary" id="btn-add-param" onclick="openAddModal()">➕ Ajouter</button>
+            <button class="btn btn-secondary" id="btn-gen-kbmenu" onclick="genererKbMenu()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📄 Générer le KB_MENU</button>
+            <button class="btn btn-secondary" id="btn-gen-kbzones" onclick="genererKbZones()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📍 Générer le KB_ZONE_LIVRAISON</button>
           </div>
           <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
         </div>
@@ -655,12 +657,12 @@
 
         <div id="param-agent" class="param-section" style="display:none;">
           <div class="options-help">
-            🤖 Ici tu configures le comportement de ton agent vocal : les <strong>règles</strong>
-            qu'il doit suivre (questions à poser, déductions, exclusivités, prononciation) et la
-            <strong>génération du KB_MENU</strong> à coller dans ElevenLabs.
+            🤖 Cette section définit le comportement de l'agent vocal : les <strong>règles</strong>
+            qu'il applique (questions à poser, déductions de taille, exclusivités, prononciation).
+            Les boutons de génération, en haut, produisent les fichiers de connaissances de l'agent
+            à partir des données du restaurant.
           </div>
           <div class="sel-toolbar">
-            <button class="btn btn-primary" onclick="genererKbMenu()">📄 Générer le KB_MENU</button>
             <button class="btn btn-secondary" onclick="openAddRegle()">➕ Ajouter une règle</button>
           </div>
           <div id="regles-content">
@@ -1129,6 +1131,11 @@
       if (btnAdd) {
         btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires') ? 'none' : '';
       }
+      // Afficher les boutons de génération uniquement sur la section Agent IA
+      const btnGenMenu = document.getElementById('btn-gen-kbmenu');
+      const btnGenZones = document.getElementById('btn-gen-kbzones');
+      if (btnGenMenu) btnGenMenu.style.display = (section === 'agent') ? '' : 'none';
+      if (btnGenZones) btnGenZones.style.display = (section === 'agent') ? '' : 'none';
       loadParamData();
     }
 
@@ -1627,6 +1634,75 @@
     // ========================================
     // GÉNÉRATEUR KB_MENU (lit toute la base → texte)
     // ========================================
+
+    // Nettoie le nom du restaurant pour en faire un nom de fichier valide
+    // "L'Oasis Food" -> "L_Oasis_Food"
+    function nomFichierBusiness(nom) {
+      if (!nom) return 'restaurant';
+      return String(nom)
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // retire les accents
+        .replace(/[^a-zA-Z0-9]+/g, '_')                    // remplace tout le reste par _
+        .replace(/^_+|_+$/g, '');                          // retire les _ en début/fin
+    }
+
+    // Récupère les infos du restaurant (nom + adresse) depuis la table business
+    async function getInfosResto() {
+      try {
+        const { data: biz } = await supabaseClient
+          .from('business')
+          .select('nom, adresse_numero, adresse_rue, code_postal, ville, numero_tel')
+          .eq('id', BUSINESS_ID)
+          .single();
+        return biz || {};
+      } catch (_) {
+        return {};
+      }
+    }
+
+    // Construit la ligne d'adresse complète : "25 Rue Jacques Huet, 76400 Fécamp"
+    function formatAdresseResto(biz) {
+      if (!biz) return '';
+      const numRue = [biz.adresse_numero, biz.adresse_rue].filter(Boolean).join(' ').trim();
+      const cpVille = [biz.code_postal, biz.ville].filter(Boolean).join(' ').trim();
+      return [numRue, cpVille].filter(Boolean).join(', ').trim();
+    }
+
+    // Lit les horaires depuis business_horaires et les met en texte lisible
+    async function getHorairesTexte() {
+      const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+      try {
+        const { data, error } = await supabaseClient
+          .from('business_horaires')
+          .select('jour, numero_tranche, heure_ouverture, heure_fermeture, est_ouvert')
+          .eq('business_id', BUSINESS_ID)
+          .order('numero_tranche', { ascending: true });
+        if (error) throw error;
+        // Regrouper par jour
+        const parJour = {};
+        JOURS.forEach(j => { parJour[j] = []; });
+        (data || []).forEach(row => {
+          if (row.est_ouvert) {
+            const o = String(row.heure_ouverture).slice(0, 5);
+            const f = String(row.heure_fermeture).slice(0, 5);
+            if (!parJour[row.jour]) parJour[row.jour] = [];
+            parJour[row.jour].push(`${o}-${f}`);
+          }
+        });
+        let txt = '';
+        JOURS.forEach(j => {
+          const nomJour = j.charAt(0).toUpperCase() + j.slice(1);
+          if (parJour[j] && parJour[j].length > 0) {
+            txt += `${nomJour} : ${parJour[j].join(' et ')}\n`;
+          } else {
+            txt += `${nomJour} : Fermé\n`;
+          }
+        });
+        return txt;
+      } catch (_) {
+        return '';
+      }
+    }
+
     function kbFormatPrix(p) {
       return Number(p).toFixed(2).replace('.', ',') + '€';
     }
@@ -1673,12 +1749,18 @@
           .order('position', { ascending: true });
         if (e2) throw e2;
 
-        // 3) Infos business (nom, adresse si dispo)
+        // 3) Infos business (nom + adresse)
         let infoResto = '';
+        let infoRestoNom = '';
         try {
-          const { data: biz } = await supabaseClient
-            .from('business').select('nom').eq('id', BUSINESS_ID).single();
-          if (biz && biz.nom) infoResto = `RESTAURANT : ${biz.nom}\n\n`;
+          const biz = await getInfosResto();
+          if (biz && biz.nom) {
+            infoRestoNom = biz.nom;
+            infoResto = `RESTAURANT : ${biz.nom}\n`;
+            const adresse = formatAdresseResto(biz);
+            if (adresse) infoResto += `ADRESSE : ${adresse}\n`;
+            infoResto += '\n';
+          }
         } catch (_) {}
 
         // 4) Règles de comportement (par famille et par produit)
@@ -1767,25 +1849,9 @@
           kb += '\n';
         });
 
-        // Afficher le résultat dans la modale avec boutons Copier / Télécharger
-        modal.innerHTML = `
-          <div class="modal-content" onclick="event.stopPropagation()" style="max-width:760px;">
-            <div class="modal-header">
-              <h2>📄 KB_MENU généré</h2>
-              <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
-            </div>
-            <div class="modal-body">
-              <div style="background:#fff8ec;border:1px solid #f0e2c4;border-left:4px solid #d9a441;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:12px;color:#7a5c1a;">
-                💡 Le KB inclut maintenant les règles de comportement (crudités, déduction de taille, exclusivités, prononciation) définies en base. Compare avec ton KB actuel et ajuste les règles si besoin.
-              </div>
-              <textarea id="kb-output" style="width:100%;min-height:340px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">${kb.replace(/</g, '&lt;')}</textarea>
-              <div class="form-actions">
-                <button class="btn btn-secondary" onclick="copierKb()">📋 Copier</button>
-                <button class="btn btn-primary" onclick="telechargerKb()">⬇️ Télécharger</button>
-              </div>
-            </div>
-          </div>
-        `;
+        // Afficher le résultat via la fonction commune (titre + nom de fichier corrects)
+        const nomFichierMenu = 'KB_MENU_' + nomFichierBusiness(infoRestoNom);
+        afficherResultatKb(kb, nomFichierMenu);
       } catch (err) {
         modal.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><h2>Erreur</h2><button class="btn-close" onclick="closeModal('modal-edit')">×</button></div><div class="modal-body"><div class="no-data">❌ ${err.message}</div></div></div>`;
       }
@@ -1804,9 +1870,146 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'KB_MENU_genere.txt';
+      a.download = (window.__kbFilename || 'KB_MENU_genere') + '.txt';
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    // ========================================
+    // GÉNÉRATEUR KB_ZONES (lit zones_service → texte)
+    // ========================================
+    async function genererKbZones() {
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-body"><div class="loading">🔄 Génération du KB_ZONES depuis la base…</div></div></div>`;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+
+      try {
+        // Infos complètes du restaurant (nom + adresse)
+        const biz = await getInfosResto();
+        const nomResto = (biz && biz.nom) ? biz.nom : 'LE RESTAURANT';
+        const nomFichierZones = 'KB_ZONE_LIVRAISON_' + nomFichierBusiness(biz && biz.nom);
+        const adresseResto = formatAdresseResto(biz);
+        const horairesTexte = await getHorairesTexte();
+
+        // En-tête commun : adresse du restaurant + horaires
+        let enTete = `ZONES DE LIVRAISON - ${nomResto}\n\n`;
+        enTete += `=== ADRESSE DU RESTAURANT ===\n\n`;
+        if (adresseResto) enTete += `${adresseResto}\n`;
+        enTete += `\n`;
+        if (horairesTexte) {
+          enTete += `=== HORAIRES D'OUVERTURE ===\n\n`;
+          enTete += horairesTexte;
+          enTete += `\n`;
+        }
+
+        // Zones de livraison actives
+        const { data: zones, error } = await supabaseClient
+          .from('zones_service')
+          .select('nom, code_postal, montant_minimum, frais_service, temps_livraison_min, type_zone, actif')
+          .eq('business_id', BUSINESS_ID)
+          .eq('actif', true)
+          .order('montant_minimum', { ascending: true })
+          .order('nom', { ascending: true });
+        if (error) throw error;
+
+        const zonesLivraison = (zones || []).filter(z =>
+          !z.type_zone || z.type_zone === 'livraison');
+
+        let kb = enTete;
+
+        // CAS 1 : aucune zone → pas de livraison
+        if (zonesLivraison.length === 0) {
+          kb += `=== IMPORTANT ===\n\n`;
+          kb += `Ce restaurant ne fait PAS de livraison.\n`;
+          kb += `Proposer UNIQUEMENT la commande à emporter (retrait sur place à l'adresse ci-dessus).\n`;
+          kb += `Ne jamais proposer la livraison, ne jamais demander d'adresse de livraison.\n`;
+          afficherResultatKb(kb, nomFichierZones);
+          return;
+        }
+
+        // CAS 2 : il y a des zones → construire la liste
+        // Trouver le minimum le plus bas (souvent la ville principale)
+        const minGlobal = Math.min(...zonesLivraison.map(z => Number(z.montant_minimum) || 0));
+
+        kb += `=== IMPORTANT ===\n\n`;
+        kb += `Nous livrons uniquement les villes listées ci-dessous.\n`;
+        kb += `Les minimums de commande varient selon la ville.\n`;
+        kb += `Toute ville NON listée = livraison impossible (proposer à emporter).\n\n`;
+
+        // Grouper par minimum pour un affichage clair
+        const parMinimum = {};
+        zonesLivraison.forEach(z => {
+          const min = Number(z.montant_minimum).toFixed(2);
+          if (!parMinimum[min]) parMinimum[min] = [];
+          parMinimum[min].push(z);
+        });
+
+        Object.keys(parMinimum).sort((a, b) => Number(a) - Number(b)).forEach(min => {
+          const villes = parMinimum[min];
+          kb += `=== MINIMUM DE COMMANDE : ${min.replace('.', ',')}€ ===\n\n`;
+          villes.forEach(z => {
+            const delai = z.temps_livraison_min ? `${z.temps_livraison_min} min` : 'délai standard';
+            const frais = Number(z.frais_service) > 0
+              ? ` - Frais : ${Number(z.frais_service).toFixed(2).replace('.', ',')}€`
+              : '';
+            kb += `${z.nom} (${z.code_postal}) - Délai : ${delai}${frais}\n`;
+          });
+          kb += '\n';
+        });
+
+        // Codes postaux partagés par plusieurs villes (ambiguïté à lever)
+        const parCP = {};
+        zonesLivraison.forEach(z => {
+          if (!parCP[z.code_postal]) parCP[z.code_postal] = [];
+          parCP[z.code_postal].push(z.nom);
+        });
+        const cpAmbigus = Object.keys(parCP).filter(cp => parCP[cp].length > 1);
+        if (cpAmbigus.length > 0) {
+          kb += `=== CODES POSTAUX PARTAGÉS (demander la ville précise) ===\n\n`;
+          cpAmbigus.forEach(cp => {
+            kb += `${cp} : ${parCP[cp].join(', ')}\n`;
+          });
+          kb += '\n';
+        }
+
+        // Règles de vérification
+        kb += `=== VÉRIFICATION ===\n\n`;
+        kb += `1. Demander la ville et le code postal.\n`;
+        kb += `2. Si la ville est dans la liste → confirmer le minimum applicable.\n`;
+        kb += `3. Si absente → "Désolé, nous ne livrons pas cette ville. Souhaitez-vous commander à emporter ?"\n`;
+        kb += `4. Noter la ville et le code postal en MAJUSCULES, sans accent.\n`;
+
+        afficherResultatKb(kb, nomFichierZones);
+      } catch (err) {
+        modal.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><h2>Erreur</h2><button class="btn-close" onclick="closeModal('modal-edit')">×</button></div><div class="modal-body"><div class="no-data">❌ ${err.message}</div></div></div>`;
+      }
+    }
+
+    // Affiche un KB généré dans la modale (réutilisable pour MENU et ZONES)
+    function afficherResultatKb(kb, filename) {
+      window.__kbFilename = filename;
+      const estZones = filename.includes('ZONE');
+      const titre = estZones ? '📍 Fichier KB_ZONE_LIVRAISON' : '📄 Fichier KB_MENU';
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-width:760px;">
+          <div class="modal-header">
+            <h2>${titre}</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <div class="modal-body">
+            <div style="background:#fff8ec;border:1px solid #f0e2c4;border-left:4px solid #d9a441;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:12px;color:#7a5c1a;">
+              💡 Ce fichier est généré automatiquement à partir des données du restaurant. Vous pouvez le copier ou le télécharger.
+            </div>
+            <textarea id="kb-output" style="width:100%;min-height:340px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">${kb.replace(/</g, '&lt;')}</textarea>
+            <div class="form-actions">
+              <button class="btn btn-secondary" onclick="copierKb()">📋 Copier</button>
+              <button class="btn btn-primary" onclick="telechargerKb()">⬇️ Télécharger</button>
+            </div>
+          </div>
+        </div>
+      `;
     }
 
     function catPillClass(cat) {
@@ -2608,6 +2811,18 @@
       return `${min}min ${sec}sec`;
     }
 
+    // Formate un montant en retirant tout "€"/"euros" déjà présent, puis ajoute UN seul €
+    // Évite les doublons comme "54 euros€" ou "27 €€"
+    function formatMontant(valeur) {
+      if (valeur === null || valeur === undefined || valeur === '') return null;
+      let txt = String(valeur).trim();
+      // Retirer les mentions monétaires déjà présentes (€, euro, euros), insensible à la casse
+      txt = txt.replace(/\s*(euros?|€)\s*/gi, '').trim();
+      txt = txt.replace(',', '.');
+      if (txt === '') return null;
+      return txt + ' €';
+    }
+
     // Calcule le coût total d'un appel en dollars
     // Formule : (crédits × prix_credit) + (minutes × prix_minute)
     // Les tarifs viennent de la base (variable tarifsAppels, modifiable dans le journal)
@@ -2903,8 +3118,10 @@
         const numero    = d.numero_commande || evt.call_id || 'N/A';
         const anomalies = Array.isArray(d.anomalies) ? d.anomalies : [];
         const duree     = evt.duree_appel || d.duree_appel || null;
+        const creditsAppel = d.cout_credits ?? null;
         const prix = d.montant_annonce != null ? d.montant_annonce
                    : (d.prix_total != null ? d.prix_total : null);
+        const prixFormate = formatMontant(prix);
         let statutBadge;
         if (evt.statut === 'success') {
           statutBadge = '<span class="badge badge-success">✅</span>';
@@ -2917,6 +3134,8 @@
                           typeL === 'a_emporter' ? '🛍️ À emporter' :
                           typeL === 'sur_place'  ? '🍽️ Sur place' : '❓';
         const dureeText = duree ? ` • ⏱️ ${formatDuree(duree)}` : '';
+        const coutAppelText = (creditsAppel !== null || duree)
+          ? ` • 💰 ${formatCout(creditsAppel || 0, duree || 0)}` : '';
         const anoBadge = anomalies.length > 0
           ? `<span class="badge badge-warning">${anomalies.length} ⚠️</span>` : '';
         rows += `
@@ -2924,10 +3143,10 @@
             <span class="row-num">#${numero}</span>
             <div class="row-main">
               <span class="row-client">${nom || '<span class="info-manquante">info manquante</span>'}</span>
-              <span class="row-sub">📞 ${telephone || 'N/A'} • ${typeText}${dureeText}</span>
+              <span class="row-sub">📞 ${telephone || 'N/A'} • ${typeText}${dureeText}${coutAppelText}</span>
             </div>
             <div class="row-right">
-              <span class="row-price">${prix !== null ? prix + '€' : '—'}</span>
+              <span class="row-price">${prixFormate || '—'}</span>
               ${statutBadge}${anoBadge}
               <span class="row-date">${formatDate(evt.created_at)}</span>
             </div>
@@ -2971,7 +3190,7 @@
       const nom       = evt.client_nom || d.nom || null;
       const telephone = evt.client_telephone || d.telephone || null;
       const typeL     = d.type_livraison || null;
-      const prix      = d.montant_annonce != null ? d.montant_annonce : (d.prix_total || null);
+      const prix      = formatMontant(d.montant_annonce != null ? d.montant_annonce : (d.prix_total || null));
       const numero    = d.numero_commande || evt.call_id || 'N/A';
       const duree     = formatDuree(evt.duree_appel || d.duree_appel);
       const credits   = d.cout_credits ?? null;
@@ -3091,7 +3310,7 @@
               <div style="margin-top: 12px;">${articlesHtml}</div>
             </div>
             <div style="border-top: 1px solid var(--line); padding-top: 14px; font-size: 18px; font-weight: bold; text-align: right; margin-bottom: 14px;">
-              Total : ${prix !== null ? prix + '€' : '<span class="info-manquante">info manquante</span>'}
+              Total : ${prix !== null ? prix : '<span class="info-manquante">info manquante</span>'}
             </div>
             ${infosAppelHtml}
             ${resumeHtml}
@@ -3223,7 +3442,13 @@
             <div class="form-group"><label>Prix (€) *</label><input type="number" step="0.01" name="prix" required></div>
             <div class="form-group"><label>Taille</label><input type="text" name="taille"></div>
             <div class="form-group"><label>Détails</label><textarea name="details"></textarea></div>
-            <div class="form-group"><label>Type de produit</label><input type="text" name="type_produit" value="produit_standard"></div>
+            <div class="form-group">
+              <label>Type de produit *</label>
+              <select name="type_produit" required>
+                <option value="produit_standard">Standard (sans options : boisson, dessert…)</option>
+                <option value="produit_composable">Composable (avec options : viandes, sauces…)</option>
+              </select>
+            </div>
             <div class="form-group"><label>Position</label><input type="number" name="position" value="0"></div>
             <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" checked><label>Actif</label></div></div>
             <div class="form-actions">
@@ -3498,7 +3723,13 @@
             <div class="form-group"><label>Prix (€) *</label><input type="number" step="0.01" name="prix" value="${produit.prix}" required></div>
             <div class="form-group"><label>Taille</label><input type="text" name="taille" value="${produit.taille || ''}"></div>
             <div class="form-group"><label>Détails</label><textarea name="details">${produit.details || ''}</textarea></div>
-            <div class="form-group"><label>Type de produit</label><input type="text" name="type_produit" value="${produit.type_produit || 'produit_standard'}"></div>
+            <div class="form-group">
+              <label>Type de produit *</label>
+              <select name="type_produit" required>
+                <option value="produit_standard" ${(produit.type_produit || 'produit_standard') === 'produit_standard' ? 'selected' : ''}>Standard (sans options : boisson, dessert…)</option>
+                <option value="produit_composable" ${produit.type_produit === 'produit_composable' ? 'selected' : ''}>Composable (avec options : viandes, sauces…)</option>
+              </select>
+            </div>
             <div class="form-group"><label>Position</label><input type="number" name="position" value="${produit.position || 0}"></div>
             <div class="form-group"><div class="checkbox-group"><input type="checkbox" name="actif" ${produit.actif ? 'checked' : ''}><label>Actif</label></div></div>
             <div class="form-actions">
