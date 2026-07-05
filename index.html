@@ -586,6 +586,7 @@
             <select id="param-section" onchange="switchParamSection(this.value)">
               <option value="familles">Familles de produits</option>
               <option value="produits">Produits</option>
+              <option value="import">📥 Import produits (CSV)</option>
               <option value="attributs">Attributs</option>
               <option value="options">Options produits</option>
               <option value="zones">Zones de livraison</option>
@@ -610,6 +611,22 @@
             </div>
           </div>
           <div id="produits-table"></div>
+        </div>
+
+        <!-- 🆕 SECTION IMPORT PRODUITS (CSV) -->
+        <div id="param-import" class="param-section" style="display:none;">
+          <div class="options-help">
+            📥 Importe un fichier CSV export de caisse (format avec taille : id_produit;nom_produit;desc_produit;prix;prix_emport;prix_surplace;id_famille;famille_nom;taille — sans en-tête).
+            Chaque taille d'un même plat sera créée comme une fiche produit séparée (ex : REGINA JUNIOR, REGINA SENIOR, REGINA FAMILIALE).
+            <strong>Rien n'est écrit en base tant que tu n'as pas cliqué sur « Valider l'import ».</strong>
+          </div>
+          <div id="import-upload-zone" style="background:white;border-radius:10px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:16px;">
+            <div class="form-group">
+              <label>Choisir le fichier CSV</label>
+              <input type="file" id="import-csv-file" accept=".csv" onchange="handleImportFile(event)">
+            </div>
+          </div>
+          <div id="import-result"></div>
         </div>
 
         <!-- 🆕 SECTION OPTIONS PRODUITS -->
@@ -755,6 +772,14 @@
     let attributs = [];
     let zones = [];
     let familles = [];
+    // 🆕 Sélection multiple pour suppression groupée (Produits, Attributs, Zones, Familles)
+    let bulkSelections = {
+      produits: new Set(),
+      attributs: new Set(),
+      zones: new Set(),
+      familles: new Set(),
+      regles: new Set()
+    };
     let clients = [];
     let produitOptions = [];      // 🆕 stocke les lignes de produit_options (avec le produit joint)
     let tarifsAppels = { prix_credit: 0.00015, prix_minute: 0.01 };  // tarifs, chargés depuis la base
@@ -839,7 +864,7 @@
       try {
         const { data, error } = await supabaseClient
           .from('business')
-          .select('id, nom, type')
+          .select('id, nom, type, ville, code_postal')
           .eq('actif', true)
           .order('nom', { ascending: true });
         if (error) throw error;
@@ -860,16 +885,21 @@
     function renderBusinessSelector() {
       const sel = document.getElementById('business-selector');
       if (!sel) return;
-      sel.innerHTML = businessesList.map(b =>
-        `<option value="${b.id}" ${b.id === BUSINESS_ID ? 'selected' : ''}>${b.nom}</option>`
-      ).join('');
+      sel.innerHTML = businessesList.map(b => {
+        const lieu = [b.ville, b.code_postal ? `(${b.code_postal})` : ''].filter(Boolean).join(' ');
+        const label = lieu ? `${b.nom} — ${lieu}` : b.nom;
+        return `<option value="${b.id}" ${b.id === BUSINESS_ID ? 'selected' : ''}>${label}</option>`;
+      }).join('');
     }
 
-    // Met à jour le nom affiché sous le titre du header
+    // Met à jour le nom + ville/CP affichés sous le titre du header
     function updateHeaderResto() {
       const b = businessesList.find(x => x.id === BUSINESS_ID);
       const el = document.getElementById('header-resto');
-      if (el) el.textContent = b ? b.nom : 'Restaurant';
+      if (!el) return;
+      if (!b) { el.textContent = 'Restaurant'; return; }
+      const lieu = [b.ville, b.code_postal ? `(${b.code_postal})` : ''].filter(Boolean).join(' ');
+      el.textContent = lieu ? `${b.nom} — ${lieu}` : b.nom;
     }
 
     // Appelé quand on choisit un autre restaurant dans le menu déroulant
@@ -887,7 +917,7 @@
 
     // Formulaire de création d'un nouveau restaurant
     function openAddBusinessModal() {
-      const types = ['fast_food', 'restaurant', 'pizzeria', 'coiffeur', 'garage', 'plombier', 'electricien', 'avocat', 'pharmacie', 'autre'];
+      const types = ['fast_food', 'pizzeria', 'restaurant'];
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -1270,7 +1300,7 @@
       // Masquer le bouton "Ajouter" sur Messages et Agent (ils ont leurs propres boutons)
       const btnAdd = document.getElementById('btn-add-param');
       if (btnAdd) {
-        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires') ? 'none' : '';
+        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires' || section === 'import') ? 'none' : '';
       }
       // Afficher les boutons de génération uniquement sur la section Agent IA
       const btnGenMenu = document.getElementById('btn-gen-kbmenu');
@@ -1282,6 +1312,7 @@
 
     async function loadParamData() {
       if (currentParamSection === 'produits') await loadProduits();
+      else if (currentParamSection === 'import') resetImportUI();   // 🆕
       else if (currentParamSection === 'options') await loadProduitOptions();   // 🆕
       else if (currentParamSection === 'attributs') await loadAttributs();
       else if (currentParamSection === 'zones') await loadZones();
@@ -1326,13 +1357,15 @@
           <table>
             <thead>
               <tr>
+                <th><input type="checkbox" class="bulk-select-all" data-type="produits" onclick="toggleBulkSelectAll('produits')"></th>
                 <th>Nom</th><th>Catégorie</th><th>Prix</th><th>Taille</th><th>Type</th><th>Actif</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              ${filtered.length === 0 ? '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #999;">Aucun produit trouvé</td></tr>' :
+              ${filtered.length === 0 ? '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #999;">Aucun produit trouvé</td></tr>' :
                 filtered.map(p => `
                 <tr>
+                  <td><input type="checkbox" class="bulk-check" data-type="produits" data-id="${p.id}" ${bulkSelections.produits.has(p.id) ? 'checked' : ''} onclick="toggleBulkSelect('produits', '${p.id}')"></td>
                   <td><strong>${p.nom}</strong></td>
                   <td><span class="badge badge-info">${p.categorie || '-'}</span></td>
                   <td>${p.prix}€</td>
@@ -1350,6 +1383,7 @@
         </div>
       `;
       document.getElementById('produits-table').innerHTML = html;
+      renderBulkBar('produits');
       const searchInput = document.getElementById('search-produits');
       if (searchInput) {
         searchInput.removeEventListener('input', renderProduitsTable);
@@ -1451,12 +1485,14 @@
       }
       // Grouper par niveau puis cible
       let html = '<div class="table-container"><table><thead><tr>' +
+        '<th><input type="checkbox" class="bulk-select-all" data-type="regles" onclick="toggleBulkSelectAll(\'regles\')"></th>' +
         '<th>Type</th><th>Cible</th><th>Contenu</th><th>Actif</th><th>Actions</th>' +
         '</tr></thead><tbody>';
       reglesAgent.forEach(r => {
         const c = nomCible(r);
         html += `
           <tr>
+            <td><input type="checkbox" class="bulk-check" data-type="regles" data-id="${r.id}" ${bulkSelections.regles.has(r.id) ? 'checked' : ''} onclick="toggleBulkSelect('regles', '${r.id}')"></td>
             <td>${labelType(r.type_regle)}</td>
             <td><span class="badge badge-info">${c.niveau}</span> ${c.nom}</td>
             <td style="max-width:340px;">${r.contenu}</td>
@@ -1470,6 +1506,7 @@
       });
       html += '</tbody></table></div>';
       container.innerHTML = html;
+      renderBulkBar('regles');
     }
 
     // Formulaire commun ajout/édition d'une règle
@@ -2773,12 +2810,14 @@
             <table>
               <thead>
                 <tr>
+                  <th><input type="checkbox" class="bulk-select-all" data-type="attributs" onclick="toggleBulkSelectAll('attributs')"></th>
                   <th>Nom</th><th>Catégorie</th><th>Prix supplément</th><th>Type entité</th><th>Actif</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 ${filtered.map(a => `
                   <tr>
+                    <td><input type="checkbox" class="bulk-check" data-type="attributs" data-id="${a.id}" ${bulkSelections.attributs.has(a.id) ? 'checked' : ''} onclick="toggleBulkSelect('attributs', '${a.id}')"></td>
                     <td><strong>${a.nom}</strong></td>
                     <td><span class="badge badge-info">${a.categorie}</span></td>
                     <td>${a.prix_supplement}€</td>
@@ -2795,6 +2834,7 @@
           </div>
         `;
         container.innerHTML = html;
+        renderBulkBar('attributs');
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
       }
@@ -2816,12 +2856,14 @@
             <table>
               <thead>
                 <tr>
+                  <th><input type="checkbox" class="bulk-select-all" data-type="zones" onclick="toggleBulkSelectAll('zones')"></th>
                   <th>Nom</th><th>Code postal</th><th>Minimum</th><th>Frais</th><th>Type zone</th><th>Actif</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 ${zones.map(z => `
                   <tr>
+                    <td><input type="checkbox" class="bulk-check" data-type="zones" data-id="${z.id}" ${bulkSelections.zones.has(z.id) ? 'checked' : ''} onclick="toggleBulkSelect('zones', '${z.id}')"></td>
                     <td><strong>${z.nom}</strong></td>
                     <td>${z.code_postal || '-'}</td>
                     <td>${z.montant_minimum}€</td>
@@ -2839,6 +2881,7 @@
           </div>
         `;
         container.innerHTML = html;
+        renderBulkBar('zones');
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
       }
@@ -2859,11 +2902,15 @@
           <div class="table-container">
             <table>
               <thead>
-                <tr><th>Nom</th><th>Position</th><th>Actif</th><th>Actions</th></tr>
+                <tr>
+                  <th><input type="checkbox" class="bulk-select-all" data-type="familles" onclick="toggleBulkSelectAll('familles')"></th>
+                  <th>Nom</th><th>Position</th><th>Actif</th><th>Actions</th>
+                </tr>
               </thead>
               <tbody>
                 ${familles.map(f => `
                   <tr>
+                    <td><input type="checkbox" class="bulk-check" data-type="familles" data-id="${f.id}" ${bulkSelections.familles.has(f.id) ? 'checked' : ''} onclick="toggleBulkSelect('familles', '${f.id}')"></td>
                     <td><strong>${f.nom}</strong></td>
                     <td>${f.position}</td>
                     <td><span class="badge ${f.actif ? 'badge-success' : 'badge-danger'}">${f.actif ? 'Oui' : 'Non'}</span></td>
@@ -2878,6 +2925,7 @@
           </div>
         `;
         container.innerHTML = html;
+        renderBulkBar('familles');
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
       }
@@ -3534,6 +3582,320 @@
       } catch (error) {
         alert('❌ Erreur: ' + error.message);
       }
+    }
+
+    // ========================================
+    // 🆕 IMPORT PRODUITS PAR FICHIER CSV
+    // ========================================
+    let importGroupes = [];      // produits groupés par id_produit, avant validation
+    let importFamillesExistantes = [];  // familles déjà en base pour ce business
+
+    // Réinitialise la zone d'import quand on revient sur l'onglet
+    function resetImportUI() {
+      document.getElementById('import-csv-file').value = '';
+      document.getElementById('import-result').innerHTML = '';
+      importGroupes = [];
+    }
+
+    // Parseur CSV simple : gère ; ou , comme séparateur, et les champs entre guillemets
+    function parseCsvLine(line, delimiter) {
+      const result = [];
+      let cur = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') {
+          inQuotes = !inQuotes;
+        } else if (c === delimiter && !inQuotes) {
+          result.push(cur.trim());
+          cur = '';
+        } else {
+          cur += c;
+        }
+      }
+      result.push(cur.trim());
+      return result;
+    }
+
+    function parseCsvText(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+      if (lines.length === 0) return [];
+      // Détecte le séparateur : ; ou ,
+      const delimiter = (lines[0].split(';').length >= lines[0].split(',').length) ? ';' : ',';
+      let rows = lines.map(l => parseCsvLine(l, delimiter));
+      // Détecte un éventuel en-tête : si la colonne prix (index 3) n'est pas un nombre sur la 1ère ligne
+      const premierPrix = parseFloat((rows[0][3] || '').replace(',', '.'));
+      if (isNaN(premierPrix)) {
+        rows = rows.slice(1); // on retire la ligne d'en-tête
+      }
+      return rows;
+    }
+
+    // Lecture du fichier choisi par l'utilisateur
+    function handleImportFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const rows = parseCsvText(evt.target.result);
+          if (rows.length === 0) {
+            document.getElementById('import-result').innerHTML = '<div class="no-data">Fichier vide ou illisible.</div>';
+            return;
+          }
+          // Format attendu (9 colonnes, sans en-tête) :
+          // 0:id_produit 1:nom_produit 2:desc_produit 3:prix 4:prix_emport 5:prix_surplace 6:id_famille 7:famille_nom 8:taille
+          const parsed = rows.map(cols => ({
+            id_produit: cols[0] || '',
+            nom_produit: (cols[1] || '').trim(),
+            desc_produit: (cols[2] || '').trim(),
+            prix: parseFloat((cols[3] || '0').replace(',', '.')) || 0,
+            famille_nom: (cols[7] || '').trim().toUpperCase(),
+            taille: (cols[8] || '').trim().toUpperCase()
+          })).filter(p => p.nom_produit);
+
+          if (parsed.length === 0) {
+            document.getElementById('import-result').innerHTML = '<div class="no-data">Aucune ligne exploitable trouvée. Vérifie le format du fichier.</div>';
+            return;
+          }
+
+          importGroupes = parsed;
+          await renderImportValidation();
+        } catch (err) {
+          document.getElementById('import-result').innerHTML = `<div class="no-data">❌ Erreur de lecture : ${err.message}</div>`;
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    // Construit l'écran de validation (éditable) avant écriture en base
+    async function renderImportValidation() {
+      const container = document.getElementById('import-result');
+      container.innerHTML = '<div class="loading">🔄 Vérification des familles existantes...</div>';
+
+      // Charger les familles déjà en base pour CE restaurant
+      const { data: fams, error } = await supabaseClient
+        .from('produit_familles')
+        .select('id, nom')
+        .eq('business_id', BUSINESS_ID);
+      if (error) {
+        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
+        return;
+      }
+      importFamillesExistantes = fams || [];
+      const nomsExistants = importFamillesExistantes.map(f => f.nom.toUpperCase());
+
+      // Familles présentes dans le CSV mais absentes de la base
+      const famillesCsv = [...new Set(importGroupes.map(p => p.famille_nom).filter(Boolean))];
+      const famillesNouvelles = famillesCsv.filter(f => !nomsExistants.includes(f));
+
+      let html = '';
+
+      if (famillesNouvelles.length > 0) {
+        html += `
+          <div style="background:#fff8ec;border:1px solid #f0e2c4;border-left:4px solid #d9a441;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+            <strong>⚠️ Nouvelles familles détectées dans le fichier :</strong>
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+              ${famillesNouvelles.map(f => `
+                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
+                  <input type="checkbox" class="import-famille-check" data-famille="${f}" checked>
+                  Créer la famille « ${f} »
+                </label>
+              `).join('')}
+            </div>
+            <div style="font-size:12.5px;color:#7a5c1a;margin-top:8px;">Décoche une famille si tu ne veux PAS importer les produits qui lui sont rattachés.</div>
+          </div>
+        `;
+      }
+
+      // Table de prévisualisation, éditable ligne par ligne
+      html += `
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th>Inclure</th><th>Nom (généré)</th><th>Famille</th><th>Prix (€)</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              ${importGroupes.map((p, i) => {
+                const nomGenere = p.taille ? `${p.nom_produit.toUpperCase()} ${p.taille}` : p.nom_produit.toUpperCase();
+                return `
+                  <tr>
+                    <td><input type="checkbox" class="import-row-check" data-index="${i}" checked></td>
+                    <td><input type="text" class="import-nom" data-index="${i}" value="${nomGenere.replace(/"/g, '&quot;')}" style="width:180px;"></td>
+                    <td><input type="text" class="import-famille" data-index="${i}" value="${p.famille_nom.replace(/"/g, '&quot;')}" style="width:120px;"></td>
+                    <td><input type="number" step="0.01" class="import-prix" data-index="${i}" value="${p.prix}" style="width:80px;"></td>
+                    <td style="max-width:260px;font-size:12.5px;color:var(--muted);">${p.desc_produit || '-'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top:16px;font-size:13px;color:var(--muted);">${importGroupes.length} ligne(s) détectée(s) dans le fichier.</div>
+        <div class="form-actions" style="justify-content:flex-start;margin-top:16px;">
+          <button class="btn btn-primary" onclick="confirmImportProduits()">💾 Valider l'import</button>
+        </div>
+      `;
+
+      container.innerHTML = html;
+    }
+
+    // Écrit réellement en base : crée les familles manquantes puis les produits
+    async function confirmImportProduits() {
+      if (!confirm('Tu vas écrire ces produits dans la base du restaurant actuellement sélectionné. Confirmer ?')) return;
+
+      // 1) Familles à créer (celles cochées)
+      const famillesACreer = Array.from(document.querySelectorAll('.import-famille-check:checked'))
+        .map(cb => cb.dataset.famille);
+      // Familles décochées = à exclure entièrement de l'import
+      const famillesExclues = Array.from(document.querySelectorAll('.import-famille-check:not(:checked)'))
+        .map(cb => cb.dataset.famille);
+
+      const mapFamilleIdParNom = {};
+      importFamillesExistantes.forEach(f => { mapFamilleIdParNom[f.nom.toUpperCase()] = f.id; });
+
+      try {
+        for (const nomFamille of famillesACreer) {
+          const { data, error } = await supabaseClient
+            .from('produit_familles')
+            .insert({ business_id: BUSINESS_ID, nom: nomFamille, position: 0, actif: true })
+            .select('id, nom')
+            .single();
+          if (error) throw error;
+          mapFamilleIdParNom[data.nom.toUpperCase()] = data.id;
+        }
+
+        // 2) Construire les lignes produits à insérer, à partir des champs édités dans le tableau
+        const lignesAInserer = [];
+        let ignorees = 0;
+        importGroupes.forEach((p, i) => {
+          const checkInclure = document.querySelector(`.import-row-check[data-index="${i}"]`);
+          if (!checkInclure || !checkInclure.checked) { ignorees++; return; }
+
+          const nomInput = document.querySelector(`.import-nom[data-index="${i}"]`).value.trim();
+          const familleInput = document.querySelector(`.import-famille[data-index="${i}"]`).value.trim().toUpperCase();
+          const prixInput = parseFloat(document.querySelector(`.import-prix[data-index="${i}"]`).value) || 0;
+
+          if (famillesExclues.includes(familleInput)) { ignorees++; return; }
+
+          const familleId = mapFamilleIdParNom[familleInput];
+          if (!familleId) { ignorees++; return; } // famille inconnue et non créée : on ignore par sécurité
+
+          lignesAInserer.push({
+            business_id: BUSINESS_ID,
+            nom: nomInput,
+            categorie: familleInput,
+            prix: prixInput,
+            taille: p.taille || null,
+            details: p.desc_produit || null,
+            type_produit: 'produit_standard',
+            famille_id: familleId,
+            position: 0,
+            actif: true
+          });
+        });
+
+        if (lignesAInserer.length === 0) {
+          alert('Aucune ligne à importer (tout a été exclu).');
+          return;
+        }
+
+        const { error: insErr } = await supabaseClient.from('produits').insert(lignesAInserer);
+        if (insErr) throw insErr;
+
+        alert(`✅ Import terminé : ${lignesAInserer.length} produit(s) créé(s)` + (ignorees ? `, ${ignorees} ligne(s) ignorée(s)` : ''));
+        resetImportUI();
+        // Bascule sur l'onglet Produits pour voir le résultat
+        document.getElementById('param-section').value = 'produits';
+        switchParamSection('produits');
+      } catch (err) {
+        alert('❌ Erreur pendant l\'import: ' + err.message);
+      }
+    }
+
+    // ========================================
+    // 🆕 SÉLECTION MULTIPLE + SUPPRESSION GROUPÉE
+    // Réutilisable pour : produits, attributs, zones, familles
+    // ========================================
+    const BULK_CONFIG = {
+      produits: { table: 'produits', reload: () => loadProduits(), tbodySelector: '#produits-table' },
+      attributs: { table: 'attributs', reload: () => loadAttributs(), tbodySelector: '#attributs-table' },
+      zones: { table: 'zones_service', reload: () => loadZones(), tbodySelector: '#zones-table' },
+      familles: { table: 'produit_familles', reload: () => loadFamilles(), tbodySelector: '#familles-table' },
+      regles: { table: 'regles_categorie', reload: () => loadRegles(), tbodySelector: '#regles-content' }
+    };
+
+    function toggleBulkSelect(type, id) {
+      const set = bulkSelections[type];
+      if (set.has(id)) set.delete(id); else set.add(id);
+      renderBulkBar(type);
+      // Coche/décoche visuellement la case concernée sans tout re-rendre
+      const cb = document.querySelector(`input.bulk-check[data-type="${type}"][data-id="${id}"]`);
+      if (cb) cb.checked = set.has(id);
+    }
+
+    function toggleBulkSelectAll(type) {
+      // Lit les cases RÉELLEMENT affichées à l'écran (donc déjà filtrées si une recherche/filtre est active)
+      const checks = Array.from(document.querySelectorAll(`input.bulk-check[data-type="${type}"]`));
+      const ids = checks.map(cb => cb.dataset.id);
+      const set = bulkSelections[type];
+      const tousSelectionnes = ids.length > 0 && ids.every(id => set.has(id));
+      if (tousSelectionnes) ids.forEach(id => set.delete(id));
+      else ids.forEach(id => set.add(id));
+      checks.forEach(cb => { cb.checked = set.has(cb.dataset.id); });
+      const selectAllCb = document.querySelector(`input.bulk-select-all[data-type="${type}"]`);
+      if (selectAllCb) selectAllCb.checked = !tousSelectionnes;
+      renderBulkBar(type);
+    }
+
+    // Affiche/masque la barre d'action flottante "Supprimer la sélection"
+    function renderBulkBar(type) {
+      const cfg = BULK_CONFIG[type];
+      const container = document.querySelector(cfg.tbodySelector);
+      if (!container) return;
+      let bar = document.getElementById('bulk-bar-' + type);
+      if (bar) bar.remove();
+      const n = bulkSelections[type].size;
+      if (n === 0) return;
+      const div = document.createElement('div');
+      div.id = 'bulk-bar-' + type;
+      div.className = 'action-bar';
+      div.innerHTML = `
+        <span class="cnt">${n} élément(s) sélectionné(s)</span>
+        <span class="spacer"></span>
+        <button class="btn-white" onclick="annulerBulkSelection('${type}')">Annuler</button>
+        <button class="btn-del" onclick="bulkDelete('${type}')">🗑️ Supprimer la sélection</button>
+      `;
+      container.appendChild(div);
+    }
+
+    function annulerBulkSelection(type) {
+      bulkSelections[type].clear();
+      document.querySelectorAll(`input.bulk-check[data-type="${type}"]`).forEach(cb => { cb.checked = false; });
+      const sa = document.querySelector(`input.bulk-select-all[data-type="${type}"]`);
+      if (sa) sa.checked = false;
+      renderBulkBar(type);
+    }
+
+    async function bulkDelete(type) {
+      const cfg = BULK_CONFIG[type];
+      const ids = Array.from(bulkSelections[type]);
+      if (ids.length === 0) return;
+      if (!confirm(`Tu vas supprimer ${ids.length} élément(s). Cette action est irréversible. Confirmer ?`)) return;
+      let ok = 0, erreurs = 0;
+      for (const id of ids) {
+        try {
+          const { error } = await supabaseClient.from(cfg.table).delete().eq('id', id);
+          if (error) throw error;
+          ok++;
+        } catch (err) {
+          console.error('Erreur suppression', type, id, err);
+          erreurs++;
+        }
+      }
+      bulkSelections[type].clear();
+      alert(`✅ ${ok} élément(s) supprimé(s)` + (erreurs ? `, ${erreurs} erreur(s)` : ''));
+      await cfg.reload();
     }
 
     // ========================================
