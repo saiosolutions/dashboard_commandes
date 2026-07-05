@@ -97,6 +97,20 @@
     }
     .btn-logout:hover { background: rgba(255,255,255,0.22); }
 
+    /* 🆕 SÉLECTEUR MULTI-RESTAURANT */
+    .header-switch { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    #business-selector {
+      padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.12); color: white; font-size: 14px; cursor: pointer;
+      max-width: 220px;
+    }
+    #business-selector option { color: #000; }
+    @media (max-width: 768px) {
+      .header { flex-wrap: wrap; gap: 10px; }
+      .header-switch { width: 100%; justify-content: flex-start; }
+      #business-selector { max-width: 160px; }
+    }
+
     /* TABS */
     .tabs {
       display: flex; background: white; border-bottom: 1px solid var(--line);
@@ -531,9 +545,13 @@
     <div class="header">
       <div class="header-left">
         <h1>Administration Agents IA</h1>
-        <p id="header-resto">L'Oasis Food</p>
+        <p id="header-resto">Chargement...</p>
       </div>
-      <button class="btn-logout" onclick="logout()">Déconnexion</button>
+      <div class="header-switch">
+        <select id="business-selector" onchange="onChangeBusiness(this.value)"></select>
+        <button class="btn-logout" onclick="openAddBusinessModal()">➕ Nouveau restaurant</button>
+        <button class="btn-logout" onclick="logout()">Déconnexion</button>
+      </div>
     </div>
 
     <!-- TABS -->
@@ -719,7 +737,10 @@
     // CONFIG
     const SUPABASE_URL = 'https://ixpnsiyopebtcofntmoz.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml4cG5zaXlvcGVidGNvZm50bW96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MjM4NDYsImV4cCI6MjA5MjA5OTg0Nn0.9Hg3RtM46v2q-1Ga8_U5gfpfYIgtNvodofAO6rGdav4';
-    const BUSINESS_ID = 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
+    // 🆕 BUSINESS_ID n'est plus figé : on part de L'Oasis par défaut, mais on peut
+    // changer de restaurant depuis le sélecteur (persisté dans le navigateur).
+    let BUSINESS_ID = localStorage.getItem('saios_business_id') || 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
+    let businessesList = [];  // 🆕 liste des restaurants disponibles
     const PASSWORD_HASH = '9c495d69652b2b659253e49da433d2ec6e9f097629f9b1c3a75208ea2b132321';
     const EDGE_FUNCTION_ID = 'c72d94d0-8b68-4635-98cf-bedc5e085f3a';
 
@@ -775,10 +796,11 @@
       return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    function showDashboard() {
+    async function showDashboard() {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('dashboard').classList.add('show');
       supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      await loadBusinessList();   // 🆕 charge la liste des restaurants avant le reste
       chargerTarifs();
       loadCommandes();
     }
@@ -806,6 +828,125 @@
     function logout() {
       localStorage.removeItem('loasis_logged_in');
       location.reload();
+    }
+
+    // ========================================
+    // 🆕 GESTION MULTI-RESTAURANT
+    // ========================================
+
+    // Charge la liste des restaurants actifs et prépare le sélecteur
+    async function loadBusinessList() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('business')
+          .select('id, nom, type')
+          .eq('actif', true)
+          .order('nom', { ascending: true });
+        if (error) throw error;
+        businessesList = data || [];
+        // Si le restaurant mémorisé n'existe plus, retomber sur le premier disponible
+        if (!businessesList.find(b => b.id === BUSINESS_ID) && businessesList.length > 0) {
+          BUSINESS_ID = businessesList[0].id;
+          localStorage.setItem('saios_business_id', BUSINESS_ID);
+        }
+        renderBusinessSelector();
+        updateHeaderResto();
+      } catch (err) {
+        console.error('Erreur chargement liste restaurants', err);
+      }
+    }
+
+    // Remplit le menu déroulant du header avec les restaurants disponibles
+    function renderBusinessSelector() {
+      const sel = document.getElementById('business-selector');
+      if (!sel) return;
+      sel.innerHTML = businessesList.map(b =>
+        `<option value="${b.id}" ${b.id === BUSINESS_ID ? 'selected' : ''}>${b.nom}</option>`
+      ).join('');
+    }
+
+    // Met à jour le nom affiché sous le titre du header
+    function updateHeaderResto() {
+      const b = businessesList.find(x => x.id === BUSINESS_ID);
+      const el = document.getElementById('header-resto');
+      if (el) el.textContent = b ? b.nom : 'Restaurant';
+    }
+
+    // Appelé quand on choisit un autre restaurant dans le menu déroulant
+    async function onChangeBusiness(id) {
+      BUSINESS_ID = id;
+      localStorage.setItem('saios_business_id', id);
+      updateHeaderResto();
+      await chargerTarifs();
+      // Recharge l'onglet actuellement affiché avec les données du nouveau restaurant
+      if (currentTab === 'commandes') loadCommandes();
+      else if (currentTab === 'parametrages') loadParamData();
+      else if (currentTab === 'clients') loadClients();
+      else if (currentTab === 'logs') loadLogs();
+    }
+
+    // Formulaire de création d'un nouveau restaurant
+    function openAddBusinessModal() {
+      const types = ['fast_food', 'restaurant', 'pizzeria', 'coiffeur', 'garage', 'plombier', 'electricien', 'avocat', 'pharmacie', 'autre'];
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>➕ Nouveau restaurant</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="createBusiness(event)">
+            <div class="form-group"><label>Nom *</label><input type="text" name="nom" required></div>
+            <div class="form-group">
+              <label>Type *</label>
+              <select name="type" required>
+                ${types.map(t => `<option value="${t}">${t}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group"><label>Téléphone</label><input type="tel" name="numero_tel"></div>
+            <div class="form-group"><label>Email</label><input type="email" name="email"></div>
+            <div class="form-group"><label>Numéro + Rue</label><input type="text" name="adresse_rue" placeholder="Ex : 12 Rue de la Paix"></div>
+            <div style="display:flex; gap:12px;">
+              <div class="form-group" style="flex:1;"><label>Code postal</label><input type="text" name="code_postal"></div>
+              <div class="form-group" style="flex:2;"><label>Ville</label><input type="text" name="ville"></div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Créer le restaurant</button>
+            </div>
+          </form>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function createBusiness(e) {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      try {
+        const { data, error } = await supabaseClient
+          .from('business')
+          .insert({
+            nom: f.get('nom'),
+            type: f.get('type'),
+            numero_tel: f.get('numero_tel') || null,
+            email: f.get('email') || null,
+            adresse_rue: f.get('adresse_rue') || null,
+            code_postal: f.get('code_postal') || null,
+            ville: f.get('ville') || null
+          })
+          .select('id, nom, type')
+          .single();
+        if (error) throw error;
+        alert('✅ Restaurant créé : ' + data.nom);
+        closeModal('modal-edit');
+        // Bascule automatiquement le dashboard sur le nouveau restaurant
+        await loadBusinessList();
+        await onChangeBusiness(data.id);
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
     }
 
     // ========================================
