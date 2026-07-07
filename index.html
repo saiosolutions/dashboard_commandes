@@ -3874,9 +3874,15 @@
       const div = document.createElement('div');
       div.id = 'bulk-bar-' + type;
       div.className = 'action-bar';
+      // Boutons "type de produit" uniquement pour la liste des produits
+      const boutonsType = (type === 'produits') ? `
+        <button class="btn-white" onclick="bulkSetType('composable')">🧩 Passer en composable</button>
+        <button class="btn-white" onclick="bulkSetType('standard')">📦 Passer en standard</button>
+      ` : '';
       div.innerHTML = `
         <span class="cnt">${n} élément(s) sélectionné(s)</span>
         <span class="spacer"></span>
+        ${boutonsType}
         <button class="btn-white" onclick="annulerBulkSelection('${type}')">Annuler</button>
         <button class="btn-del" onclick="bulkDelete('${type}')">🗑️ Supprimer la sélection</button>
       `;
@@ -3910,6 +3916,31 @@
       bulkSelections[type].clear();
       alert(`✅ ${ok} élément(s) supprimé(s)` + (erreurs ? `, ${erreurs} erreur(s)` : ''));
       await cfg.reload();
+    }
+
+    // Change le type_produit (composable / standard) des produits sélectionnés, en une fois
+    async function bulkSetType(nouveauType) {
+      const ids = Array.from(bulkSelections.produits);
+      if (ids.length === 0) return;
+      const libelle = nouveauType === 'composable' ? 'composable (avec options)' : 'standard (sans options)';
+      if (!confirm(`Passer ${ids.length} produit(s) en ${libelle} ?`)) return;
+      let ok = 0, erreurs = 0;
+      for (const id of ids) {
+        try {
+          const { error } = await supabaseClient
+            .from('produits')
+            .update({ type_produit: 'produit_' + nouveauType })
+            .eq('id', id);
+          if (error) throw error;
+          ok++;
+        } catch (err) {
+          console.error('Erreur changement type', id, err);
+          erreurs++;
+        }
+      }
+      bulkSelections.produits.clear();
+      alert(`✅ ${ok} produit(s) passé(s) en ${libelle}` + (erreurs ? `, ${erreurs} erreur(s)` : ''));
+      await BULK_CONFIG.produits.reload();
     }
 
     // ========================================
