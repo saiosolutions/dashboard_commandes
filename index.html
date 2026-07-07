@@ -1891,7 +1891,12 @@
         || (cat === 'viande' ? 'viande(s)' : cat === 'sauce' ? 'sauce(s)'
            : cat === 'fromage' ? 'fromage(s)' : cat.replace('_', ' '));
       let desc = '';
-      if (o.inclus_gratuit > 0) {
+      // Comportement "retrait" : le client peut enlever des éléments inclus.
+      // On affiche UNIQUEMENT le libellé (souvent une question toute prête,
+      // ex. "Salade, tomate, oignon ?") sans "jusqu'à ... au choix".
+      if ((o.comportement || '') === 'retrait') {
+        desc = nomLisible;
+      } else if (o.inclus_gratuit > 0) {
         desc = `${o.inclus_gratuit} ${nomLisible} incluse(s)`;
         if (o.max > o.inclus_gratuit) desc += `, jusqu'à ${o.max} au choix`;
       } else if (o.max > 0) {
@@ -2404,7 +2409,6 @@
 
     // Formulaire pour définir la règle à appliquer aux produits cochés
     function ouvrirAppliquerRegle() {
-      const cats = ['VIANDE', 'SAUCE', 'FROMAGE', 'SAUCE_TASTY'];
       const comps = [
         ['ajout', 'Ajout (additionne les prix)'],
         ['choix_multiple', 'Choix multiple (jusqu\'à Max)'],
@@ -2424,9 +2428,12 @@
             </div>
             <div class="form-group">
               <label>Catégorie d'attribut *</label>
-              <select name="categorie_attribut" required>
-                ${cats.map(c => `<option value="${c}">${c}</option>`).join('')}
+              <select name="categorie_attribut" required onchange="onChangeCategorieOption(this)">
+                ${optionsCategoriesAttributs('')}
               </select>
+              <div id="nouvelle-cat-option" style="display:none;margin-top:8px;">
+                <input type="text" name="nouvelle_categorie_option" placeholder="Nom de la nouvelle catégorie (ex: CRUDITE)" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+              </div>
             </div>
             <div class="form-group">
               <label>Libellé (texte annoncé par l'agent, ex. « Sauce frites »)</label>
@@ -2464,7 +2471,8 @@
     async function appliquerRegleGroupee(e) {
       e.preventDefault();
       const f = new FormData(e.target);
-      const categorie = f.get('categorie_attribut');
+      const categorie = resoudreCategorieOption(e.target);
+      if (!categorie) { alert('❌ Merci d\'indiquer une catégorie'); return; }
       const libelle = f.get('libelle') || null;
       const payload = {
         categorie_attribut: categorie,
@@ -2628,7 +2636,6 @@
     // Formulaire commun (ajout ET édition) pour un groupe d'options
     function optionFormHtml(titre, data, submitJs) {
       const d = data || {};
-      const cats = ['VIANDE', 'SAUCE', 'FROMAGE', 'SAUCE_TASTY'];
       const comps = [
         ['ajout', 'Ajout (additionne les prix)'],
         ['choix_multiple', 'Choix multiple (jusqu\'à Max)'],
@@ -2644,9 +2651,12 @@
           <form onsubmit="${submitJs}">
             <div class="form-group">
               <label>Catégorie d'attribut *</label>
-              <select name="categorie_attribut" required>
-                ${cats.map(c => `<option value="${c}" ${d.categorie_attribut === c ? 'selected' : ''}>${c}</option>`).join('')}
+              <select name="categorie_attribut" required onchange="onChangeCategorieOption(this)">
+                ${optionsCategoriesAttributs(d.categorie_attribut || '')}
               </select>
+              <div id="nouvelle-cat-option" style="display:none;margin-top:8px;">
+                <input type="text" name="nouvelle_categorie_option" placeholder="Nom de la nouvelle catégorie (ex: CRUDITE)" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+              </div>
             </div>
             <div class="form-group">
               <label>Libellé (texte annoncé par l'agent, ex. « Sauce burger »)</label>
@@ -2705,13 +2715,15 @@
     async function createOption(e, produitId) {
       e.preventDefault();
       const f = new FormData(e.target);
+      const categorieResolue = resoudreCategorieOption(e.target);
+      if (!categorieResolue) { alert('❌ Merci d\'indiquer une catégorie'); return; }
       try {
         const { error } = await supabaseClient
           .from('produit_options')
           .insert({
             business_id: BUSINESS_ID,
             produit_id: produitId,
-            categorie_attribut: f.get('categorie_attribut'),
+            categorie_attribut: categorieResolue,
             libelle: f.get('libelle') || null,
             comportement: f.get('comportement'),
             min: parseInt(f.get('min')) || 0,
@@ -2753,11 +2765,13 @@
     async function saveOption(e, id) {
       e.preventDefault();
       const f = new FormData(e.target);
+      const categorieResolue = resoudreCategorieOption(e.target);
+      if (!categorieResolue) { alert('❌ Merci d\'indiquer une catégorie'); return; }
       try {
         const { error } = await supabaseClient
           .from('produit_options')
           .update({
-            categorie_attribut: f.get('categorie_attribut'),
+            categorie_attribut: categorieResolue,
             libelle: f.get('libelle') || null,
             comportement: f.get('comportement'),
             min: parseInt(f.get('min')) || 0,
@@ -4022,6 +4036,28 @@
         const input = champ.querySelector('input');
         if (input) input.focus();
       }
+    }
+
+    // Idem, mais pour le formulaire "groupe d'options" (champ dédié)
+    function onChangeCategorieOption(select) {
+      const champ = document.getElementById('nouvelle-cat-option');
+      if (!champ) return;
+      champ.style.display = (select.value === '__NOUVELLE__') ? 'block' : 'none';
+      if (select.value === '__NOUVELLE__') {
+        const input = champ.querySelector('input');
+        if (input) input.focus();
+      }
+    }
+
+    // Résout la catégorie finale du formulaire options : soit celle du
+    // déroulant, soit la nouvelle catégorie saisie (mise en MAJUSCULES)
+    function resoudreCategorieOption(form) {
+      const select = form.querySelector('select[name="categorie_attribut"]');
+      if (select && select.value === '__NOUVELLE__') {
+        const input = form.querySelector('input[name="nouvelle_categorie_option"]');
+        return (input && input.value || '').trim().toUpperCase();
+      }
+      return select ? select.value : '';
     }
 
     // Résout la catégorie finale : soit celle du déroulant, soit la nouvelle saisie
