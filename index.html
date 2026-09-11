@@ -37,42 +37,75 @@
       color: var(--ink);
     }
 
-    /* LOGIN SCREEN */
+    /* LOGIN SCREEN — connexion Supabase (e-mail + mot de passe) */
     .login-container {
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 20px;
-      background: var(--dark);
+      gap: 18px;
+      padding: 24px 16px;
+      background: var(--bg);
     }
+    /* Masqué pendant la vérification de session ; réapparaît seul après 1,5 s en secours */
+    .login-container.pending {
+      visibility: hidden;
+      animation: login-reveal 0s linear 1.5s forwards;
+    }
+    @keyframes login-reveal { to { visibility: visible; } }
     .login-box {
-      background: white;
-      border-radius: 16px;
-      padding: 40px;
-      max-width: 400px;
       width: 100%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 420px;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 12px 32px rgba(43,47,54,0.08);
     }
-    .login-logo { text-align: center; font-size: 44px; margin-bottom: 10px; }
-    .login-title { text-align: center; font-size: 22px; font-weight: 700; margin-bottom: 8px; color: var(--ink); }
-    .login-subtitle { text-align: center; font-size: 14px; color: var(--muted); margin-bottom: 28px; }
-    .input-group { margin-bottom: 20px; }
-    .input-group label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
+    .login-head {
+      background: var(--dark);
+      color: white;
+      padding: 26px 28px 22px;
+    }
+    .login-title { font-size: 22px; font-weight: 700; line-height: 1.25; margin: 0 0 4px 0; }
+    .login-subtitle { font-size: 14px; opacity: 0.8; margin: 0; }
+    .login-form { padding: 26px 28px 28px; }
+    .input-group { margin-bottom: 18px; }
+    .input-group label { display: block; font-size: 14px; color: var(--ink); margin-bottom: 7px; font-weight: 600; }
+    .label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+    .label-row label { margin-bottom: 0; }
+    .btn-toggle-pwd {
+      background: none; border: none; padding: 2px 4px; border-radius: 4px;
+      font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
+    }
+    .btn-toggle-pwd:hover { color: var(--ink); }
     .input-group input {
-      width: 100%; padding: 14px; border: 2px solid var(--line);
-      border-radius: 10px; font-size: 16px; transition: all 0.2s;
+      width: 100%; padding: 12px 14px; border: 1px solid var(--line);
+      border-radius: 8px; font-size: 16px; color: var(--ink); background: white;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .input-group input:focus { outline: none; border-color: var(--dark); }
+    .input-group input:focus { outline: none; border-color: var(--dark); box-shadow: 0 0 0 3px rgba(95,104,115,0.18); }
     .btn-login {
-      width: 100%; padding: 14px; background: var(--accent); color: white;
-      border: none; border-radius: 10px; font-size: 16px; font-weight: 600;
+      width: 100%; margin-top: 6px; padding: 13px; background: var(--accent); color: white;
+      border: none; border-radius: 8px; font-size: 16px; font-weight: 600;
       cursor: pointer; transition: background 0.2s;
     }
     .btn-login:hover { background: var(--accent-hover); }
+    .btn-login:disabled { opacity: 0.7; cursor: wait; }
+    .btn-login:focus-visible,
+    .btn-toggle-pwd:focus-visible { outline: 3px solid rgba(95,104,115,0.45); outline-offset: 2px; }
     .error-message {
-      background-color: var(--err-bg); color: var(--err); padding: 12px;
-      border-radius: 8px; margin-bottom: 20px; font-size: 14px; text-align: center;
+      background-color: var(--err-bg); color: var(--err); padding: 11px 13px;
+      border-radius: 8px; margin-bottom: 18px; font-size: 14px; line-height: 1.4;
+    }
+    .login-footnote { font-size: 13px; color: var(--muted); text-align: center; max-width: 420px; }
+    @media (max-width: 480px) {
+      .login-head { padding: 22px 20px 18px; }
+      .login-form { padding: 22px 20px 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .input-group input, .btn-login { transition: none; }
     }
 
     /* DASHBOARD */
@@ -515,28 +548,44 @@
   </style>
 </head>
 <body>
-  <!-- LOGIN SCREEN -->
-  <div id="login-screen" class="login-container">
+  <!-- LOGIN SCREEN — connexion sécurisée Supabase -->
+  <div id="login-screen" class="login-container pending">
     <div class="login-box">
-      <div class="login-logo">🔒</div>
-      <h1 class="login-title">Back-Office</h1>
-      <p class="login-subtitle">Administration Agents IA</p>
+      <div class="login-head">
+        <h1 class="login-title">Administration Agents IA</h1>
+        <p class="login-subtitle">Connectez-vous pour accéder au back-office</p>
+      </div>
 
-      <div id="login-error"></div>
+      <form class="login-form" onsubmit="handleLogin(event)">
+        <div id="login-error" role="alert" aria-live="polite"></div>
 
-      <form onsubmit="handleLogin(event)">
         <div class="input-group">
-          <label for="password">Mot de passe</label>
+          <label for="email">Adresse e-mail</label>
           <input
-            type="password"
-            id="password"
-            placeholder="Entrez le mot de passe"
+            type="email"
+            id="email"
+            autocomplete="username"
             required
           >
         </div>
-        <button type="submit" class="btn-login">Se connecter</button>
+
+        <div class="input-group">
+          <div class="label-row">
+            <label for="password">Mot de passe</label>
+            <button type="button" class="btn-toggle-pwd" id="btn-toggle-pwd" onclick="togglePasswordVisibility()" aria-controls="password" aria-pressed="false">Afficher</button>
+          </div>
+          <input
+            type="password"
+            id="password"
+            autocomplete="current-password"
+            required
+          >
+        </div>
+
+        <button type="submit" class="btn-login" id="btn-login">Se connecter</button>
       </form>
     </div>
+    <p class="login-footnote">Accès réservé aux administrateurs.</p>
   </div>
 
   <!-- DASHBOARD -->
@@ -758,10 +807,10 @@
     // changer de restaurant depuis le sélecteur (persisté dans le navigateur).
     let BUSINESS_ID = localStorage.getItem('saios_business_id') || 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
     let businessesList = [];  // 🆕 liste des restaurants disponibles
-    const PASSWORD_HASH = '9c495d69652b2b659253e49da433d2ec6e9f097629f9b1c3a75208ea2b132321';
     const EDGE_FUNCTION_ID = 'c72d94d0-8b68-4635-98cf-bedc5e085f3a';
 
-    let supabaseClient;
+    // Client Supabase créé dès le chargement (nécessaire pour la connexion)
+    let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let commandes = [];
     let evenements = [];
     let currentFilter = {type: 'all', startDate: null, endDate: null};
@@ -788,43 +837,86 @@
     let logsTousCharges = false;  // true quand il n'y a plus rien à charger
 
     // ========================================
-    // LOGIN
+    // LOGIN — authentification Supabase (e-mail + mot de passe)
     // ========================================
-    window.addEventListener('DOMContentLoaded', () => {
-      if (localStorage.getItem('loasis_logged_in') === 'true') {
-        showDashboard();
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Nettoyage de l'ancien système de connexion (faux mot de passe)
+      localStorage.removeItem('loasis_logged_in');
+      try {
+        // Si une session valide existe déjà, ouvrir directement le tableau de bord
+        const { data } = await supabaseClient.auth.getSession();
+        if (data && data.session) {
+          showDashboard();
+          return;
+        }
+      } catch (err) {
+        console.error('Erreur lecture session', err);
+      }
+      afficherEcranConnexion();
+    });
+
+    // Session expirée ou déconnexion : retour à l'écran de connexion
+    supabaseClient.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        location.reload();
       }
     });
 
-    async function handleLogin(e) {
-      e.preventDefault();
-      const password = document.getElementById('password').value;
-      try {
-        const hash = await sha256(password);
-        if (hash === PASSWORD_HASH) {
-          localStorage.setItem('loasis_logged_in', 'true');
-          showDashboard();
-        } else {
-          document.getElementById('login-error').innerHTML =
-            '<div class="error-message">❌ Mot de passe incorrect</div>';
-        }
-      } catch (error) {
-        document.getElementById('login-error').innerHTML =
-          '<div class="error-message">❌ Erreur: ' + error.message + '</div>';
-      }
+    function afficherEcranConnexion() {
+      document.getElementById('login-screen').classList.remove('pending');
+      const champEmail = document.getElementById('email');
+      if (champEmail) champEmail.focus();
     }
 
-    async function sha256(message) {
-      const msgBuffer = new TextEncoder().encode(message);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    function afficherErreurConnexion(message) {
+      const zone = document.getElementById('login-error');
+      zone.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'error-message';
+      div.textContent = message;
+      zone.appendChild(div);
+    }
+
+    function togglePasswordVisibility() {
+      const champ = document.getElementById('password');
+      const bouton = document.getElementById('btn-toggle-pwd');
+      const visible = champ.type === 'text';
+      champ.type = visible ? 'password' : 'text';
+      bouton.textContent = visible ? 'Afficher' : 'Masquer';
+      bouton.setAttribute('aria-pressed', String(!visible));
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btn-login');
+      document.getElementById('login-error').innerHTML = '';
+      btn.disabled = true;
+      btn.textContent = 'Connexion…';
+      try {
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        document.getElementById('password').value = '';
+        showDashboard();
+      } catch (error) {
+        console.error('Erreur connexion:', error);
+        let message = 'E-mail ou mot de passe incorrect. Vérifiez vos identifiants et réessayez.';
+        if (error && error.status === 429) {
+          message = 'Trop de tentatives. Patientez quelques minutes avant de réessayer.';
+        } else if (!error || !error.status || error.status >= 500) {
+          message = 'Connexion au serveur impossible. Vérifiez votre accès internet et réessayez.';
+        }
+        afficherErreurConnexion(message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Se connecter';
+      }
     }
 
     async function showDashboard() {
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('dashboard').classList.add('show');
-      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       await loadBusinessList();   // 🆕 charge la liste des restaurants avant le reste
       chargerTarifs();
       loadCommandes();
@@ -850,8 +942,12 @@
       }
     }
 
-    function logout() {
-      localStorage.removeItem('loasis_logged_in');
+    async function logout() {
+      try {
+        await supabaseClient.auth.signOut();
+      } catch (err) {
+        console.error('Erreur déconnexion', err);
+      }
       location.reload();
     }
 
