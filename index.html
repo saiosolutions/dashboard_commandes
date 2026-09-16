@@ -646,6 +646,7 @@
             <button class="btn btn-primary" id="btn-add-param" onclick="openAddModal()">➕ Ajouter</button>
             <button class="btn btn-secondary" id="btn-gen-kbmenu" onclick="genererKbMenu()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📄 Générer le KB_MENU</button>
             <button class="btn btn-secondary" id="btn-gen-kbzones" onclick="genererKbZones()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📍 Générer le KB_ZONE_LIVRAISON</button>
+            <button class="btn btn-secondary" id="btn-publier-restaurant" onclick="publierRestaurantActuel()" style="display:none; border: 2px solid var(--ok); font-weight: 700;">🚀 Publier ce restaurant</button>
           </div>
           <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
         </div>
@@ -789,8 +790,13 @@
         </div>
         <div id="logs-recap" class="recap-bar"></div>
         <div id="logs-content"></div>
-      </div>
     </div>
+    <button id="btn-publier-tout-flottant" onclick="publierToutLesRestaurants()"
+      style="position:fixed; bottom:20px; right:20px; z-index:500; background:var(--accent); color:white;
+             border:none; border-radius:999px; padding:13px 20px; font-size:14px; font-weight:700;
+             box-shadow:0 3px 12px rgba(0,0,0,0.3); cursor:pointer;">
+      🔄 Synchroniser tout
+    </button>
   </div>
 
   <!-- MODALS -->
@@ -1405,6 +1411,9 @@
       const btnGenZones = document.getElementById('btn-gen-kbzones');
       if (btnGenMenu) btnGenMenu.style.display = (section === 'agent') ? '' : 'none';
       if (btnGenZones) btnGenZones.style.display = (section === 'agent') ? '' : 'none';
+      const btnPublierRestaurant = document.getElementById('btn-publier-restaurant');
+      if (btnPublierRestaurant) btnPublierRestaurant.style.display = (section === 'agent') ? '' : 'none';
+      
       loadParamData();
     }
 
@@ -2268,7 +2277,7 @@
     }
 
     // Affiche un KB généré dans la modale (réutilisable pour MENU et ZONES)
-function afficherResultatKb(kb, filename) {
+   function afficherResultatKb(kb, filename) {
       window.__kbFilename = filename;
       const estZones = filename.includes('ZONE');
       window.__kbType = estZones ? 'zones' : 'menu';
@@ -2282,31 +2291,31 @@ function afficherResultatKb(kb, filename) {
           </div>
           <div class="modal-body">
             <div style="background:#fff8ec;border:1px solid #f0e2c4;border-left:4px solid #d9a441;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:12px;color:#7a5c1a;">
-              💡 Ce fichier est généré automatiquement à partir des données du restaurant. Publie-le directement vers ElevenLabs, ou copie/télécharge-le si tu préfères le faire à la main.
+              💡 Ce fichier est généré automatiquement à partir des données du restaurant. Publie-le directement vers l'agent, ou copie/télécharge-le si tu préfères le faire à la main.
             </div>
             <textarea id="kb-output" style="width:100%;min-height:340px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">${kb.replace(/</g, '&lt;')}</textarea>
             <div id="publier-kb-result" style="margin-top:10px;font-size:13px;"></div>
             <div class="form-actions">
               <button class="btn btn-secondary" onclick="copierKb()">📋 Copier</button>
               <button class="btn btn-secondary" onclick="telechargerKb()">⬇️ Télécharger</button>
-              <button class="btn btn-primary" id="btn-publier-kb" onclick="publierKbVersElevenLabs()">🚀 Publier vers ElevenLabs</button>
+              <button class="btn btn-primary" id="btn-publier-kb" onclick="publierKbVersElevenLabs()">🚀 Publier vers l'agent</button>
             </div>
           </div>
         </div>
       `;
     }
-
-    // Envoie le contenu affiché à l'écran vers ElevenLabs, via l'Edge Function publier-kb
+ 
+    // Envoie le contenu affiché à l'écran vers l'agent (ElevenLabs), via l'Edge Function publier-kb
     async function publierKbVersElevenLabs() {
       const bouton = document.getElementById('btn-publier-kb');
       const zoneResultat = document.getElementById('publier-kb-result');
       const contenu = document.getElementById('kb-output').value;
       const type = window.__kbType || 'menu';
-
+ 
       bouton.disabled = true;
       bouton.textContent = '⏳ Publication en cours...';
       zoneResultat.innerHTML = '';
-
+ 
       try {
         const reponse = await fetch(PUBLIER_KB_URL, {
           method: 'POST',
@@ -2318,7 +2327,7 @@ function afficherResultatKb(kb, filename) {
         });
         const data = await reponse.json();
         if (reponse.ok) {
-          zoneResultat.innerHTML = '<span style="color:var(--ok);font-weight:600;">✅ Publié avec succès vers ElevenLabs.</span>';
+          zoneResultat.innerHTML = '<span style="color:var(--ok);font-weight:600;">✅ Publié avec succès.</span>';
         } else {
           zoneResultat.innerHTML = `<span style="color:var(--err);font-weight:600;">❌ Échec : ${data.error || 'erreur inconnue'}</span>`;
         }
@@ -2326,7 +2335,7 @@ function afficherResultatKb(kb, filename) {
         zoneResultat.innerHTML = `<span style="color:var(--err);font-weight:600;">❌ Erreur réseau : ${err.message}</span>`;
       } finally {
         bouton.disabled = false;
-        bouton.textContent = '🚀 Publier vers ElevenLabs';
+        bouton.textContent = '🚀 Publier vers l\'agent';
       }
     }
 
@@ -4766,6 +4775,295 @@ function afficherResultatKb(kb, filename) {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
       });
+    }
+    // Génère le texte du KB_MENU pour UN business_id donné (sans afficher de modale)
+    async function genererTexteKbMenuPourBusiness(businessId) {
+      const { data: produitsData, error: e1 } = await supabaseClient
+        .from('produits')
+        .select('id, nom, categorie, prix, taille, details, type_produit, position, famille_id, produit_familles(nom, position), produit_options(*)')
+        .eq('business_id', businessId)
+        .eq('actif', true);
+      if (e1) throw e1;
+ 
+      const { data: attributsData, error: e2 } = await supabaseClient
+        .from('attributs')
+        .select('nom, categorie, prix_supplement, position')
+        .eq('business_id', businessId)
+        .eq('actif', true)
+        .order('position', { ascending: true });
+      if (e2) throw e2;
+ 
+      const { data: biz } = await supabaseClient
+        .from('business')
+        .select('nom, adresse_numero, adresse_rue, code_postal, ville, numero_tel')
+        .eq('id', businessId)
+        .single();
+ 
+      let infoResto = '';
+      if (biz && biz.nom) {
+        infoResto = `RESTAURANT : ${biz.nom}\n`;
+        const adresse = formatAdresseResto(biz);
+        if (adresse) infoResto += `ADRESSE : ${adresse}\n`;
+        infoResto += '\n';
+      }
+ 
+      const { data: regles, error: e4 } = await supabaseClient
+        .from('regles_categorie')
+        .select('famille_id, produit_id, type_regle, contenu, position')
+        .eq('business_id', businessId)
+        .eq('actif', true)
+        .order('position', { ascending: true });
+      if (e4) throw e4;
+ 
+      const reglesParFamilleId = {};
+      const reglesParProduitId = {};
+      (regles || []).forEach(r => {
+        if (r.famille_id) {
+          if (!reglesParFamilleId[r.famille_id]) reglesParFamilleId[r.famille_id] = [];
+          reglesParFamilleId[r.famille_id].push(r);
+        } else if (r.produit_id) {
+          if (!reglesParProduitId[r.produit_id]) reglesParProduitId[r.produit_id] = [];
+          reglesParProduitId[r.produit_id].push(r);
+        }
+      });
+ 
+      let kb = 'MENU COMPLET\n\n' + infoResto;
+ 
+      const groupes = {};
+      (produitsData || []).forEach(p => {
+        const cat = p.categorie || 'AUTRES';
+        if (!groupes[cat]) groupes[cat] = { produits: [], ordre: p.produit_familles?.position ?? 999, familleId: p.famille_id };
+        groupes[cat].produits.push(p);
+      });
+      const catsOrdonnees = Object.keys(groupes).sort((a, b) => groupes[a].ordre - groupes[b].ordre);
+ 
+      function formatRegleLocal(r) {
+        const prefixes = { question: '❓', deduction: '📏', exclusivite: '⚠️', prononciation: '🔤' };
+        return `${prefixes[r.type_regle] || '•'} ${r.contenu}`;
+      }
+ 
+      catsOrdonnees.forEach(cat => {
+        kb += `=== ${cat} ===\n\n`;
+        const reglesFamille = reglesParFamilleId[groupes[cat].familleId] || [];
+        if (reglesFamille.length > 0) {
+          reglesFamille.forEach(r => { kb += `${formatRegleLocal(r)}\n`; });
+          kb += '\n';
+        }
+        const prods = groupes[cat].produits.sort((a, b) =>
+          (a.position || 0) - (b.position || 0) || a.nom.localeCompare(b.nom));
+        prods.forEach(p => {
+          kb += `${p.nom} - ${kbFormatPrix(p.prix)}\n`;
+          if (p.details) kb += `  Composition : ${p.details}\n`;
+          const opts = (p.produit_options || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+          opts.forEach(o => { kb += `  - ${kbDecrireOption(o)}\n`; });
+          const reglesProduit = reglesParProduitId[p.id] || [];
+          reglesProduit.forEach(r => { kb += `  ${formatRegleLocal(r)}\n`; });
+          kb += '\n';
+        });
+      });
+ 
+      const parCatAttr = {};
+      (attributsData || []).forEach(a => {
+        const c = a.categorie || 'AUTRES';
+        if (!parCatAttr[c]) parCatAttr[c] = [];
+        parCatAttr[c].push(a);
+      });
+      const labels = { VIANDE: 'VIANDES', SAUCE: 'SAUCES STANDARDS', FROMAGE: 'FROMAGES', SAUCE_TASTY: 'SAUCES EXCLUSIVES TASTY CROUSTY' };
+      Object.keys(parCatAttr).forEach(cat => {
+        kb += `=== ${labels[cat] || cat} ===\n\n`;
+        parCatAttr[cat].forEach(a => {
+          const sup = Number(a.prix_supplement) > 0 ? ` (+${kbFormatPrix(a.prix_supplement)})` : '';
+          kb += `- ${a.nom}${sup}\n`;
+        });
+        kb += '\n';
+      });
+ 
+      return kb;
+    }
+ 
+    // Génère le texte du KB_ZONE_LIVRAISON pour UN business_id donné (sans afficher de modale)
+    async function genererTexteKbZonesPourBusiness(businessId) {
+      const { data: biz } = await supabaseClient
+        .from('business')
+        .select('nom, adresse_numero, adresse_rue, code_postal, ville, numero_tel')
+        .eq('id', businessId)
+        .single();
+      const nomResto = (biz && biz.nom) ? biz.nom : 'LE RESTAURANT';
+      const adresseResto = formatAdresseResto(biz);
+ 
+      const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+      let horairesTexte = '';
+      try {
+        const { data: horData, error: horErr } = await supabaseClient
+          .from('business_horaires')
+          .select('jour, numero_tranche, heure_ouverture, heure_fermeture, est_ouvert')
+          .eq('business_id', businessId)
+          .order('numero_tranche', { ascending: true });
+        if (horErr) throw horErr;
+        const parJour = {};
+        JOURS.forEach(j => { parJour[j] = []; });
+        (horData || []).forEach(row => {
+          if (row.est_ouvert) {
+            const o = String(row.heure_ouverture).slice(0, 5);
+            const f = String(row.heure_fermeture).slice(0, 5);
+            if (!parJour[row.jour]) parJour[row.jour] = [];
+            parJour[row.jour].push(`${o}-${f}`);
+          }
+        });
+        JOURS.forEach(j => {
+          const nomJour = j.charAt(0).toUpperCase() + j.slice(1);
+          if (parJour[j] && parJour[j].length > 0) {
+            horairesTexte += `${nomJour} : ${parJour[j].join(' et ')}\n`;
+          } else {
+            horairesTexte += `${nomJour} : Fermé\n`;
+          }
+        });
+      } catch (_) {}
+ 
+      let enTete = `ZONES DE LIVRAISON - ${nomResto}\n\n`;
+      enTete += `=== ADRESSE DU RESTAURANT ===\n\n`;
+      if (adresseResto) enTete += `${adresseResto}\n`;
+      enTete += `\n`;
+      if (horairesTexte) {
+        enTete += `=== HORAIRES D'OUVERTURE ===\n\n`;
+        enTete += horairesTexte;
+        enTete += `\n`;
+      }
+ 
+      const { data: zonesData, error } = await supabaseClient
+        .from('zones_service')
+        .select('nom, code_postal, montant_minimum, frais_service, temps_livraison_min, type_zone, actif')
+        .eq('business_id', businessId)
+        .eq('actif', true)
+        .order('montant_minimum', { ascending: true })
+        .order('nom', { ascending: true });
+      if (error) throw error;
+ 
+      const zonesLivraison = (zonesData || []).filter(z => !z.type_zone || z.type_zone === 'livraison');
+ 
+      let kb = enTete;
+ 
+      if (zonesLivraison.length === 0) {
+        kb += `=== IMPORTANT ===\n\n`;
+        kb += `Ce restaurant ne fait PAS de livraison.\n`;
+        kb += `Proposer UNIQUEMENT la commande à emporter (retrait sur place à l'adresse ci-dessus).\n`;
+        kb += `Ne jamais proposer la livraison, ne jamais demander d'adresse de livraison.\n`;
+        return kb;
+      }
+ 
+      kb += `=== IMPORTANT ===\n\n`;
+      kb += `Nous livrons uniquement les villes listées ci-dessous.\n`;
+      kb += `Les minimums de commande varient selon la ville.\n`;
+      kb += `Toute ville NON listée = livraison impossible (proposer à emporter).\n\n`;
+ 
+      const parMinimum = {};
+      zonesLivraison.forEach(z => {
+        const min = Number(z.montant_minimum).toFixed(2);
+        if (!parMinimum[min]) parMinimum[min] = [];
+        parMinimum[min].push(z);
+      });
+ 
+      Object.keys(parMinimum).sort((a, b) => Number(a) - Number(b)).forEach(min => {
+        const villes = parMinimum[min];
+        kb += `=== MINIMUM DE COMMANDE : ${min.replace('.', ',')}€ ===\n\n`;
+        villes.forEach(z => {
+          const delai = z.temps_livraison_min ? `${z.temps_livraison_min} min` : 'délai standard';
+          const frais = Number(z.frais_service) > 0 ? ` - Frais : ${Number(z.frais_service).toFixed(2).replace('.', ',')}€` : '';
+          kb += `${z.nom} (${z.code_postal}) - Délai : ${delai}${frais}\n`;
+        });
+        kb += '\n';
+      });
+ 
+      const parCP = {};
+      zonesLivraison.forEach(z => {
+        if (!parCP[z.code_postal]) parCP[z.code_postal] = [];
+        parCP[z.code_postal].push(z.nom);
+      });
+      const cpAmbigus = Object.keys(parCP).filter(cp => parCP[cp].length > 1);
+      if (cpAmbigus.length > 0) {
+        kb += `=== CODES POSTAUX PARTAGÉS (demander la ville précise) ===\n\n`;
+        cpAmbigus.forEach(cp => {
+          kb += `${cp} : ${parCP[cp].join(', ')}\n`;
+        });
+        kb += '\n';
+      }
+ 
+      kb += `=== VÉRIFICATION ===\n\n`;
+      kb += `1. Demander la ville et le code postal.\n`;
+      kb += `2. Si la ville est dans la liste → confirmer le minimum applicable.\n`;
+      kb += `3. Si absente → "Désolé, nous ne livrons pas cette ville. Souhaitez-vous commander à emporter ?"\n`;
+      kb += `4. Noter la ville et le code postal en MAJUSCULES, sans accent.\n`;
+ 
+      return kb;
+    }
+ 
+    // Publie un texte donné vers l'agent pour un business_id + type donné (sans UI)
+    async function publierUnDocument(businessId, type, contenu) {
+      const reponse = await fetch(PUBLIER_KB_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-saios-secret': PUBLISH_KB_SECRET },
+        body: JSON.stringify({ business_id: businessId, type, content: contenu })
+      });
+      const data = await reponse.json();
+      if (!reponse.ok) throw new Error(data.error || 'Erreur inconnue');
+      return data;
+    }
+ 
+    function pauseMs(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+ 
+    // Publie menu + zones pour LE restaurant actuellement sélectionné
+    async function publierRestaurantActuel() {
+      const biz = businessesList.find(b => b.id === BUSINESS_ID);
+      const nomResto = biz ? biz.nom : 'ce restaurant';
+      if (!confirm(`Publier le menu ET les zones de livraison pour ${nomResto} ? Cette action va écraser ses documents actuels.`)) return;
+ 
+      const bouton = document.getElementById('btn-publier-restaurant');
+      bouton.disabled = true;
+      bouton.textContent = '⏳ Publication en cours...';
+ 
+      try {
+        const texteMenu = await genererTexteKbMenuPourBusiness(BUSINESS_ID);
+        await publierUnDocument(BUSINESS_ID, 'menu', texteMenu);
+        await pauseMs(700);
+        const texteZones = await genererTexteKbZonesPourBusiness(BUSINESS_ID);
+        await publierUnDocument(BUSINESS_ID, 'zones', texteZones);
+        alert(`✅ ${nomResto} publié avec succès (menu + zones).`);
+      } catch (err) {
+        alert(`❌ Erreur pour ${nomResto} : ${err.message}`);
+      } finally {
+        bouton.disabled = false;
+        bouton.textContent = '🚀 Publier ce restaurant';
+      }
+    }
+ 
+    // Publie menu + zones pour TOUS les restaurants actifs, l'un après l'autre
+    async function publierToutLesRestaurants() {
+      if (!confirm(`Publier le menu ET les zones de livraison pour les ${businessesList.length} restaurant(s) actif(s) ? Cette action va écraser leurs documents actuels.`)) return;
+ 
+      const bouton = document.getElementById('btn-publier-tout-flottant');
+      bouton.disabled = true;
+      bouton.textContent = '⏳ Synchronisation...';
+ 
+      const resultats = [];
+      for (const biz of businessesList) {
+        try {
+          const texteMenu = await genererTexteKbMenuPourBusiness(biz.id);
+          await publierUnDocument(biz.id, 'menu', texteMenu);
+          await pauseMs(700);
+          const texteZones = await genererTexteKbZonesPourBusiness(biz.id);
+          await publierUnDocument(biz.id, 'zones', texteZones);
+          resultats.push({ nom: biz.nom, ok: true });
+        } catch (err) {
+          resultats.push({ nom: biz.nom, ok: false, erreur: err.message });
+        }
+        await pauseMs(700);
+      }
+ 
+      bouton.disabled = false;
+      bouton.textContent = '🔄 Synchroniser tout';
+ 
+      const lignes = resultats.map(r => r.ok ? `✅ ${r.nom}` : `❌ ${r.nom} — ${r.erreur}`).join('\n');
+      alert(`Synchronisation terminée :\n\n${lignes}`);
     }
   </script>
 </body>
