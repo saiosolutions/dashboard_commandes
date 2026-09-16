@@ -808,7 +808,9 @@
     let BUSINESS_ID = localStorage.getItem('saios_business_id') || 'ac26fa55-c533-46e6-bd84-fef80ca7e649';
     let businessesList = [];  // 🆕 liste des restaurants disponibles
     const EDGE_FUNCTION_ID = 'c72d94d0-8b68-4635-98cf-bedc5e085f3a';
-
+    const PUBLIER_KB_URL = SUPABASE_URL + '/functions/v1/publier-kb';
+    const PUBLISH_KB_SECRET = 'pblishkb1692631_HMD';
+    
     // Client Supabase créé dès le chargement (nécessaire pour la connexion)
     let supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let commandes = [];
@@ -2266,9 +2268,10 @@
     }
 
     // Affiche un KB généré dans la modale (réutilisable pour MENU et ZONES)
-    function afficherResultatKb(kb, filename) {
+function afficherResultatKb(kb, filename) {
       window.__kbFilename = filename;
       const estZones = filename.includes('ZONE');
+      window.__kbType = estZones ? 'zones' : 'menu';
       const titre = estZones ? '📍 Fichier KB_ZONE_LIVRAISON' : '📄 Fichier KB_MENU';
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
@@ -2279,16 +2282,52 @@
           </div>
           <div class="modal-body">
             <div style="background:#fff8ec;border:1px solid #f0e2c4;border-left:4px solid #d9a441;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:12px;color:#7a5c1a;">
-              💡 Ce fichier est généré automatiquement à partir des données du restaurant. Vous pouvez le copier ou le télécharger.
+              💡 Ce fichier est généré automatiquement à partir des données du restaurant. Publie-le directement vers ElevenLabs, ou copie/télécharge-le si tu préfères le faire à la main.
             </div>
             <textarea id="kb-output" style="width:100%;min-height:340px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">${kb.replace(/</g, '&lt;')}</textarea>
+            <div id="publier-kb-result" style="margin-top:10px;font-size:13px;"></div>
             <div class="form-actions">
               <button class="btn btn-secondary" onclick="copierKb()">📋 Copier</button>
-              <button class="btn btn-primary" onclick="telechargerKb()">⬇️ Télécharger</button>
+              <button class="btn btn-secondary" onclick="telechargerKb()">⬇️ Télécharger</button>
+              <button class="btn btn-primary" id="btn-publier-kb" onclick="publierKbVersElevenLabs()">🚀 Publier vers ElevenLabs</button>
             </div>
           </div>
         </div>
       `;
+    }
+
+    // Envoie le contenu affiché à l'écran vers ElevenLabs, via l'Edge Function publier-kb
+    async function publierKbVersElevenLabs() {
+      const bouton = document.getElementById('btn-publier-kb');
+      const zoneResultat = document.getElementById('publier-kb-result');
+      const contenu = document.getElementById('kb-output').value;
+      const type = window.__kbType || 'menu';
+
+      bouton.disabled = true;
+      bouton.textContent = '⏳ Publication en cours...';
+      zoneResultat.innerHTML = '';
+
+      try {
+        const reponse = await fetch(PUBLIER_KB_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-saios-secret': PUBLISH_KB_SECRET
+          },
+          body: JSON.stringify({ business_id: BUSINESS_ID, type, content: contenu })
+        });
+        const data = await reponse.json();
+        if (reponse.ok) {
+          zoneResultat.innerHTML = '<span style="color:var(--ok);font-weight:600;">✅ Publié avec succès vers ElevenLabs.</span>';
+        } else {
+          zoneResultat.innerHTML = `<span style="color:var(--err);font-weight:600;">❌ Échec : ${data.error || 'erreur inconnue'}</span>`;
+        }
+      } catch (err) {
+        zoneResultat.innerHTML = `<span style="color:var(--err);font-weight:600;">❌ Erreur réseau : ${err.message}</span>`;
+      } finally {
+        bouton.disabled = false;
+        bouton.textContent = '🚀 Publier vers ElevenLabs';
+      }
     }
 
     function catPillClass(cat) {
