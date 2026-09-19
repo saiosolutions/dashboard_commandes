@@ -648,6 +648,7 @@
             <button class="btn btn-secondary" id="btn-gen-kbzones" onclick="genererKbZones()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📍 Générer le KB_ZONE_LIVRAISON</button>
             <button class="btn btn-secondary" id="btn-publier-restaurant" onclick="publierRestaurantActuel()" style="display:none; border: 2px solid var(--ok); font-weight: 700;">🚀 Publier ce restaurant</button>
             <button class="btn btn-secondary" id="btn-sync-api" onclick="testerSynchroApi()" style="display:none; border: 2px solid var(--info); font-weight: 700;">🔎 Tester la synchro API</button>
+            <button class="btn btn-secondary" id="btn-sync-ecrire" onclick="synchroniserApi()" style="display:none; border: 2px solid var(--ok); font-weight: 700;">✍️ Synchroniser depuis l'API</button>
           </div>
           <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
         </div>
@@ -1424,6 +1425,8 @@
       if (btnPublierRestaurant) btnPublierRestaurant.style.display = (section === 'agent') ? '' : 'none';
       const btnSyncApi = document.getElementById('btn-sync-api');
       if (btnSyncApi) btnSyncApi.style.display = (section === 'agent') ? '' : 'none';
+      const btnSyncEcrire = document.getElementById('btn-sync-ecrire');
+      if (btnSyncEcrire) btnSyncEcrire.style.display = (section === 'agent') ? '' : 'none';
       
       loadParamData();
     }
@@ -5019,18 +5022,17 @@
       if (!reponse.ok) throw new Error(data.error || 'Erreur inconnue');
       return data;
     }
-
-        // ========================================
-    // SYNCHRO API FOURNISSEUR — mode test (ne modifie rien)
     // ========================================
-    async function testerSynchroApi() {
-      const bouton = document.getElementById('btn-sync-api');
+    // SYNCHRO API FOURNISSEUR — test (lecture seule) ou écriture
+    // ========================================
+    async function lancerSynchroApi(mode, idBouton, libelleBouton) {
+      const bouton = document.getElementById(idBouton);
       const biz = businessesList.find(b => b.id === BUSINESS_ID);
       bouton.disabled = true;
-      bouton.textContent = '⏳ Lecture de l\'API...';
+      bouton.textContent = '⏳ En cours...';
       try {
         const { data, error } = await supabaseClient.functions.invoke('sync-catalogue', {
-          body: { business_id: BUSINESS_ID, mode: 'test' }
+          body: { business_id: BUSINESS_ID, mode }
         });
         if (error) {
           let detail = error.message;
@@ -5042,13 +5044,27 @@
         alert('❌ ' + err.message);
       } finally {
         bouton.disabled = false;
-        bouton.textContent = '🔎 Tester la synchro API';
+        bouton.textContent = libelleBouton;
       }
+    }
+
+    function testerSynchroApi() {
+      return lancerSynchroApi('test', 'btn-sync-api', '🔎 Tester la synchro API');
+    }
+
+    function synchroniserApi() {
+      const biz = businessesList.find(b => b.id === BUSINESS_ID);
+      const nom = biz ? biz.nom : 'ce restaurant';
+      if (!confirm(`Synchroniser « ${nom} » avec la base du fournisseur ?\n\nLes produits, zones, horaires et suppléments seront créés ou mis à jour dans Supabase. Rien n'est supprimé.`)) return;
+      return lancerSynchroApi('ecrire', 'btn-sync-ecrire', '✍️ Synchroniser depuis l\'API');
     }
 
     function afficherRapportSynchro(rapport, nomResto) {
       window.__rapportSynchro = JSON.stringify(rapport, null, 2);
       const r = rapport.resume || {};
+      const message = rapport.mode === 'ecrire'
+        ? '✍️ Synchronisation effectuée : la base a été mise à jour.'
+        : 'Mode test : rien n\'a été écrit dans la base.';
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()" style="max-width:760px;">
@@ -5057,7 +5073,7 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <div class="modal-body">
-            <div class="options-help">Mode test : rien n'a été écrit dans la base. ${r.produits_lignes || 0} produits, ${r.zones || 0} zones, ${r.avertissements || 0} point(s) à regarder.</div>
+            <div class="options-help">${message} ${r.produits_lignes || 0} produits, ${r.zones || 0} zones, ${r.avertissements || 0} point(s) à regarder.</div>
             <textarea id="sync-rapport" style="width:100%;min-height:320px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">${window.__rapportSynchro.replace(/</g, '&lt;')}</textarea>
             <div class="form-actions">
               <button class="btn btn-primary" onclick="copierRapportSynchro()">📋 Copier le rapport</button>
@@ -5069,6 +5085,16 @@
       modal.onclick = () => closeModal('modal-edit');
     }
 
+    async function copierRapportSynchro() {
+      try {
+        await navigator.clipboard.writeText(window.__rapportSynchro);
+      } catch (_) {
+        const ta = document.getElementById('sync-rapport');
+        ta.select();
+        document.execCommand('copy');
+      }
+      alert('✅ Rapport copié. Collez-le dans la conversation.');
+    }
     async function copierRapportSynchro() {
       try {
         await navigator.clipboard.writeText(window.__rapportSynchro);
