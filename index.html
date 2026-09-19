@@ -5059,12 +5059,20 @@
       return lancerSynchroApi('ecrire', 'btn-sync-ecrire', '✍️ Synchroniser depuis l\'API');
     }
 
-    function afficherRapportSynchro(rapport, nomResto) {
+       function afficherRapportSynchro(rapport, nomResto) {
       window.__rapportSynchro = JSON.stringify(rapport, null, 2);
       const r = rapport.resume || {};
-      const message = rapport.mode === 'ecrire'
-        ? '✍️ Synchronisation effectuée : la base a été mise à jour.'
-        : 'Mode test : rien n\'a été écrit dans la base.';
+      const e = rapport.ecriture || {};
+      const n = (obj, cle) => (obj && obj[cle] != null ? obj[cle] : 0);
+      let message;
+      if (rapport.mode === 'ecrire' && typeof e === 'object') {
+        message = '✍️ Synchronisation effectuée — '
+          + 'produits : ' + n(e.produits, 'crees') + ' créés, ' + n(e.produits, 'modifies') + ' modifiés, ' + n(e.produits, 'inchanges') + ' inchangés · '
+          + 'zones : ' + n(e.zones, 'creees') + ' créées, ' + n(e.zones, 'modifiees') + ' modifiées, ' + n(e.zones, 'inchangees') + ' inchangées · '
+          + 'suppléments : ' + (e.supplements_prix && e.supplements_prix.inchanges != null ? 'inchangés' : 'réécrits') + '.';
+      } else {
+        message = 'Mode test : rien n\'a été écrit dans la base. ' + (r.produits_lignes || 0) + ' produits, ' + (r.zones || 0) + ' zones.';
+      }
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()" style="max-width:760px;">
@@ -5073,7 +5081,7 @@
             <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
           </div>
           <div class="modal-body">
-            <div class="options-help">${message} ${r.produits_lignes || 0} produits, ${r.zones || 0} zones, ${r.avertissements || 0} point(s) à regarder.</div>
+            <div class="options-help">${message} ${r.avertissements || 0} point(s) à regarder.</div>
             <textarea id="sync-rapport" style="width:100%;min-height:320px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">${window.__rapportSynchro.replace(/</g, '&lt;')}</textarea>
             <div class="form-actions">
               <button class="btn btn-primary" onclick="copierRapportSynchro()">📋 Copier le rapport</button>
@@ -5083,17 +5091,6 @@
       `;
       modal.classList.add('show');
       modal.onclick = () => closeModal('modal-edit');
-    }
-
-    async function copierRapportSynchro() {
-      try {
-        await navigator.clipboard.writeText(window.__rapportSynchro);
-      } catch (_) {
-        const ta = document.getElementById('sync-rapport');
-        ta.select();
-        document.execCommand('copy');
-      }
-      alert('✅ Rapport copié. Collez-le dans la conversation.');
     }
     async function copierRapportSynchro() {
       try {
