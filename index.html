@@ -647,6 +647,7 @@
             <button class="btn btn-secondary" id="btn-gen-kbmenu" onclick="genererKbMenu()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📄 Générer le KB_MENU</button>
             <button class="btn btn-secondary" id="btn-gen-kbzones" onclick="genererKbZones()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📍 Générer le KB_ZONE_LIVRAISON</button>
             <button class="btn btn-secondary" id="btn-publier-restaurant" onclick="publierRestaurantActuel()" style="display:none; border: 2px solid var(--ok); font-weight: 700;">🚀 Publier ce restaurant</button>
+            <button class="btn btn-secondary" id="btn-sync-api" onclick="testerSynchroApi()" style="display:none; border: 2px solid var(--info); font-weight: 700;">🔎 Tester la synchro API</button>
           </div>
           <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
         </div>
@@ -1421,6 +1422,8 @@
       if (btnGenZones) btnGenZones.style.display = (section === 'agent') ? '' : 'none';
       const btnPublierRestaurant = document.getElementById('btn-publier-restaurant');
       if (btnPublierRestaurant) btnPublierRestaurant.style.display = (section === 'agent') ? '' : 'none';
+      const btnSyncApi = document.getElementById('btn-sync-api');
+      if (btnSyncApi) btnSyncApi.style.display = (section === 'agent') ? '' : 'none';
       
       loadParamData();
     }
@@ -5015,6 +5018,66 @@
       const data = await reponse.json();
       if (!reponse.ok) throw new Error(data.error || 'Erreur inconnue');
       return data;
+    }
+
+        // ========================================
+    // SYNCHRO API FOURNISSEUR — mode test (ne modifie rien)
+    // ========================================
+    async function testerSynchroApi() {
+      const bouton = document.getElementById('btn-sync-api');
+      const biz = businessesList.find(b => b.id === BUSINESS_ID);
+      bouton.disabled = true;
+      bouton.textContent = '⏳ Lecture de l\'API...';
+      try {
+        const { data, error } = await supabaseClient.functions.invoke('sync-catalogue', {
+          body: { business_id: BUSINESS_ID, mode: 'test' }
+        });
+        if (error) {
+          let detail = error.message;
+          try { const corps = await error.context.json(); if (corps && corps.erreur) detail = corps.erreur; } catch (_) {}
+          throw new Error(detail);
+        }
+        afficherRapportSynchro(data, biz ? biz.nom : '');
+      } catch (err) {
+        alert('❌ ' + err.message);
+      } finally {
+        bouton.disabled = false;
+        bouton.textContent = '🔎 Tester la synchro API';
+      }
+    }
+
+    function afficherRapportSynchro(rapport, nomResto) {
+      window.__rapportSynchro = JSON.stringify(rapport, null, 2);
+      const r = rapport.resume || {};
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-width:760px;">
+          <div class="modal-header">
+            <h2>🔎 Rapport de synchro — ${nomResto}</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="options-help">Mode test : rien n'a été écrit dans la base. ${r.produits_lignes || 0} produits, ${r.zones || 0} zones, ${r.avertissements || 0} point(s) à regarder.</div>
+            <textarea id="sync-rapport" style="width:100%;min-height:320px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">${window.__rapportSynchro.replace(/</g, '&lt;')}</textarea>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="copierRapportSynchro()">📋 Copier le rapport</button>
+            </div>
+          </div>
+        </div>
+      `;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function copierRapportSynchro() {
+      try {
+        await navigator.clipboard.writeText(window.__rapportSynchro);
+      } catch (_) {
+        const ta = document.getElementById('sync-rapport');
+        ta.select();
+        document.execCommand('copy');
+      }
+      alert('✅ Rapport copié. Collez-le dans la conversation.');
     }
  
     function pauseMs(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
