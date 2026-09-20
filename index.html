@@ -2036,6 +2036,11 @@
       modal.onclick = () => closeModal('modal-edit');
 
       try {
+                if (await estRestaurantRelie(BUSINESS_ID)) {
+          const infosResto = await getInfosResto();
+          afficherResultatKb(await genererTexteKbMenuRelie(BUSINESS_ID), 'KB_MENU_' + nomFichierBusiness(infosResto && infosResto.nom));
+          return;
+        }
         // 1) Tous les produits actifs + leurs options + leur famille (pour l'ordre)
         const { data: produits, error: e1 } = await supabaseClient
           .from('produits')
@@ -2257,7 +2262,7 @@
             const frais = Number(z.frais_service) > 0
               ? ` - Frais : ${Number(z.frais_service).toFixed(2).replace('.', ',')}€`
               : '';
-            kb += `${z.nom} (${z.code_postal}) - Délai : ${delai}${frais}\n`;
+            kb += `${z.nom}${z.code_postal ? ' (' + z.code_postal + ')' : ''} - Délai : ${delai}${frais}\n`;
           });
           kb += '\n';
         });
@@ -2289,7 +2294,241 @@
         modal.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><h2>Erreur</h2><button class="btn-close" onclick="closeModal('modal-edit')">×</button></div><div class="modal-body"><div class="no-data">❌ ${err.message}</div></div></div>`;
       }
     }
+    // ========================================
+    // KB_MENU POUR UN RESTAURANT RELIÉ À UNE BASE EXTERNE (business.id_externe renseigné)
+    // Les autres restaurants (L'Oasis, Presto...) gardent leur générateur habituel, inchangé.
+    // ========================================
+    async function estRestaurantRelie(businessId) {
+      try {
+        const { data } = await supabaseClient.from('business').select('id_externe').eq('id', businessId).single();
+        return Boolean(data && data.id_externe);
+      } catch (_) {
+        return false;
+      }
+    }
 
+    // Clé de comparaison : sans accent, en majuscules, espaces simplifiés
+    function kbCle(s) {
+      return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+    }
+
+    // Prix d'un produit selon les 3 modes : une seule valeur si identiques ; 0 = non proposé dans ce mode
+    function kbPrixModes(liv, emp, sp, repli) {
+      const v = [['en livraison', liv], ['à emporter', emp], ['sur place', sp]]
+        .map(([m, x]) => [m, (x === null || x === undefined) ? Number(repli) : Number(x)]);
+      const dispo = v.filter(([, x]) => x > 0);
+      const absents = v.filter(([, x]) => x === 0).map(([m]) => m);
+      if (dispo.length === 0) return kbFormatPrix(0);
+      const distincts = new Set(dispo.map(([, x]) => x));
+      let txt = distincts.size === 1
+        ? kbFormatPrix(dispo[0][1])
+        : dispo.map(([m, x]) => `${m} ${kbFormatPrix(x)}`).join(' | ');
+      if (absents.length > 0) txt += ` (non proposé ${absents.join(', ')})`;
+      return txt;
+    }
+
+    // Prix d'un supplément : « gratuit », « +1,50€ chacun » ou détail par mode
+    function kbLibellePrixSupplement(l, e, s) {
+      const v = [Number(l), Number(e), Number(s)].map(x => Number.isFinite(x) ? x : 0);
+      if (v[0] === v[1] && v[1] === v[2]) return v[0] === 0 ? 'gratuit' : `+${kbFormatPrix(v[0])} chacun`;
+      return `en livraison +${kbFormatPrix(v[0])} | à emporter +${kbFormatPrix(v[1])} | sur place +${kbFormatPrix(v[2])}`;
+    }
+
+    // Regroupe des suppléments par prix : « +1,50€ chacun : JAMBON, ... »
+    function kbLignesSupplements(lignes, indent) {
+      const groupes = new Map();
+      lignes.forEach(x => {
+        const k = kbLibellePrixSupplement(x.l, x.e, x.s);
+        if (!groupes.has(k)) groupes.set(k, []);
+        groupes.get(k).push(x.nom);
+      });
+      let txt = '';
+      groupes.forEach((noms, k) => {
+        noms.sort((a, b) => a.localeCompare(b, 'fr'));
+        txt += `${indent}${k} : ${noms.join(', ')}\n`;
+      });
+      return txt;
+    }
+
+    // Option d'un produit + prix unitaire fournisseur quand il est payant
+    function kbDecrireOptionRelie(o) {
+      let desc = kbDecrireOption(o);
+      const px = o.donnees_fournisseur && o.donnees_fournisseur.prix_unitaire;
+      if (px && [px.livraison, px.emporter, px.sur_place].some(x => Number(x) > 0)) {
+        const oblig = / \[à demander\]$/.test(desc);
+        desc = desc.replace(/ \[à demander\]$/, '') + ` (chacun : ${kbPrixModes(px.livraison, px.emporter, px.sur_place, 0)})` + (oblig ? ' [à demander]' : '');
+      }
+      return desc;
+    }
+
+    async function genererTexteKbMenuRelie(businessId) {
+      const { data: produitsData, error: e1 } = await supabaseClient
+        .from('produits')
+        .select('id, nom, categorie, prix, prix_livraison, prix_emporter, prix_sur_place, taille, details, type_produit, position, famille_id, metadata, id_externe, produit_familles(nom, position), produit_options(*)')
+        .eq('business_id', businessId)
+        .eq('actif', true);
+      if (e1) throw e1;
+
+      const { data: attributsData, error: e2 } = await supabaseClient
+        .from('attributs')
+        .select('nom, categorie, position')
+        .eq('business_id', businessId)
+        .eq('actif', true)
+        .order('position', { ascending: true });
+      if (e2) throw e2;
+
+      const { data: suppData, error: e3 } = await supabaseClient
+        .from('supplements_prix')
+        .select('famille_id, produit_id, taille, prix_livraison, prix_emporter, prix_sur_place, attributs(nom)')
+        .eq('business_id', businessId);
+      if (e3) throw e3;
+
+      const { data: regles, error: e4 } = await supabaseClient
+        .from('regles_categorie')
+        .select('famille_id, produit_id, type_regle, contenu, position')
+        .eq('business_id', businessId)
+        .eq('actif', true)
+        .order('position', { ascending: true });
+      if (e4) throw e4;
+
+      const biz = await getInfosResto2(businessId);
+      let infoResto = '';
+      if (biz && biz.nom) {
+        infoResto = `RESTAURANT : ${biz.nom}\n`;
+        const adresse = formatAdresseResto(biz);
+        if (adresse) infoResto += `ADRESSE : ${adresse}\n`;
+        infoResto += '\n';
+      }
+
+      // ---- Index ----
+      const reglesParFamilleId = {}, reglesParProduitId = {};
+      (regles || []).forEach(r => {
+        if (r.famille_id) (reglesParFamilleId[r.famille_id] = reglesParFamilleId[r.famille_id] || []).push(r);
+        else if (r.produit_id) (reglesParProduitId[r.produit_id] = reglesParProduitId[r.produit_id] || []).push(r);
+      });
+      const formatRegle = (r) => `${{ question: '❓', deduction: '📏', exclusivite: '⚠️', prononciation: '🔤' }[r.type_regle] || '•'} ${r.contenu}`;
+
+      // Suppléments : liste par famille + taille, exceptions par produit
+      const suppDefaut = {};   // famille_id -> taille -> [{nom,l,e,s}]
+      const suppProduit = {};  // produit_id -> [{nom,l,e,s,taille}]
+      (suppData || []).forEach(s => {
+        const ligne = { nom: (s.attributs && s.attributs.nom) || '?', l: s.prix_livraison, e: s.prix_emporter, s: s.prix_sur_place, taille: s.taille || '' };
+        if (s.produit_id) (suppProduit[s.produit_id] = suppProduit[s.produit_id] || []).push(ligne);
+        else if (s.famille_id) {
+          const f = (suppDefaut[s.famille_id] = suppDefaut[s.famille_id] || {});
+          (f[ligne.taille] = f[ligne.taille] || []).push(ligne);
+        }
+      });
+
+      // Nom de base d'un produit (sans sa taille) d'après son identifiant fournisseur : sert aux formules
+      const nomParExt = new Map();
+      (produitsData || []).forEach(p => {
+        if (!p.id_externe || nomParExt.has(p.id_externe)) return;
+        nomParExt.set(p.id_externe, (p.taille && p.nom.endsWith(' ' + p.taille)) ? p.nom.slice(0, -(p.taille.length + 1)) : p.nom);
+      });
+
+      // ---- Texte ----
+      let kb = 'MENU COMPLET\n\n' + infoResto;
+      const groupes = {};
+      (produitsData || []).forEach(p => {
+        const cat = p.categorie || 'AUTRES';
+        if (!groupes[cat]) groupes[cat] = { produits: [], ordre: p.produit_familles?.position ?? 999, familleId: p.famille_id };
+        groupes[cat].produits.push(p);
+      });
+      const cats = Object.keys(groupes).sort((a, b) => groupes[a].ordre - groupes[b].ordre);
+
+      cats.forEach(cat => {
+        const g = groupes[cat];
+        kb += `=== ${cat} ===\n\n`;
+        (reglesParFamilleId[g.familleId] || []).forEach(r => { kb += `${formatRegle(r)}\n`; });
+        if ((reglesParFamilleId[g.familleId] || []).length > 0) kb += '\n';
+
+        const prods = g.produits.sort((a, b) => (a.position || 0) - (b.position || 0) || a.nom.localeCompare(b.nom));
+        prods.forEach(p => {
+          kb += `${p.nom} - ${kbPrixModes(p.prix_livraison, p.prix_emporter, p.prix_sur_place, p.prix)}\n`;
+          const compo = p.details || ((p.metadata && p.metadata.composition) || []).map(c => c.nom).join(', ');
+          if (compo) kb += `  Composition : ${compo}\n`;
+
+          // Formule (menu à prix fixe)
+          const formule = p.metadata && p.metadata.menu_compose;
+          if (formule && formule.length > 0) {
+            const morceaux = formule.map(c => {
+              const noms = (c.choix || []).map(id => nomParExt.get(id)).filter(Boolean);
+              const choix = (noms.length > 0 && noms.length <= 8) ? ` au choix : ${noms.join(', ')}` : ` au choix parmi les ${c.nom_famille} de la carte`;
+              return `${c.quantite} × ${c.nom_famille}${c.taille ? ` (taille ${c.taille})` : ''}${choix}`;
+            });
+            kb += `  Formule : ${morceaux.join(' ; ')}\n`;
+            kb += `  Prix fixe : les éléments choisis dans la formule ne sont pas facturés en plus.\n`;
+          }
+
+          (p.produit_options || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0))
+            .forEach(o => { kb += `  - ${kbDecrireOptionRelie(o)}\n`; });
+
+          // Suppléments propres à ce produit (différences avec la liste de sa famille)
+          const propres = suppProduit[p.id];
+          if (propres && propres.length > 0) {
+            const base = ((suppDefaut[p.famille_id] || {})[p.taille || ''] || []);
+            const cle = (x) => `${kbCle(x.nom)}|${x.l}|${x.e}|${x.s}`;
+            const dansBase = new Set(base.map(cle));
+            const differents = propres.filter(x => !dansBase.has(cle(x)));
+            if (differents.length > 0) {
+              kb += `  Suppléments particuliers à ce produit :\n` + kbLignesSupplements(differents, '    ');
+            }
+            const nomsPropres = new Set(propres.map(x => kbCle(x.nom)));
+            const retires = base.filter(x => !nomsPropres.has(kbCle(x.nom))).map(x => x.nom);
+            if (retires.length > 0) kb += `  Non disponibles sur ce produit : ${retires.join(', ')}\n`;
+          }
+          (reglesParProduitId[p.id] || []).forEach(r => { kb += `  ${formatRegle(r)}\n`; });
+          kb += '\n';
+        });
+
+        // Suppléments de la famille (par taille)
+        const defaut = suppDefaut[g.familleId];
+        if (defaut) {
+          const tailles = [];
+          prods.forEach(p => { const t = p.taille || ''; if (!tailles.includes(t)) tailles.push(t); });
+          Object.keys(defaut).forEach(t => { if (!tailles.includes(t)) tailles.push(t); });
+          kb += `SUPPLÉMENTS POSSIBLES - ${cat} (à ajouter sur demande du client) :\n`;
+          tailles.filter(t => defaut[t]).forEach(t => {
+            kb += t ? `  Taille ${t} :\n` : '';
+            kb += kbLignesSupplements(defaut[t], t ? '    ' : '  ');
+          });
+          kb += '\n';
+        }
+      });
+
+      // Choix proposés (sauces, boissons, desserts...) d'après les groupes d'options des produits
+      const nomParCat = new Map((attributsData || []).map(a => [`${String(a.categorie || '').toUpperCase()}|${kbCle(a.nom)}`, a.nom]));
+      const choix = new Map();
+      (produitsData || []).forEach(p => (p.produit_options || []).forEach(o => {
+        const ids = o.donnees_fournisseur && o.donnees_fournisseur.ids;
+        if (!ids) return;
+        const c = String(o.categorie_attribut || '').toUpperCase();
+        if (!choix.has(c)) choix.set(c, new Map());
+        Object.keys(ids).forEach(k => choix.get(c).set(k, nomParCat.get(`${c}|${k}`) || k));
+      }));
+      const labels = { VIANDE: 'VIANDES', SAUCE: 'SAUCES', FROMAGE: 'FROMAGES', BOISSON: 'BOISSONS', DESSERT: 'DESSERTS' };
+      choix.forEach((noms, c) => {
+        kb += `=== ${labels[c] || c.replace(/_/g, ' ')} À CHOISIR AVEC LES PRODUITS ===\n\n`;
+        [...noms.values()].sort((a, b) => a.localeCompare(b, 'fr')).forEach(n => { kb += `- ${n}\n`; });
+        kb += '\n';
+      });
+
+      return kb;
+    }
+
+    // Infos restaurant pour un business donné (nom + adresse)
+    async function getInfosResto2(businessId) {
+      try {
+        const { data } = await supabaseClient
+          .from('business')
+          .select('nom, adresse_numero, adresse_rue, code_postal, ville, numero_tel')
+          .eq('id', businessId).single();
+        return data || {};
+      } catch (_) {
+        return {};
+      }
+    }
     // Affiche un KB généré dans la modale (réutilisable pour MENU et ZONES)
    function afficherResultatKb(kb, filename) {
       window.__kbFilename = filename;
@@ -4792,6 +5031,7 @@
     }
     // Génère le texte du KB_MENU pour UN business_id donné (sans afficher de modale)
     async function genererTexteKbMenuPourBusiness(businessId) {
+    if (await estRestaurantRelie(businessId)) return await genererTexteKbMenuRelie(businessId);
       const { data: produitsData, error: e1 } = await supabaseClient
         .from('produits')
         .select('id, nom, categorie, prix, taille, details, type_produit, position, famille_id, produit_familles(nom, position), produit_options(*)')
@@ -4983,7 +5223,7 @@
         villes.forEach(z => {
           const delai = z.temps_livraison_min ? `${z.temps_livraison_min} min` : 'délai standard';
           const frais = Number(z.frais_service) > 0 ? ` - Frais : ${Number(z.frais_service).toFixed(2).replace('.', ',')}€` : '';
-          kb += `${z.nom} (${z.code_postal}) - Délai : ${delai}${frais}\n`;
+          kb += `${z.nom}${z.code_postal ? ' (' + z.code_postal + ')' : ''} - Délai : ${delai}${frais}\n`;
         });
         kb += '\n';
       });
