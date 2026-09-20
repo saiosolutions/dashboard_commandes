@@ -1240,6 +1240,13 @@
       loadCommandes();
     }
 
+        // Points à vérifier écrits par post-call dans la commande (instructions_livraison.a_verifier)
+    function lireAVerifier(cmd) {
+      let il = cmd.instructions_livraison;
+      if (typeof il === 'string') { try { il = JSON.parse(il); } catch { il = null; } }
+      return (il && Array.isArray(il.a_verifier)) ? il.a_verifier : [];
+    }
+    
     function renderCommandes() {
       const content = document.getElementById('commandes-content');
       if (commandes.length === 0) {
@@ -1267,7 +1274,7 @@
           <div class="row-item" onclick="openCommandeDetail('${cmd.id}')">
             <span class="row-num">#${cmd.numero_commande}</span>
             <div class="row-main">
-              <span class="row-client">${warningBadge}${nomClient}</span>
+              <span class="row-client">${lireAVerifier(cmd).length ? '<span class="badge badge-averifier">⚠️ À vérifier</span> ' : ''}${warningBadge}${nomClient}</span>
               <span class="row-sub">📞 ${telClient} • <span class="badge badge-${typeBadge}">${typeText}</span></span>
             </div>
             <div class="row-right">
@@ -1296,7 +1303,20 @@
             if (a.sauces_plat) attrHtml += `<div>🍯 Plat: ${Array.isArray(a.sauces_plat) ? a.sauces_plat.join(', ') : a.sauces_plat}</div>`;
             if (a.sauces_frites) attrHtml += `<div>🍟 Frites: ${Array.isArray(a.sauces_frites) ? a.sauces_frites.join(', ') : a.sauces_frites}</div>`;
             if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
-            if (a.supplements) attrHtml += `<div>➕ ${Array.isArray(a.supplements) ? a.supplements.join(', ') : a.supplements}</div>`;
+                        if (a.supplements) {
+              // On n'affiche que les suppléments qui ne sont pas déjà montrés (viandes, sauces...)
+              const deja = [];
+              ['viandes', 'sauces_sandwich', 'sauces_plat', 'sauces_frites', 'fromages'].forEach(k => {
+                if (a[k]) (Array.isArray(a[k]) ? a[k] : String(a[k]).split(',')).forEach(x => deja.push(String(x).trim().toUpperCase()));
+              });
+              const reste = (Array.isArray(a.supplements) ? a.supplements : String(a.supplements).split(','))
+                .map(x => String(x).trim()).filter(x => {
+                  const i = deja.indexOf(x.toUpperCase());
+                  if (i >= 0) { deja.splice(i, 1); return false; }
+                  return true;
+                });
+              if (reste.length) attrHtml += `<div>➕ ${reste.join(', ')}</div>`;
+            }
           }
           articlesHtml += `
             <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
@@ -1355,6 +1375,8 @@
       if (dateFrSouhaitee && heureSouhaitee) texteSouhaite = dateFrSouhaitee + ' à ' + heureSouhaitee;
       else if (dateFrSouhaitee)              texteSouhaite = dateFrSouhaitee;
       else if (heureSouhaitee)               texteSouhaite = 'Pour ' + heureSouhaitee;
+            const aVerifierListe = lireAVerifier(cmd);
+      const aVerifierHtml = aVerifierListe.length ? `<div class="anomalie-box"><strong>⚠️ À vérifier</strong><div style="margin-top:8px;">${aVerifierListe.map(m => `<div class="anomalie-item">• ${m}</div>`).join('')}</div></div>` : '';
       const instructionsLivraisonHtml = texteSouhaite ? `
         <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #2196f3;">
           <strong>⏰ Souhaité</strong><br>
@@ -1380,7 +1402,7 @@
                 ${instructionsAccesHtml}
               </div>
             ` : ''}
-            ${instructionsLivraisonHtml}
+            {aVerifierHtml}${instructionsLivraisonHtml}
             <div style="margin-bottom: 16px;">
               <strong>📦 Articles</strong>
               <div style="margin-top: 12px;">${articlesHtml}</div>
@@ -2350,15 +2372,37 @@
       return txt;
     }
 
-    // Option d'un produit + prix unitaire fournisseur quand il est payant
-    function kbDecrireOptionRelie(o) {
-      let desc = kbDecrireOption(o);
-      const px = o.donnees_fournisseur && o.donnees_fournisseur.prix_unitaire;
-      if (px && [px.livraison, px.emporter, px.sur_place].some(x => Number(x) > 0)) {
-        const oblig = / \[à demander\]$/.test(desc);
-        desc = desc.replace(/ \[à demander\]$/, '') + ` (chacun : ${kbPrixModes(px.livraison, px.emporter, px.sur_place, 0)})` + (oblig ? ' [à demander]' : '');
+    // Libellé par défaut de la question sauce quand le produit est servi avec des frites
+    function kbLibelleSauceParDefaut(p) {
+      const cat = kbCle(p.categorie || '');
+      const plat = /SANDWICH/.test(cat) ? 'sandwich' : /BURGER/.test(cat) ? 'burger' : /TACO/.test(cat) ? 'tacos' : 'plat';
+      return `sauce(s) pour votre ${plat} et vos frites`;
+    }
+
+    function kbDecrireOptionRelie(o, produit) {
+      // Un libellé saisi à la main est toujours prioritaire ; sinon, question unique « plat + frites »
+      let opt = o;
+      if (produit && !o.libelle && String(o.categorie_attribut || '').toUpperCase() === 'SAUCE'
+          && /frites/i.test(String(produit.details || ''))) {
+        opt = Object.assign({}, o, { libelle: kbLibelleSauceParDefaut(produit) });
       }
-      return desc;
+      let desc = kbDecrireOption(opt);
+      const oblig = / \[à demander\]$/.test(desc);
+      desc = desc.replace(/ \[à demander\]$/, '');
+      const px = o.donnees_fournisseur && o.donnees_fournisseur.prix_unitaire;
+      if (px && (o.comportement || '') !== 'retrait') {
+        const payant = [px.livraison, px.emporter, px.sur_place].some(x => Number(x) > 0);
+        if (payant) {
+          desc += ` (chacun : ${kbPrixModes(px.livraison, px.emporter, px.sur_place, 0)})`;
+          const inclus = Number(o.inclus_gratuit) || 0;
+          desc += inclus > 0
+            ? ` → PAYANT : mettre TOUS les choix du client dans supplements (les ${inclus} premiers sont offerts, le système les déduit)`
+            : ` → PAYANT : mettre chaque choix du client dans supplements`;
+        } else {
+          desc += ` → INCLUS : ne rien mettre dans supplements`;
+        }
+      }
+      return desc + (oblig ? ' [à demander]' : '');
     }
 
     async function genererTexteKbMenuRelie(businessId) {
@@ -2462,7 +2506,7 @@
           }
 
           (p.produit_options || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0))
-            .forEach(o => { kb += `  - ${kbDecrireOptionRelie(o)}\n`; });
+            .forEach(o => { kb += `  - ${kbDecrireOptionRelie((o, p))}\n`; });
 
           // Suppléments propres à ce produit (différences avec la liste de sa famille)
           const propres = suppProduit[p.id];
