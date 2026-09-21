@@ -2060,7 +2060,7 @@
       try {
                 if (await estRestaurantRelie(BUSINESS_ID)) {
           const infosResto = await getInfosResto();
-          afficherResultatKb(await genererTexteKbMenuRelie(BUSINESS_ID), 'KB_MENU_' + nomFichierBusiness(infosResto && infosResto.nom));
+          afficherResultatKb(await genererTexteKbMenuRelieV2(BUSINESS_ID), 'KB_MENU_' + nomFichierBusiness(infosResto && infosResto.nom));
           return;
         }
         // 1) Tous les produits actifs + leurs options + leur famille (pour l'ordre)
@@ -5075,7 +5075,7 @@
     }
     // Génère le texte du KB_MENU pour UN business_id donné (sans afficher de modale)
     async function genererTexteKbMenuPourBusiness(businessId) {
-    if (await estRestaurantRelie(businessId)) return await genererTexteKbMenuRelie(businessId);
+    if (await estRestaurantRelie(businessId)) return await genererTexteKbMenuRelieV2(businessId);
       const { data: produitsData, error: e1 } = await supabaseClient
         .from('produits')
         .select('id, nom, categorie, prix, taille, details, type_produit, position, famille_id, produit_familles(nom, position), produit_options(*)')
@@ -5442,6 +5442,302 @@
  
       const lignes = resultats.map(r => r.ok ? `✅ ${r.nom}` : `❌ ${r.nom} — ${r.erreur}`).join('\n');
       alert(`Synchronisation terminée :\n\n${lignes}`);
+    }
+    
+    // ============================================================
+    // GÉNÉRATEUR DU MENU V2 — restaurants reliés (business.id_externe renseigné)
+    // À coller dans admin_loasis.html, juste AVANT la dernière balise </script>.
+    // Différences avec la V1 : une liste de choix PAR GROUPE (plus de mélange sauces/boissons),
+    // de vraies questions, le prix et le nombre de choix indiqués sur chaque ligne.
+    // ============================================================
+
+    // true  = l'agent pose TOUJOURS la question de chaque groupe (le client peut répondre « aucune »)
+    // false = seulement les groupes marqués obligatoires (ou avec un minimum d'au moins 1)
+    const KB2_TOUJOURS_DEMANDER = true;
+
+    const KB2_RANG = { 'VIANDE': 1, 'ACCOMPAGNEMENT': 2, 'TEX MEX': 3, 'FROMAGE': 4, 'SAUCE': 5, 'DESSERT': 6, 'BOISSON': 7 };
+    const KB2_NOM_LISTE = { 'VIANDE': 'VIANDES', 'SAUCE': 'SAUCES', 'BOISSON': 'BOISSONS', 'DESSERT': 'DESSERTS', 'ACCOMPAGNEMENT': 'ACCOMPAGNEMENTS', 'FROMAGE': 'FROMAGES', 'TEX MEX': 'TEX MEX' };
+
+    // Nature d'un groupe : le nom du groupe chez le fournisseur prime sur la catégorie enregistrée
+    function kb2Type(o) {
+      const brut = kbCle((o.donnees_fournisseur && o.donnees_fournisseur.nom_groupe) || o.categorie_attribut || '').replace(/_/g, ' ');
+      return (brut.length > 3 && brut.endsWith('S') && !brut.endsWith('SS')) ? brut.slice(0, -1) : brut;
+    }
+
+    // Noms lisibles des choix d'un groupe (avec les accents de la table attributs)
+    function kb2NomsChoix(o, nomParCle) {
+      const ids = o.donnees_fournisseur && o.donnees_fournisseur.ids;
+      if (!ids || typeof ids !== 'object') return null;
+      return Object.keys(ids).map(k => nomParCle.get(kbCle(k)) || k);
+    }
+
+    function kb2Signature(noms) {
+      return noms.map(kbCle).sort().join('|');
+    }
+
+    function kb2Plat(p) {
+      const c = kbCle(p.categorie || '');
+      if (/SANDWICH/.test(c)) return 'sandwich';
+      if (/BURGER/.test(c)) return 'burger';
+      if (/TACO/.test(c)) return 'tacos';
+      if (/PANINI/.test(c)) return 'panini';
+      if (/BOWL/.test(c)) return 'bowl';
+      return 'plat';
+    }
+
+    // Une ligne de question pour un groupe d'options
+    function kb2Ligne(o, p, listes, nomParCle) {
+      const type = kb2Type(o);
+      const noms = kb2NomsChoix(o, nomParCle);
+      const liste = noms && listes.get(kb2Signature(noms)) ? listes.get(kb2Signature(noms)).nom : null;
+      const retrait = (o.comportement || '') === 'retrait';
+      const mi = Number(o.min) || 0;
+      const ma = Number(o.max) || 0;
+      const multiple = ma > 1;
+      const s = multiple ? 's' : '';
+
+      // La question : un libellé saisi à la main est toujours prioritaire
+      let question;
+      if (o.libelle) {
+        question = /\?\s*$/.test(o.libelle) ? o.libelle : o.libelle + ' ?';
+      } else if (retrait) {
+        question = 'Faut-il retirer quelque chose ?';
+      } else if (type === 'VIANDE') {
+        question = multiple ? 'Quelles viandes ?' : 'Quelle viande ?';
+      } else if (type === 'SAUCE') {
+        question = /frites/i.test(String(p.details || ''))
+          ? `Quelle${s} sauce${s} pour votre ${kb2Plat(p)} et vos frites ?`
+          : `Quelle${s} sauce${s} ?`;
+      } else if (type === 'BOISSON') {
+        question = (noms && noms.length > 0 && noms.every(n => /33\s?CL/i.test(n))) ? 'Quelle boisson 33cl ?' : 'Quelle boisson ?';
+      } else if (type === 'DESSERT') {
+        question = 'Quel dessert ?';
+      } else if (type === 'ACCOMPAGNEMENT') {
+        question = 'Quel accompagnement ?';
+      } else if (type === 'TEX MEX') {
+        question = 'Quel tex mex ?';
+      } else if (type === 'FROMAGE') {
+        question = multiple ? 'Quels fromages ?' : 'Quel fromage ?';
+      } else {
+        question = `Quel choix pour ${type.toLowerCase()} ?`;
+      }
+
+      const parts = [];
+      if (!retrait) {
+        let compte = '';
+        if (ma > 0) compte = (mi === ma) ? String(ma) : (ma === 1 && mi === 0 ? '0 ou 1' : `de ${mi} à ${ma}`);
+        if (liste) compte += (compte ? ', ' : '') + `parmi ${liste}`;
+        if (compte) parts.push(compte);
+        const px = o.donnees_fournisseur && o.donnees_fournisseur.prix_unitaire;
+        if (px) {
+          const txt = kbLibellePrixSupplement(px.livraison, px.emporter, px.sur_place);
+          if (txt === 'gratuit') parts.push('inclus');
+          else {
+            const inc = Number(o.inclus_gratuit) || 0;
+            parts.push(inc > 0 ? `les ${inc} premiers inclus, ensuite ${txt}` : txt);
+          }
+        }
+        if (mi === 0) parts.push('le client peut refuser');
+      } else {
+        parts.push('retrait : à noter dans modifications');
+      }
+      const demander = KB2_TOUJOURS_DEMANDER || o.obligatoire || mi >= 1;
+      return question + (parts.length ? ` (${parts.join(' ; ')})` : '') + (demander ? ' [à demander]' : '');
+    }
+
+    async function genererTexteKbMenuRelieV2(businessId) {
+      const { data: produitsData, error: e1 } = await supabaseClient
+        .from('produits')
+        .select('id, nom, categorie, prix, prix_livraison, prix_emporter, prix_sur_place, taille, details, type_produit, position, famille_id, metadata, id_externe, produit_familles(nom, position), produit_options(*)')
+        .eq('business_id', businessId)
+        .eq('actif', true);
+      if (e1) throw e1;
+
+      const { data: attributsData, error: e2 } = await supabaseClient
+        .from('attributs')
+        .select('nom, categorie, position')
+        .eq('business_id', businessId)
+        .eq('actif', true)
+        .order('position', { ascending: true });
+      if (e2) throw e2;
+
+      const { data: suppData, error: e3 } = await supabaseClient
+        .from('supplements_prix')
+        .select('famille_id, produit_id, taille, prix_livraison, prix_emporter, prix_sur_place, attributs(nom)')
+        .eq('business_id', businessId);
+      if (e3) throw e3;
+
+      const { data: regles, error: e4 } = await supabaseClient
+        .from('regles_categorie')
+        .select('famille_id, produit_id, type_regle, contenu, position')
+        .eq('business_id', businessId)
+        .eq('actif', true)
+        .order('position', { ascending: true });
+      if (e4) throw e4;
+
+      const biz = await getInfosResto2(businessId);
+      let infoResto = '';
+      if (biz && biz.nom) {
+        infoResto = `RESTAURANT : ${biz.nom}\n`;
+        const adresse = formatAdresseResto(biz);
+        if (adresse) infoResto += `ADRESSE : ${adresse}\n`;
+        infoResto += '\n';
+      }
+
+      // ---- Index des règles ----
+      const reglesParFamilleId = {}, reglesParProduitId = {};
+      (regles || []).forEach(r => {
+        if (r.famille_id) (reglesParFamilleId[r.famille_id] = reglesParFamilleId[r.famille_id] || []).push(r);
+        else if (r.produit_id) (reglesParProduitId[r.produit_id] = reglesParProduitId[r.produit_id] || []).push(r);
+      });
+      const formatRegle = (r) => `${{ question: '❓', deduction: '📏', exclusivite: '⚠️', prononciation: '🔤' }[r.type_regle] || '•'} ${r.contenu}`;
+
+      // ---- Suppléments : liste par famille + taille, exceptions par produit ----
+      const suppDefaut = {};
+      const suppProduit = {};
+      (suppData || []).forEach(s => {
+        const ligne = { nom: (s.attributs && s.attributs.nom) || '?', l: s.prix_livraison, e: s.prix_emporter, s: s.prix_sur_place, taille: s.taille || '' };
+        if (s.produit_id) (suppProduit[s.produit_id] = suppProduit[s.produit_id] || []).push(ligne);
+        else if (s.famille_id) {
+          const f = (suppDefaut[s.famille_id] = suppDefaut[s.famille_id] || {});
+          (f[ligne.taille] = f[ligne.taille] || []).push(ligne);
+        }
+      });
+
+      // ---- Nom de base d'un produit (sans sa taille), pour les formules ----
+      const nomParExt = new Map();
+      (produitsData || []).forEach(p => {
+        if (!p.id_externe || nomParExt.has(p.id_externe)) return;
+        nomParExt.set(p.id_externe, (p.taille && p.nom.endsWith(' ' + p.taille)) ? p.nom.slice(0, -(p.taille.length + 1)) : p.nom);
+      });
+
+      // ---- Noms des choix avec accents (table attributs) ----
+      const nomParCle = new Map();
+      (attributsData || []).forEach(a => { if (!nomParCle.has(kbCle(a.nom))) nomParCle.set(kbCle(a.nom), a.nom); });
+
+      // ---- LISTES DE CHOIX : une liste par contenu distinct (plus de mélange entre groupes) ----
+      const listes = new Map();
+      (produitsData || []).forEach(p => (p.produit_options || []).forEach(o => {
+        const noms = kb2NomsChoix(o, nomParCle);
+        if (!noms) return;
+        const sig = kb2Signature(noms);
+        let l = listes.get(sig);
+        if (!l) { l = { type: kb2Type(o), noms, familles: new Set(), nom: '' }; listes.set(sig, l); }
+        l.familles.add(p.categorie || '');
+      }));
+      const parBase = new Map();
+      listes.forEach(l => {
+        let base = KB2_NOM_LISTE[l.type] || l.type;
+        if (l.type === 'BOISSON' && l.noms.length > 0 && l.noms.every(n => /33\s?CL/i.test(n))) base = 'BOISSONS 33CL';
+        if (!parBase.has(base)) parBase.set(base, []);
+        parBase.get(base).push(l);
+      });
+      const nomsPris = new Set();
+      parBase.forEach((arr, base) => {
+        arr.forEach(l => {
+          let nom = arr.length > 1 ? `${base} ${[...l.familles].join(' ')}` : base;
+          let n = 2;
+          while (nomsPris.has(nom)) { nom = `${base} ${n++}`; }
+          nomsPris.add(nom);
+          l.nom = nom;
+        });
+      });
+
+      // ---- Texte ----
+      let kb = 'MENU COMPLET\n\n' + infoResto;
+      kb += '=== LECTURE DU MENU ===\n\n';
+      kb += '• Chaque ligne « - » sous un produit est une question à poser, dans l\'ordre. [à demander] = question obligatoire.\n';
+      kb += '• Les choix ne viennent QUE de la liste nommée sur la ligne (voir LISTES DE CHOIX en fin de menu). Un choix hors liste est refusé.\n';
+      kb += '• Sur une ligne à plusieurs choix, chaque choix ne se prend qu\'une seule fois (deux sauces différentes, jamais deux fois la même).\n';
+      kb += '• Tout choix du client sur une ligne « - » se met dans supplements : le système applique le prix indiqué sur la ligne (inclus ou payant). Seule exception : une ligne « retrait » va dans modifications.\n';
+      kb += '• Une boisson choisie sur une ligne « - » d\'un produit fait partie de ce produit (jamais un article séparé) et compte comme boisson de la commande.\n';
+      kb += '• Un produit SANS ligne boisson n\'inclut pas de boisson : si le client en veut une, c\'est un ARTICLE À PART (famille BOISSONS, prix indiqué), jamais un choix noté sur un autre produit.\n\n';
+
+      const groupes = {};
+      (produitsData || []).forEach(p => {
+        const cat = p.categorie || 'AUTRES';
+        if (!groupes[cat]) groupes[cat] = { produits: [], ordre: p.produit_familles?.position ?? 999, familleId: p.famille_id };
+        groupes[cat].produits.push(p);
+      });
+      const cats = Object.keys(groupes).sort((a, b) => groupes[a].ordre - groupes[b].ordre);
+
+      cats.forEach(cat => {
+        const g = groupes[cat];
+        kb += `=== ${cat} ===\n\n`;
+        (reglesParFamilleId[g.familleId] || []).forEach(r => { kb += `${formatRegle(r)}\n`; });
+        if ((reglesParFamilleId[g.familleId] || []).length > 0) kb += '\n';
+
+        // Famille avec suppléments possibles mais sans aucune question : on le dit à l'agent
+        const aDesQuestions = g.produits.some(p => (p.produit_options || []).length > 0);
+        if (!aDesQuestions && suppDefaut[g.familleId]) {
+          kb += '⚠️ Aucune question à poser sur ces produits : la composition est fixe. Suppléments uniquement sur demande explicite du client ; un ingrédient absent de la liste des suppléments est refusé.\n\n';
+        }
+
+        const prods = g.produits.sort((a, b) => (a.position || 0) - (b.position || 0) || a.nom.localeCompare(b.nom));
+        prods.forEach(p => {
+          kb += `${p.nom} - ${kbPrixModes(p.prix_livraison, p.prix_emporter, p.prix_sur_place, p.prix)}\n`;
+          const compo = p.details || ((p.metadata && p.metadata.composition) || []).map(c => c.nom).join(', ');
+          if (compo) kb += `  Composition : ${compo}\n`;
+
+          // Formule (menu à prix fixe)
+          const formule = p.metadata && p.metadata.menu_compose;
+          if (formule && formule.length > 0) {
+            const morceaux = formule.map(c => {
+              const noms = (c.choix || []).map(id => nomParExt.get(id)).filter(Boolean);
+              const choix = (noms.length > 0 && noms.length <= 8) ? ` au choix : ${noms.join(', ')}` : ` au choix parmi les ${c.nom_famille} de la carte`;
+              return `${c.quantite} × ${c.nom_famille}${c.taille ? ` (taille ${c.taille})` : ''}${choix}`;
+            });
+            kb += `  Formule : ${morceaux.join(' ; ')}\n`;
+            kb += `  Prix fixe : les éléments choisis dans la formule ne sont pas facturés en plus.\n`;
+          }
+
+          // Questions du produit : dans l'ordre de position, puis viande, sauce, dessert, boisson
+          (p.produit_options || []).slice()
+            .sort((a, b) => ((a.position || 0) - (b.position || 0)) || ((KB2_RANG[kb2Type(a)] || 4.5) - (KB2_RANG[kb2Type(b)] || 4.5)))
+            .forEach(o => { kb += `  - ${kb2Ligne(o, p, listes, nomParCle)}\n`; });
+
+          // Suppléments propres à ce produit (différences avec la liste de sa famille)
+          const propres = suppProduit[p.id];
+          if (propres && propres.length > 0) {
+            const base = ((suppDefaut[p.famille_id] || {})[p.taille || ''] || []);
+            const cle = (x) => `${kbCle(x.nom)}|${x.l}|${x.e}|${x.s}`;
+            const dansBase = new Set(base.map(cle));
+            const differents = propres.filter(x => !dansBase.has(cle(x)));
+            if (differents.length > 0) {
+              kb += `  Suppléments particuliers à ce produit :\n` + kbLignesSupplements(differents, '    ');
+            }
+            const nomsPropres = new Set(propres.map(x => kbCle(x.nom)));
+            const retires = base.filter(x => !nomsPropres.has(kbCle(x.nom))).map(x => x.nom);
+            if (retires.length > 0) kb += `  Non disponibles sur ce produit : ${retires.join(', ')}\n`;
+          }
+          (reglesParProduitId[p.id] || []).forEach(r => { kb += `  ${formatRegle(r)}\n`; });
+          kb += '\n';
+        });
+
+        // Suppléments de la famille (par taille)
+        const defaut = suppDefaut[g.familleId];
+        if (defaut) {
+          const tailles = [];
+          prods.forEach(p => { const t = p.taille || ''; if (!tailles.includes(t)) tailles.push(t); });
+          Object.keys(defaut).forEach(t => { if (!tailles.includes(t)) tailles.push(t); });
+          kb += `SUPPLÉMENTS POSSIBLES - ${cat} (à ajouter sur demande du client) :\n`;
+          tailles.filter(t => defaut[t]).forEach(t => {
+            kb += t ? `  Taille ${t} :\n` : '';
+            kb += kbLignesSupplements(defaut[t], t ? '    ' : '  ');
+          });
+          kb += '\n';
+        }
+      });
+
+      // ---- Listes de choix ----
+      if (listes.size > 0) {
+        kb += '=== LISTES DE CHOIX ===\n\n';
+        [...listes.values()].sort((a, b) => a.nom.localeCompare(b.nom, 'fr')).forEach(l => {
+          kb += `${l.nom} : ${[...l.noms].sort((a, b) => a.localeCompare(b, 'fr')).join(', ')}\n\n`;
+        });
+      }
+
+      return kb;
     }
   </script>
 </body>
