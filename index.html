@@ -3429,6 +3429,7 @@
         const depuis = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
         const { data, error } = await supabaseClient.from('evenements').select('*')
           .eq('business_id', BUSINESS_ID).eq('type_evenement', 'appel_termine').eq('statut', 'a_verifier')
+          .is('traite_le', null)
           .gte('created_at', depuis).order('created_at', { ascending: false }).limit(50);
         if (error) throw error;
         const lire = (e) => { let d = e.details || {}; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (_) { d = {}; } } return d; };
@@ -3445,16 +3446,38 @@
           const anom = Array.isArray(d.anomalies) ? d.anomalies : [];
           const raison = (anom.find(a => ['refus_metier', 'erreur_technique', 'aucun_produit_reconnu', 'articles_non_extraits'].includes(a.type)) || anom[0] || {}).message || '';
           const quand = new Date(e.created_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
-          return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+          return `<div id="alerte-${escHtml(e.id)}" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
             <span><strong>${escHtml(quand)}</strong> · ${escHtml(e.client_nom || 'client inconnu')} ${escHtml(e.client_telephone || '')}</span>
             <span style="color:var(--muted);flex:1;min-width:200px;">${escHtml(raison)}</span>
-            <button class="btn btn-sm btn-secondary" onclick="openEvenementDetail('${escHtml(e.id)}')">Voir l'appel</button></div>`;
+            <button class="btn btn-sm btn-secondary" onclick="openEvenementDetail('${escHtml(e.id)}')">Voir l'appel</button>
+            <button class="btn-close" style="position:static;font-size:20px;line-height:1;" title="Marquer comme traité (retire l'alerte)" onclick="marquerAppelTraite('${escHtml(e.id)}')">×</button></div>`;
         }).join('');
-        zone.innerHTML = `<div class="groupe-note" style="margin-bottom:14px;">
-          <strong>⚠️ ${manquantes.length} appel(s) des 7 derniers jours : commande annoncée au client mais NON créée.</strong> À saisir à la main ou à rappeler.${lignes}</div>`;
+        zone.innerHTML = `<div class="groupe-note" id="commandes-alerte-bloc" style="margin-bottom:14px;">
+          <strong>⚠️ <span id="commandes-alerte-titre">${manquantes.length} appel(s)</span> des 7 derniers jours : commande annoncée au client mais NON créée.</strong> À saisir à la main ou à rappeler.
+          <div id="commandes-alerte-lignes">${lignes}</div></div>`;
       } catch (err) {
         console.warn('Appels sans commande : vérification impossible', err);
         zone.innerHTML = '';
+      }
+    }
+
+    // Marque un appel comme traité : il ne réapparaît plus dans le bandeau. Réversible en base (traite_le), rien n'est supprimé.
+    async function marquerAppelTraite(id, options) {
+      try {
+        const { error } = await supabaseClient.from('evenements').update({ traite_le: new Date().toISOString() }).eq('id', id);
+        if (error) throw error;
+        const ligne = document.getElementById('alerte-' + id);
+        if (ligne) ligne.remove();
+        const reste = document.querySelectorAll('#commandes-alerte-lignes > div').length;
+        const bloc = document.getElementById('commandes-alerte-bloc');
+        if (bloc && reste === 0) bloc.remove();
+        else {
+          const titre = document.getElementById('commandes-alerte-titre');
+          if (titre) titre.textContent = `${reste} appel(s)`;
+        }
+        if (options && options.fermerModal) closeModal('modal-commande');
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
       }
     }
 
@@ -4764,6 +4787,8 @@
             <button class="btn-close" onclick="closeModal('modal-commande')">×</button>
           </div>
           <div class="modal-body">
+            ${d.commande_creee !== true ? `<div class="form-actions" style="justify-content:flex-start;margin:0 0 16px;border-top:none;padding-top:0;">
+              <button class="btn btn-sm btn-secondary" onclick="marquerAppelTraite('${evt.id}', {fermerModal:true})">✓ Marquer cet appel comme traité</button></div>` : ''}
             ${erreurHtml}
             ${anomalies.length > 0 ? `
               <div class="anomalie-box">
