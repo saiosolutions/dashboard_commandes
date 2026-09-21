@@ -717,6 +717,7 @@
             <button type="button" class="nav-item" data-section="options" onclick="allerSection('options')"><span class="nav-pastille" id="pastille-options"></span><span class="nav-lib">Options produits</span><span class="nav-compte" id="compte-options"></span></button>
           </div>
           <div class="nav-groupe"><div class="nav-groupe-titre">Service</div>
+            <button type="button" class="nav-item" data-section="modes" onclick="allerSection('modes')"><span class="nav-pastille" id="pastille-modes"></span><span class="nav-lib">Modes de commande</span><span class="nav-compte" id="compte-modes"></span></button>
             <button type="button" class="nav-item" data-section="zones" onclick="allerSection('zones')"><span class="nav-pastille" id="pastille-zones"></span><span class="nav-lib">Zones de livraison</span><span class="nav-compte" id="compte-zones"></span></button>
             <button type="button" class="nav-item" data-section="horaires" onclick="allerSection('horaires')"><span class="nav-pastille" id="pastille-horaires"></span><span class="nav-lib">Horaires</span><span class="nav-compte" id="compte-horaires"></span></button>
             <button type="button" class="nav-item" data-section="messages" onclick="allerSection('messages')"><span class="nav-pastille" id="pastille-messages"></span><span class="nav-lib">Messages d'accueil</span><span class="nav-compte" id="compte-messages"></span></button>
@@ -850,6 +851,15 @@
 
         <div id="param-messages" class="param-section" style="display:none;">
           <div id="messages-content"></div>
+        </div>
+
+        <!-- SECTION MODES DE COMMANDE -->
+        <div id="param-modes" class="param-section" style="display:none;">
+          <div class="options-help">
+            🧭 Choisis les <strong>modes de commande</strong> proposés par ce restaurant. La question posée à l'accueil
+            (« Ce serait à emporter ou en livraison ? ») s'adapte automatiquement.
+          </div>
+          <div id="modes-contenu"><div class="loading">Chargement...</div></div>
         </div>
 
         <!-- SECTION CONNEXION API DU FOURNISSEUR -->
@@ -1245,7 +1255,7 @@
             *,
             client:client_id (nom, telephone),
             produits_commandes (
-              quantite, total, attributs_choisis, instructions_particulieres,
+              quantite, total, attributs_choisis, instructions_particulieres, produit_id,
               produit:produit_id (nom, prix)
             )
           `)
@@ -1266,6 +1276,7 @@
         if (error) throw error;
 
         commandes = data || [];
+        await chargerReferentielCommandes();
         renderCommandes();
       } catch (error) {
         content.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
@@ -1416,29 +1427,7 @@
       let articlesHtml = '';
       if (cmd.produits_commandes) {
         cmd.produits_commandes.forEach(item => {
-          let attrHtml = '';
-          if (item.attributs_choisis) {
-            const a = item.attributs_choisis;
-            if (a.viandes) attrHtml += `<div>🥩 ${Array.isArray(a.viandes) ? a.viandes.join(', ') : a.viandes}</div>`;
-            if (a.sauces_sandwich) attrHtml += `<div>🍯 Sandwich: ${Array.isArray(a.sauces_sandwich) ? a.sauces_sandwich.join(', ') : a.sauces_sandwich}</div>`;
-            if (a.sauces_plat) attrHtml += `<div>🍯 Plat: ${Array.isArray(a.sauces_plat) ? a.sauces_plat.join(', ') : a.sauces_plat}</div>`;
-            if (a.sauces_frites) attrHtml += `<div>🍟 Frites: ${Array.isArray(a.sauces_frites) ? a.sauces_frites.join(', ') : a.sauces_frites}</div>`;
-            if (a.fromages) attrHtml += `<div>🧀 ${Array.isArray(a.fromages) ? a.fromages.join(', ') : a.fromages}</div>`;
-                        if (a.supplements) {
-              // On n'affiche que les suppléments qui ne sont pas déjà montrés (viandes, sauces...)
-              const deja = [];
-              ['viandes', 'sauces_sandwich', 'sauces_plat', 'sauces_frites', 'fromages'].forEach(k => {
-                if (a[k]) (Array.isArray(a[k]) ? a[k] : String(a[k]).split(',')).forEach(x => deja.push(String(x).trim().toUpperCase()));
-              });
-              const reste = (Array.isArray(a.supplements) ? a.supplements : String(a.supplements).split(','))
-                .map(x => String(x).trim()).filter(x => {
-                  const i = deja.indexOf(x.toUpperCase());
-                  if (i >= 0) { deja.splice(i, 1); return false; }
-                  return true;
-                });
-              if (reste.length) attrHtml += `<div>➕ ${reste.join(', ')}</div>`;
-            }
-          }
+          const attrHtml = htmlChoixArticle(item);
           articlesHtml += `
             <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
               <div style="display: flex; justify-content: space-between;">
@@ -1570,7 +1559,7 @@
       // Masquer le bouton "Ajouter" sur Messages et Agent (ils ont leurs propres boutons)
       const btnAdd = document.getElementById('btn-add-param');
       if (btnAdd) {
-        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires' || section === 'import' || section === 'api') ? 'none' : '';
+        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires' || section === 'import' || section === 'api' || section === 'modes') ? 'none' : '';
       }
       // Afficher les boutons de génération uniquement sur la section Agent IA
       const btnGenMenu = document.getElementById('btn-gen-kbmenu');
@@ -1596,6 +1585,7 @@
       else if (currentParamSection === 'messages') await loadMessagesAccueil();
       else if (currentParamSection === 'agent') await loadRegles();   // 🆕
       else if (currentParamSection === 'api') await chargerConnexionApi();
+      else if (currentParamSection === 'modes') await chargerModes();
     }
 
     async function loadProduits() {
@@ -2642,7 +2632,7 @@
         const [fam, prod, attr, opt, zon, hor, reg, biz] = await Promise.all([
           compter('produit_familles'), compter('produits'), compter('attributs'), compter('produit_options'),
           compter('zones_service'), compter('business_horaires', { est_ouvert: true }), compter('regles_categorie', { actif: true }),
-          supabaseClient.from('business').select('messages_accueil').eq('id', bid).single()
+          supabaseClient.from('business').select('messages_accueil, type_params').eq('id', bid).single()
         ]);
         if (bid !== BUSINESS_ID) return;   // le restaurant a changé pendant le calcul
         const etat = (n) => n === null ? '' : (n > 0 ? 'ok' : 'warn');
@@ -2658,6 +2648,9 @@
         const m = (biz && biz.data && biz.data.messages_accueil) || {};
         const complet = ['ouvert_connu', 'ouvert_inconnu', 'ferme_connu', 'ferme_inconnu'].every(k => String(m[k] || '').trim() !== '');
         poserPastille('messages', null, complet ? 'ok' : 'warn', complet ? '' : 'à compléter');
+        const tpm = (biz && biz.data && biz.data.type_params) || {};
+        const modesOk = Array.isArray(tpm.modes_actifs) && tpm.modes_actifs.length > 0;
+        poserPastille('modes', null, modesOk ? 'ok' : 'warn', modesOk ? '' : 'à définir');
       } catch (err) {
         console.warn('Pastilles des paramétrages indisponibles', err);
       }
@@ -3188,6 +3181,239 @@
       } catch (err) {
         alert('❌ ' + err.message);
       }
+    }
+
+    // ========================================
+    // MODES DE COMMANDE : réglage par restaurant + question posée à l'accueil
+    // Stocké dans business.type_params.modes_actifs (jamais écrasé par la synchro API).
+    // ========================================
+    const MODES_COMMANDE = [
+      ['a_emporter', 'À emporter', 'à emporter'],
+      ['livraison', 'En livraison', 'en livraison'],
+      ['sur_place', 'Sur place', 'sur place']
+    ];
+
+    // Même règle que la fonction preCallWebhook : « Ce serait à emporter ou en livraison ? » (vide s'il n'y a qu'un mode)
+    function questionPourModes(modes) {
+      const ordre = ['sur_place', 'a_emporter', 'livraison'];   // même ordre que dans preCallWebhook
+      const libelles = ordre.filter(c => modes.includes(c)).map(c => MODES_COMMANDE.find(m => m[0] === c)[2]);
+      if (libelles.length < 2) return '';
+      const dernier = libelles.pop();
+      return `Ce serait ${libelles.join(', ')} ou ${dernier} ?`;
+    }
+
+    // Remplace la dernière phrase-question qui parle des modes par {{question_mode}}
+    function convertirMessageMode(texte) {
+      const t = String(texte || '');
+      if (/\{\{\s*question_mode\s*\}\}/.test(t)) return { etat: 'deja', texte: t };
+      const phrases = t.split(/(?<=[.!?])\s+/);
+      let idx = -1;
+      phrases.forEach((p, i) => { if (/\?\s*$/.test(p) && /emporter|livraison|sur place/i.test(p)) idx = i; });
+      if (idx < 0) return { etat: 'aucune', texte: t };
+      phrases[idx] = '{{question_mode}}';
+      return { etat: 'convertible', texte: phrases.join(' ') };
+    }
+
+    const MESSAGES_ACCUEIL_LIBELLES = [
+      ['ouvert_connu', 'Ouvert, client connu'], ['ouvert_inconnu', 'Ouvert, client inconnu'],
+      ['ferme_connu', 'Fermé, client connu'], ['ferme_inconnu', 'Fermé, client inconnu']
+    ];
+
+    async function chargerModes() {
+      const zone = document.getElementById('modes-contenu');
+      zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
+      try {
+        const { data, error } = await supabaseClient.from('business').select('type_params, messages_accueil').eq('id', BUSINESS_ID).single();
+        if (error) throw error;
+        const tp = (data && data.type_params) || {};
+        const fournisseur = (Array.isArray(tp.modes) ? tp.modes : []).map(m => m === 'emporter' ? 'a_emporter' : m);
+        const enregistres = Array.isArray(tp.modes_actifs);
+        let actifs = enregistres ? tp.modes_actifs : fournisseur.filter(m => m !== 'sur_place');
+        if (!enregistres && actifs.length === 0) actifs = ['a_emporter', 'livraison'];
+        const messages = (data && data.messages_accueil) || {};
+
+        let html = `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:18px;">
+          <div style="margin-bottom:12px;">${enregistres ? '<span class="badge badge-success">Réglage enregistré</span>' : '<span class="badge badge-warning">Pas encore enregistré : valeurs par défaut</span>'}</div>`;
+        MODES_COMMANDE.forEach(([code, lib]) => {
+          const propose = fournisseur.includes(code);
+          html += `<div class="checkbox-group" style="margin-bottom:10px;">
+            <input type="checkbox" id="mode-${code}" ${actifs.includes(code) ? 'checked' : ''} onchange="majApercuModes()">
+            <label for="mode-${code}" style="font-weight:600;">${lib}</label>
+            ${propose ? '<span class="badge badge-info">proposé par le fournisseur</span>' : ''}</div>`;
+        });
+        html += `<div id="modes-alertes" style="margin:12px 0;"></div>
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--muted);margin-top:14px;">Question posée à l'accueil</div>
+          <div id="modes-apercu" style="font-size:15px;margin:6px 0 16px;"></div>
+          <div class="form-actions" style="justify-content:flex-start;margin-top:0;border-top:none;padding-top:0;">
+            <button class="btn btn-primary" onclick="enregistrerModes()">💾 Enregistrer les modes</button></div></div>`;
+
+        html += `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;">
+          <h3 style="font-size:16px;margin-bottom:6px;">Messages d'accueil</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Pour que la question suive les modes, le message doit contenir <strong>{{question_mode}}</strong> à la place de la phrase actuelle. Un message sans ce texte n'est jamais modifié.</p>`;
+        let convertibles = 0;
+        MESSAGES_ACCUEIL_LIBELLES.forEach(([cle, lib]) => {
+          const r = convertirMessageMode(messages[cle]);
+          if (r.etat === 'convertible') convertibles++;
+          const badge = r.etat === 'deja' ? '<span class="badge badge-success">déjà dynamique</span>'
+            : r.etat === 'convertible' ? '<span class="badge badge-warning">à convertir</span>'
+            : '<span class="badge badge-info">aucune question de mode détectée</span>';
+          html += `<div style="border-top:1px solid var(--line);padding:10px 0;font-size:13px;">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><strong>${lib}</strong>${badge}</div>
+            <div style="color:var(--muted);">${escHtml(messages[cle] || '(vide)')}</div>
+            ${r.etat === 'convertible' ? `<div style="margin-top:4px;">➜ ${escHtml(r.texte)}</div>` : ''}</div>`;
+        });
+        html += convertibles > 0
+          ? `<div class="form-actions" style="justify-content:flex-start;"><button class="btn btn-secondary" onclick="convertirMessagesModes()">✍️ Insérer {{question_mode}} dans ${convertibles} message(s)</button></div>`
+          : '';
+        html += '</div>';
+        zone.innerHTML = html;
+        majApercuModes();
+      } catch (err) {
+        zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    function modesCoches() {
+      return MODES_COMMANDE.map(m => m[0]).filter(code => { const c = document.getElementById('mode-' + code); return c && c.checked; });
+    }
+
+    function majApercuModes() {
+      const modes = modesCoches();
+      const q = questionPourModes(modes);
+      const ap = document.getElementById('modes-apercu');
+      if (ap) ap.textContent = q ? '« ' + q + ' »' : '(aucune question : un seul mode)';
+      const al = document.getElementById('modes-alertes');
+      if (!al) return;
+      let txt = '';
+      if (modes.length === 0) txt += '<div class="groupe-note">⚠️ Cochez au moins un mode.</div>';
+      if (modes.length === 1) txt += '<div class="groupe-note">⚠️ Un seul mode : la question n\'est pas posée. Le prompt de l\'agent devra alors être adapté (il demande encore « livraison ou à emporter »).</div>';
+      if (modes.includes('sur_place')) txt += '<div class="groupe-note">⚠️ « Sur place » n\'est pas encore géré par le prompt ni par l\'outil de l\'agent : ne l\'activez pas sur un restaurant en service avant leur adaptation.</div>';
+      al.innerHTML = txt;
+    }
+
+    async function enregistrerModes() {
+      const modes = modesCoches();
+      if (modes.length === 0) { alert('Cochez au moins un mode.'); return; }
+      try {
+        const { data, error } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+        if (error) throw error;
+        const tp = (data && data.type_params) || {};
+        const { error: e2 } = await supabaseClient.from('business').update({ type_params: { ...tp, modes_actifs: modes } }).eq('id', BUSINESS_ID);
+        if (e2) throw e2;
+        alert('✅ Modes enregistrés');
+        majPastillesParam();
+        chargerModes();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    async function convertirMessagesModes() {
+      if (!confirm('Remplacer, dans les messages concernés, la phrase sur les modes par {{question_mode}} ?')) return;
+      try {
+        const { data, error } = await supabaseClient.from('business').select('messages_accueil').eq('id', BUSINESS_ID).single();
+        if (error) throw error;
+        const messages = { ...((data && data.messages_accueil) || {}) };
+        let n = 0;
+        MESSAGES_ACCUEIL_LIBELLES.forEach(([cle]) => {
+          const r = convertirMessageMode(messages[cle]);
+          if (r.etat === 'convertible') { messages[cle] = r.texte; n++; }
+        });
+        const { error: e2 } = await supabaseClient.from('business').update({ messages_accueil: messages }).eq('id', BUSINESS_ID);
+        if (e2) throw e2;
+        alert(`✅ ${n} message(s) converti(s)`);
+        chargerModes();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    // ========================================
+    // FICHE COMMANDE : choix de chaque article, rangés par groupe (viandes, sauces, boisson...)
+    // Source : la liste validée pendant l'appel (celle qui fixe le prix), comparée aux groupes du produit.
+    // ========================================
+    let referentielCommandes = null;   // { attributs: Map(nom normalisé -> {nom, categorie}), groupes: Map(produit_id -> groupes) }
+
+    async function chargerReferentielCommandes() {
+      referentielCommandes = null;
+      const bid = BUSINESS_ID;
+      try {
+        const lire = async (table, colonnes) => {
+          const sortie = [];
+          for (let debut = 0; ; debut += 1000) {
+            const { data, error } = await supabaseClient.from(table).select(colonnes).eq('business_id', bid).range(debut, debut + 999);
+            if (error) throw error;
+            sortie.push(...(data || []));
+            if (!data || data.length < 1000) break;
+          }
+          return sortie;
+        };
+        const [attrs, opts] = await Promise.all([lire('attributs', 'nom, categorie'), lire('produit_options', 'produit_id, categorie_attribut, donnees_fournisseur')]);
+        const attributs = new Map();
+        attrs.forEach(a => { const k = kbCle(a.nom); if (!attributs.has(k)) attributs.set(k, { nom: a.nom, categorie: a.categorie }); });
+        const groupes = new Map();
+        opts.forEach(o => {
+          const ids = o.donnees_fournisseur && o.donnees_fournisseur.ids;
+          const cles = new Set(ids && typeof ids === 'object' ? Object.keys(ids).map(kbCle) : []);
+          if (!groupes.has(o.produit_id)) groupes.set(o.produit_id, []);
+          groupes.get(o.produit_id).push({ type: kb2Type(o), cat: kbCle(o.categorie_attribut), cles });
+        });
+        if (bid === BUSINESS_ID) referentielCommandes = { attributs, groupes };
+      } catch (err) {
+        console.warn('Référentiel des commandes indisponible : affichage simplifié', err);
+        referentielCommandes = null;
+      }
+    }
+
+    const LIBELLES_GROUPES_CHOIX = {
+      'VIANDE': '🥩 Viandes :', 'SAUCE': '🍯 Sauces :', 'BOISSON': '🥤 Boisson :', 'DESSERT': '🍰 Dessert :',
+      'ACCOMPAGNEMENT': '🍽️ Accompagnement :', 'TEX MEX': '🍗 Tex mex :', 'FROMAGE': '🧀 Fromages :'
+    };
+
+    function htmlChoixArticle(item) {
+      const a = item.attributs_choisis || {};
+      const liste = (x) => (Array.isArray(x) ? x : (x ? String(x).split(',') : [])).map(v => String(v).trim()).filter(Boolean);
+      const ligne = (etiquette, noms, style) => `<div${style ? ` style="${style}"` : ''}>${etiquette} ${noms.map(escHtml).join(', ')}</div>`;
+      const affiches = new Set();
+      let htmlSupp = '';
+      let avecGroupes = false;
+
+      const supp = liste(a.supplements);
+      if (supp.length > 0) {
+        const ref = referentielCommandes;
+        const groupes = (ref && ref.groupes.get(item.produit_id)) || [];
+        avecGroupes = groupes.some(x => x.cles.size > 0);
+        const parType = new Map();
+        const extras = [], horsListe = [];
+        supp.forEach(nom => {
+          const k = kbCle(nom);
+          const at = ref ? ref.attributs.get(k) : null;
+          const affiche = at ? at.nom : nom;
+          const g = groupes.find(x => x.cles.has(k));
+          if (g) {
+            if (!parType.has(g.type)) parType.set(g.type, []);
+            parType.get(g.type).push(affiche);
+          } else if (at && groupes.some(x => x.cles.size > 0 && (x.cat === kbCle(at.categorie) || x.type === kbCle(at.categorie)))) {
+            horsListe.push(affiche);   // même nature qu'un groupe du produit, mais absent de sa liste
+          } else {
+            extras.push(affiche);
+          }
+          affiches.add(k);
+        });
+        parType.forEach((noms, type) => { htmlSupp += ligne(LIBELLES_GROUPES_CHOIX[type] || ('📋 ' + type + ' :'), noms); });
+        if (extras.length) htmlSupp += ligne('➕ Suppléments :', extras);
+        if (horsListe.length) htmlSupp += ligne('⚠️ Hors liste du produit :', horsListe, 'color:var(--err);font-weight:600;');
+      }
+
+      // Détails issus de l'analyse de l'appel : seulement ce qui n'est pas déjà affiché ci-dessus
+      const reste = (champ) => liste(a[champ]).filter(n => !affiches.has(kbCle(n)));
+      let htmlAnalyse = '';
+      [['viandes', '🥩'], ['sauces_sandwich', '🍯 Sandwich:'], ['sauces_plat', '🍯 Plat:'], ['sauces_frites', '🍟 Frites:'], ['fromages', '🧀']].forEach(([champ, etiq]) => {
+        const r = reste(champ);
+        if (r.length) htmlAnalyse += ligne(etiq, r);
+      });
+      // Produit à groupes (restaurant relié) : les choix rangés d'abord ; sinon ordre habituel (analyse, puis suppléments)
+      return avecGroupes ? htmlSupp + htmlAnalyse : htmlAnalyse + htmlSupp;
     }
 
     function catPillClass(cat) {
@@ -4433,8 +4659,8 @@
         articles.forEach(item => {
           let attrHtml = '';
           if (item.viandes)      attrHtml += `<div style="font-size:12px;color:#666;">🥩 ${item.viandes}</div>`;
-          if (item.sauces_plat)  attrHtml += `<div style="font-size:12px;color:#666;">🍯 Plat: ${item.sauces_plat}</div>`;
-          if (item.sauces_frites)attrHtml += `<div style="font-size:12px;color:#666;">🍟 Frites: ${item.sauces_frites}</div>`;
+          if (item.sauces_plat)  attrHtml += `<div style="font-size:12px;color:#666;">🍯 Sauces (plat) : ${item.sauces_plat}</div>`;
+          if (item.sauces_frites)attrHtml += `<div style="font-size:12px;color:#666;">🍟 Sauces (frites) : ${item.sauces_frites}</div>`;
           if (item.fromages)     attrHtml += `<div style="font-size:12px;color:#666;">🧀 ${item.fromages}</div>`;
           if (item.supplements)  attrHtml += `<div style="font-size:12px;color:#666;">➕ ${item.supplements}</div>`;
           if (item.modifications)attrHtml += `<div style="font-size:12px;color:#f57c00;">💬 ${item.modifications}</div>`;
@@ -4477,7 +4703,7 @@
           ${pastillesModal}
         </div>
       `;
-      const erreurHtml = evt.error_message ? `
+      const erreurHtml = (evt.error_message && evt.statut !== 'a_verifier') ? `
         <div style="background: #ffebee; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #f44336;">
           <strong>❌ Erreur</strong><br>
           <span style="font-size: 14px; color: #c62828;">${evt.error_message}</span>
@@ -4512,6 +4738,7 @@
             ${adresseHtml}
             <div style="margin-bottom: 16px;">
               <strong>📦 Articles</strong>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px;">Tels que compris par l'analyse de l'appel. La commande enregistrée peut les regrouper autrement (une boisson incluse est rangée dans son produit).</div>
               <div style="margin-top: 12px;">${articlesHtml}</div>
             </div>
             <div style="border-top: 1px solid var(--line); padding-top: 14px; font-size: 18px; font-weight: bold; text-align: right; margin-bottom: 14px;">
@@ -4553,7 +4780,7 @@
           <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 800px;">
             <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
               💡 Ces phrases sont dites par l'assistant vocal dès le décrochage.
-              Utilisez <strong>{{nom_client}}</strong> pour insérer le nom du client.
+              Utilisez <strong>{{nom_client}}</strong> pour insérer le nom du client, et <strong>{{question_mode}}</strong> pour la question des modes de commande (générée d'après la section « Modes de commande »).
             </p>
             <div class="form-group">
               <label>✅ Ouvert — Client connu</label>
