@@ -2470,6 +2470,21 @@
       `;
     }
  
+    // Message d'erreur lisible quand la publication vers ElevenLabs échoue (statut + motif renvoyés par la fonction)
+    function messageErreurPublication(data) {
+      let txt = (data && data.error) || 'erreur inconnue';
+      if (data && data.statut_elevenlabs) txt += ` (ElevenLabs : HTTP ${data.statut_elevenlabs})`;
+      if (data && data.details) {
+        let d = data.details;
+        try {
+          const j = JSON.parse(d);
+          if (j && j.detail) d = (typeof j.detail === 'string') ? j.detail : JSON.stringify(j.detail);
+        } catch (_) {}
+        txt += ' — ' + String(d).slice(0, 300);
+      }
+      return txt;
+    }
+
     // Envoie le contenu affiché à l'écran vers l'agent (ElevenLabs), via l'Edge Function publier-kb
     async function publierKbVersElevenLabs() {
       const bouton = document.getElementById('btn-publier-kb');
@@ -2494,7 +2509,7 @@
         if (reponse.ok) {
           zoneResultat.innerHTML = '<span style="color:var(--ok);font-weight:600;">✅ Publié avec succès.</span>';
         } else {
-          zoneResultat.innerHTML = `<span style="color:var(--err);font-weight:600;">❌ Échec : ${data.error || 'erreur inconnue'}</span>`;
+          zoneResultat.innerHTML = `<span style="color:var(--err);font-weight:600;">❌ Échec : ${messageErreurPublication(data).replace(/</g, '&lt;')}</span>`;
         }
       } catch (err) {
         zoneResultat.innerHTML = `<span style="color:var(--err);font-weight:600;">❌ Erreur réseau : ${err.message}</span>`;
@@ -5171,7 +5186,7 @@
         body: JSON.stringify({ business_id: businessId, type, content: contenu })
       });
       const data = await reponse.json();
-      if (!reponse.ok) throw new Error(data.error || 'Erreur inconnue');
+      if (!reponse.ok) throw new Error(messageErreurPublication(data));
       return data;
     }
     // ========================================
