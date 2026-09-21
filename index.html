@@ -700,6 +700,7 @@
           <button class="btn-filter" id="filter-range" onclick="showDateRangePicker()">📆 Plage de dates</button>
           <button class="btn btn-secondary" onclick="loadCommandes()">🔄 Actualiser</button>
         </div>
+        <div id="commandes-alerte"></div>
         <div id="commandes-content">
           <div class="loading">Chargement...</div>
         </div>
@@ -1278,6 +1279,7 @@
         commandes = data || [];
         await chargerReferentielCommandes();
         renderCommandes();
+        chargerAppelsSansCommande();
       } catch (error) {
         content.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
       }
@@ -3414,6 +3416,46 @@
       });
       // Produit à groupes (restaurant relié) : les choix rangés d'abord ; sinon ordre habituel (analyse, puis suppléments)
       return avecGroupes ? htmlSupp + htmlAnalyse : htmlAnalyse + htmlSupp;
+    }
+
+    // ========================================
+    // APPELS AVEC COMMANDE ANNONCÉE MAIS NON CRÉÉE (7 derniers jours)
+    // Filet de sécurité : une commande dont le prix a été annoncé au client ne doit jamais rester invisible.
+    // ========================================
+    async function chargerAppelsSansCommande() {
+      const zone = document.getElementById('commandes-alerte');
+      if (!zone) return;
+      try {
+        const depuis = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+        const { data, error } = await supabaseClient.from('evenements').select('*')
+          .eq('business_id', BUSINESS_ID).eq('type_evenement', 'appel_termine').eq('statut', 'a_verifier')
+          .gte('created_at', depuis).order('created_at', { ascending: false }).limit(50);
+        if (error) throw error;
+        const lire = (e) => { let d = e.details || {}; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (_) { d = {}; } } return d; };
+        const manquantes = (data || []).filter(e => {
+          const d = lire(e);
+          const anom = Array.isArray(d.anomalies) ? d.anomalies : [];
+          const annonce = d.montant_annonce || (Array.isArray(d.articles) && d.articles.length > 0);
+          return d.commande_creee === false && annonce && !anom.some(a => a.type === 'refus_client');
+        });
+        if (manquantes.length === 0) { zone.innerHTML = ''; return; }
+        manquantes.forEach(e => { if (!evenements.some(x => x.id === e.id)) evenements.push(e); });   // consultables via openEvenementDetail
+        const lignes = manquantes.map(e => {
+          const d = lire(e);
+          const anom = Array.isArray(d.anomalies) ? d.anomalies : [];
+          const raison = (anom.find(a => ['refus_metier', 'erreur_technique', 'aucun_produit_reconnu', 'articles_non_extraits'].includes(a.type)) || anom[0] || {}).message || '';
+          const quand = new Date(e.created_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+          return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+            <span><strong>${escHtml(quand)}</strong> · ${escHtml(e.client_nom || 'client inconnu')} ${escHtml(e.client_telephone || '')}</span>
+            <span style="color:var(--muted);flex:1;min-width:200px;">${escHtml(raison)}</span>
+            <button class="btn btn-sm btn-secondary" onclick="openEvenementDetail('${escHtml(e.id)}')">Voir l'appel</button></div>`;
+        }).join('');
+        zone.innerHTML = `<div class="groupe-note" style="margin-bottom:14px;">
+          <strong>⚠️ ${manquantes.length} appel(s) des 7 derniers jours : commande annoncée au client mais NON créée.</strong> À saisir à la main ou à rappeler.${lignes}</div>`;
+      } catch (err) {
+        console.warn('Appels sans commande : vérification impossible', err);
+        zone.innerHTML = '';
+      }
     }
 
     function catPillClass(cat) {
@@ -6488,6 +6530,10 @@
           (p.produit_options || []).slice()
             .sort((a, b) => ((a.position || 0) - (b.position || 0)) || ((KB2_RANG[kb2Type(a)] || 4.5) - (KB2_RANG[kb2Type(b)] || 4.5)))
             .forEach(o => { kb += `  - ${kb2Ligne(o, p, listes, nomParCle)}\n`; });
+          // Produit sans aucune question dans une famille dont d'autres produits en ont : on le dit (sinon l'agent recopie la question du voisin)
+          if ((p.produit_options || []).length === 0 && aDesQuestions && (reglesParProduitId[p.id] || []).length === 0) {
+            kb += '  Aucune question à poser sur ce produit.\n';
+          }
 
           // Suppléments propres à ce produit (différences avec la liste de sa famille)
           const propres = suppProduit[p.id];
