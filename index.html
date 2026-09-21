@@ -206,6 +206,57 @@
       .menu-panel { min-width: 100%; }
     }
 
+    /* NAVIGATION PARAMÉTRAGES — menu latéral groupé */
+    .param-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 22px; align-items: start; }
+    .param-main { min-width: 0; }
+    .param-nav {
+      background: white; border: 1px solid var(--line); border-radius: 12px;
+      padding: 8px 10px 14px; position: sticky; top: 12px;
+    }
+    .nav-groupe-titre {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      color: var(--muted); margin: 14px 0 6px 10px;
+    }
+    .nav-groupe:first-child .nav-groupe-titre { margin-top: 6px; }
+    .nav-item {
+      display: flex; width: 100%; align-items: center; gap: 10px; padding: 9px 10px;
+      border: none; border-radius: 8px; background: transparent; text-align: left;
+      font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer; font-family: inherit;
+    }
+    .nav-item:hover { background: #f4f5f7; }
+    .nav-item.actif { background: #eceef1; font-weight: 700; }
+    .nav-pastille { width: 9px; height: 9px; border-radius: 50%; background: #c9cdd3; flex-shrink: 0; }
+    .nav-pastille.ok { background: var(--ok); }
+    .nav-pastille.warn { background: #c77700; }
+    .nav-lib { flex-grow: 1; }
+    .nav-compte { font-size: 12px; color: var(--muted); }
+
+    /* OPTIONS PAR FAMILLE (groupes) */
+    .chips-fam { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .chip-fam {
+      padding: 8px 14px; border-radius: 999px; border: 1px solid #c9cdd3; background: white;
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; color: var(--ink);
+    }
+    .chip-fam.actif { background: var(--accent); color: white; border-color: var(--accent); }
+    .groupe-carte { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .groupe-tete { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .groupe-detail { font-size: 14px; font-weight: 600; }
+    .groupe-etiquette { margin-left: auto; }
+    .groupe-produits { margin: 10px 0 12px; }
+    .chip-prod { display: inline-block; padding: 3px 9px; border-radius: 6px; background: #eceef1; font-size: 12px; font-weight: 600; margin: 2px 4px 2px 0; }
+    .groupe-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .groupe-note { background: var(--warn-bg); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--warn); margin-bottom: 8px; }
+    .regle-groupe td { background: #fafbfc; font-size: 13px; }
+    .suggestions-zone { background: white; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+
+    @media (max-width: 768px) {
+      .param-layout { grid-template-columns: 1fr; }
+      .param-nav { position: static; display: flex; overflow-x: auto; gap: 6px; padding: 8px; }
+      .nav-groupe { display: contents; }
+      .nav-groupe-titre { display: none; }
+      .nav-item { width: auto; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; }
+    }
+
     /* TOOLBAR */
     .toolbar {
       display: flex; justify-content: space-between; align-items: center;
@@ -657,10 +708,30 @@
 
     <!-- TAB: PARAMETRAGES -->
     <div id="tab-parametrages" class="tab-content">
-      <div class="container">
+      <div class="container param-layout">
+        <aside class="param-nav" id="param-nav" aria-label="Sections des paramétrages">
+          <div class="nav-groupe"><div class="nav-groupe-titre">Catalogue</div>
+            <button type="button" class="nav-item" data-section="familles" onclick="allerSection('familles')"><span class="nav-pastille" id="pastille-familles"></span><span class="nav-lib">Familles</span><span class="nav-compte" id="compte-familles"></span></button>
+            <button type="button" class="nav-item" data-section="produits" onclick="allerSection('produits')"><span class="nav-pastille" id="pastille-produits"></span><span class="nav-lib">Produits</span><span class="nav-compte" id="compte-produits"></span></button>
+            <button type="button" class="nav-item" data-section="attributs" onclick="allerSection('attributs')"><span class="nav-pastille" id="pastille-attributs"></span><span class="nav-lib">Attributs</span><span class="nav-compte" id="compte-attributs"></span></button>
+            <button type="button" class="nav-item" data-section="options" onclick="allerSection('options')"><span class="nav-pastille" id="pastille-options"></span><span class="nav-lib">Options produits</span><span class="nav-compte" id="compte-options"></span></button>
+          </div>
+          <div class="nav-groupe"><div class="nav-groupe-titre">Service</div>
+            <button type="button" class="nav-item" data-section="zones" onclick="allerSection('zones')"><span class="nav-pastille" id="pastille-zones"></span><span class="nav-lib">Zones de livraison</span><span class="nav-compte" id="compte-zones"></span></button>
+            <button type="button" class="nav-item" data-section="horaires" onclick="allerSection('horaires')"><span class="nav-pastille" id="pastille-horaires"></span><span class="nav-lib">Horaires</span><span class="nav-compte" id="compte-horaires"></span></button>
+            <button type="button" class="nav-item" data-section="messages" onclick="allerSection('messages')"><span class="nav-pastille" id="pastille-messages"></span><span class="nav-lib">Messages d'accueil</span><span class="nav-compte" id="compte-messages"></span></button>
+          </div>
+          <div class="nav-groupe"><div class="nav-groupe-titre">Agent</div>
+            <button type="button" class="nav-item" data-section="agent" onclick="allerSection('agent')"><span class="nav-pastille" id="pastille-agent"></span><span class="nav-lib">Règles et textes de l'agent</span><span class="nav-compte" id="compte-agent"></span></button>
+          </div>
+          <div class="nav-groupe"><div class="nav-groupe-titre">Import</div>
+            <button type="button" class="nav-item" data-section="import" onclick="allerSection('import')"><span class="nav-pastille" id="pastille-import"></span><span class="nav-lib">Import produits (CSV)</span><span class="nav-compte" id="compte-import"></span></button>
+          </div>
+        </aside>
+        <div class="param-main">
         <div class="toolbar">
           <div class="toolbar-left">
-            <select id="param-section" onchange="switchParamSection(this.value)">
+            <select id="param-section" style="display:none;" onchange="switchParamSection(this.value)">
               <option value="familles">Familles de produits</option>
               <option value="produits">Produits</option>
               <option value="import">📥 Import produits (CSV)</option>
@@ -731,7 +802,11 @@
             <strong>Min/Max</strong> = combien le client peut choisir, <strong>Obligatoire</strong> =
             l'agent doit toujours poser la question, <strong>Inclus</strong> = combien sont compris dans le prix.
           </div>
-          <div class="toolbar">
+          <div class="sel-toolbar" id="options-vues">
+            <button class="btn btn-primary" id="btn-vue-groupes" onclick="changerVueOptions('groupes')">🧩 Par famille (groupes)</button>
+            <button class="btn btn-secondary" id="btn-vue-produits" onclick="changerVueOptions('produits')">📋 Par produit (détail)</button>
+          </div>
+          <div class="toolbar" id="options-filtres" style="display:none;">
             <div class="toolbar-left">
               <input type="text" id="search-options" placeholder="Rechercher un produit..." style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
               <select id="filter-options-categorie" onchange="renderProduitOptions()">
@@ -739,7 +814,7 @@
               </select>
             </div>
           </div>
-          <div class="sel-toolbar">
+          <div class="sel-toolbar" id="options-modes" style="display:none;">
             <button class="btn btn-secondary" id="btn-mode-select" onclick="toggleModeSelection()">☑ Sélectionner des produits</button>
             <button class="btn btn-secondary" id="btn-mode-delete" onclick="toggleModeSuppression()">🗑️ Supprimer des règles</button>
           </div>
@@ -793,11 +868,14 @@
           </div>
           <div class="sel-toolbar">
             <button class="btn btn-secondary" onclick="openAddRegle()">➕ Ajouter une règle</button>
+            <button class="btn btn-secondary" onclick="analyserSuggestions()">💡 Suggérer des règles d'après le menu</button>
           </div>
+          <div id="suggestions-contenu"></div>
           <div id="regles-content">
             <div class="loading">Chargement...</div>
           </div>
         </div>
+        </div><!-- /param-main -->
       </div>
     </div>
 
@@ -885,6 +963,9 @@
     };
     let clients = [];
     let produitOptions = [];      // 🆕 stocke les lignes de produit_options (avec le produit joint)
+    let vueOptions = 'groupes';   // 'groupes' (par famille) ou 'produits' (détail)
+    let familleGroupes = null;    // famille affichée dans la vue par groupes
+    let groupesAffiches = [];     // groupes de la famille affichée (référencés par leur numéro dans les boutons)
     let tarifsAppels = { prix_credit: 0.00015, prix_minute: 0.01 };  // tarifs, chargés depuis la base
     let logsPage = 0;             // page courante du journal (0 = première)
     const LOGS_PAR_PAGE = 50;     // nombre d'appels chargés par page
@@ -1062,7 +1143,7 @@
       await chargerTarifs();
       // Recharge l'onglet actuellement affiché avec les données du nouveau restaurant
       if (currentTab === 'commandes') loadCommandes();
-      else if (currentTab === 'parametrages') loadParamData();
+      else if (currentTab === 'parametrages') { majPastillesParam(); loadParamData(); }
       else if (currentTab === 'clients') loadClients();
       else if (currentTab === 'logs') loadLogs();
     }
@@ -1143,7 +1224,7 @@
       document.getElementById('tab-' + tab).classList.add('active');
 
       if (tab === 'commandes') loadCommandes();
-      else if (tab === 'parametrages') loadParamData();
+      else if (tab === 'parametrages') { majNavParam(); majPastillesParam(); loadParamData(); }
       else if (tab === 'clients') loadClients();
       else if (tab === 'logs') loadLogs();
     }
@@ -1505,6 +1586,7 @@
       if (btnSyncApi) btnSyncApi.style.display = (section === 'agent') ? '' : 'none';
       const btnSyncEcrire = document.getElementById('btn-sync-ecrire');
       if (btnSyncEcrire) btnSyncEcrire.style.display = (section === 'agent') ? '' : 'none';
+      majNavParam();
       majBoutonsAgent();
       
       loadParamData();
@@ -1615,6 +1697,7 @@
         filterSelect.innerHTML = '<option value="">Toutes catégories</option>' +
           categories.map(c => `<option value="${c}">${c}</option>`).join('');
 
+        appliquerVueOptions();
         renderProduitOptions();
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
@@ -1688,8 +1771,21 @@
         '<th><input type="checkbox" class="bulk-select-all" data-type="regles" onclick="toggleBulkSelectAll(\'regles\')"></th>' +
         '<th>Type</th><th>Cible</th><th>Contenu</th><th>Actif</th><th>Actions</th>' +
         '</tr></thead><tbody>';
-      reglesAgent.forEach(r => {
+      const triees = reglesAgent.slice().sort((a, b) => {
+        const ca = nomCible(a), cb = nomCible(b);
+        return (ca.niveau === cb.niveau ? 0 : (ca.niveau === 'Famille' ? -1 : 1))
+          || ca.nom.localeCompare(cb.nom, 'fr') || ((a.position || 0) - (b.position || 0));
+      });
+      let derniereCible = null;
+      triees.forEach(r => {
         const c = nomCible(r);
+        const cleCible = c.niveau + '|' + c.nom;
+        if (cleCible !== derniereCible) {
+          derniereCible = cleCible;
+          const nb = triees.filter(x => { const cx = nomCible(x); return cx.niveau === c.niveau && cx.nom === c.nom; }).length;
+          html += `<tr class="regle-groupe"><td colspan="6">${c.niveau === 'Famille' ? '📁' : '🍽️'} ${c.niveau} · <strong>${c.nom}</strong> <span style="color:var(--muted);">(${nb} règle${nb > 1 ? 's' : ''})</span>
+            <button class="fam-check-btn" onclick="cocherReglesCible('${c.niveau}', this.dataset.nom)" data-nom="${String(c.nom).replace(/"/g, '&quot;')}" style="margin-left:12px;">☑ Tout cocher</button></td></tr>`;
+        }
         html += `
           <tr>
             <td><input type="checkbox" class="bulk-check" data-type="regles" data-id="${r.id}" ${bulkSelections.regles.has(r.id) ? 'checked' : ''} onclick="toggleBulkSelect('regles', '${r.id}')"></td>
@@ -2519,6 +2615,452 @@
       }
     }
 
+    // ========================================
+    // NAVIGATION DES PARAMÉTRAGES : menu latéral groupé + pastilles d'état
+    // ========================================
+    function allerSection(section) {
+      const sel = document.getElementById('param-section');
+      if (sel) sel.value = section;
+      switchParamSection(section);
+    }
+
+    function majNavParam() {
+      document.querySelectorAll('#param-nav .nav-item').forEach(b => b.classList.toggle('actif', b.dataset.section === currentParamSection));
+    }
+
+    function poserPastille(section, nombre, etat, texte) {
+      const p = document.getElementById('pastille-' + section);
+      const c = document.getElementById('compte-' + section);
+      if (p) p.className = 'nav-pastille' + (etat ? ' ' + etat : '');
+      if (c) c.textContent = (texte !== undefined) ? texte : (nombre === null || nombre === undefined ? '' : String(nombre));
+    }
+
+    // Compte les éléments de chaque section pour afficher une pastille (complet / à compléter)
+    async function majPastillesParam() {
+      try {
+        const bid = BUSINESS_ID;
+        const compter = async (table, filtres) => {
+          let q = supabaseClient.from(table).select('id', { count: 'exact', head: true }).eq('business_id', bid);
+          Object.keys(filtres || {}).forEach(k => { q = q.eq(k, filtres[k]); });
+          const { count, error } = await q;
+          return error ? null : (count || 0);
+        };
+        const [fam, prod, attr, opt, zon, hor, reg, biz] = await Promise.all([
+          compter('produit_familles'), compter('produits'), compter('attributs'), compter('produit_options'),
+          compter('zones_service'), compter('business_horaires', { est_ouvert: true }), compter('regles_categorie', { actif: true }),
+          supabaseClient.from('business').select('messages_accueil').eq('id', bid).single()
+        ]);
+        if (bid !== BUSINESS_ID) return;   // le restaurant a changé pendant le calcul
+        const etat = (n) => n === null ? '' : (n > 0 ? 'ok' : 'warn');
+        poserPastille('familles', fam, etat(fam));
+        poserPastille('produits', prod, etat(prod));
+        poserPastille('attributs', attr, etat(attr));
+        poserPastille('options', opt, etat(opt));
+        poserPastille('zones', zon, etat(zon));
+        poserPastille('horaires', null, etat(hor), hor ? '' : 'à compléter');
+        poserPastille('agent', reg, etat(reg));
+        poserPastille('import', null, '', '');
+        const m = (biz && biz.data && biz.data.messages_accueil) || {};
+        const complet = ['ouvert_connu', 'ouvert_inconnu', 'ferme_connu', 'ferme_inconnu'].every(k => String(m[k] || '').trim() !== '');
+        poserPastille('messages', null, complet ? 'ok' : 'warn', complet ? '' : 'à compléter');
+      } catch (err) {
+        console.warn('Pastilles des paramétrages indisponibles', err);
+      }
+    }
+
+    // ========================================
+    // OPTIONS PRODUITS : groupes regroupés par famille
+    // Les produits qui ont EXACTEMENT le même groupe sont regroupés : on modifie ou on retire d'un coup.
+    // ========================================
+    function escHtml(t) {
+      return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function changerVueOptions(vue) {
+      vueOptions = vue;
+      appliquerVueOptions();
+      renderProduitOptions();
+    }
+
+    function appliquerVueOptions() {
+      const g = vueOptions === 'groupes';
+      const filtres = document.getElementById('options-filtres');
+      const modes = document.getElementById('options-modes');
+      if (filtres) filtres.style.display = g ? 'none' : '';
+      if (modes) modes.style.display = g ? 'none' : '';
+      const bg = document.getElementById('btn-vue-groupes');
+      const bp = document.getElementById('btn-vue-produits');
+      if (bg) bg.className = 'btn ' + (g ? 'btn-primary' : 'btn-secondary');
+      if (bp) bp.className = 'btn ' + (g ? 'btn-secondary' : 'btn-primary');
+    }
+
+    // Signature d'un groupe : deux lignes sont « identiques » si tous ces champs sont égaux
+    function sigGroupe(o) {
+      const ng = (o.donnees_fournisseur && o.donnees_fournisseur.nom_groupe) || '';
+      return [o.categorie_attribut || '', o.libelle || '', o.comportement || 'ajout', Number(o.min) || 0, Number(o.max) || 0,
+              o.obligatoire ? 1 : 0, Number(o.inclus_gratuit) || 0, ng].join('|');
+    }
+    // Deux groupes sont de même nature s'ils ont la même catégorie ET le même groupe fournisseur
+    function natureGroupe(o) {
+      const ng = (o.donnees_fournisseur && o.donnees_fournisseur.nom_groupe) || '';
+      return (o.categorie_attribut || '') + '|' + ng;
+    }
+
+    function groupesDeFamille(famille) {
+      const produitsFam = produitOptions.filter(p => (p.categorie || 'AUTRES') === famille);
+      const table = new Map();
+      produitsFam.forEach(p => (p.produit_options || []).forEach(o => {
+        const sg = sigGroupe(o);
+        if (!table.has(sg)) table.set(sg, { sig: sg, ex: o, lignes: [] });
+        table.get(sg).lignes.push({ o, p });
+      }));
+      const groupes = [...table.values()].sort((a, b) =>
+        b.lignes.length - a.lignes.length || String(a.ex.categorie_attribut).localeCompare(String(b.ex.categorie_attribut)));
+      // principal = le groupe le plus répandu de sa nature ; les autres sont des exceptions
+      groupes.forEach(g => {
+        const memeNature = groupes.filter(x => natureGroupe(x.ex) === natureGroupe(g.ex));
+        g.principal = memeNature[0] === g ? null : memeNature[0];
+        g.seul = memeNature.length === 1 && g.lignes.length === 1 && produitsFam.length > 1;
+      });
+      return { produitsFam, groupes };
+    }
+
+    function renderGroupesOptions() {
+      const container = document.getElementById('options-content');
+      const familles = [...new Set(produitOptions.map(p => p.categorie || 'AUTRES'))].sort();
+      if (familles.length === 0) {
+        container.innerHTML = '<div class="no-data">Aucun produit composable. Passe des produits en « composable » dans l\'onglet Produits.</div>';
+        return;
+      }
+      if (!familleGroupes || !familles.includes(familleGroupes)) familleGroupes = familles[0];
+      const { produitsFam, groupes } = groupesDeFamille(familleGroupes);
+      groupesAffiches = groupes;
+
+      let html = '<div class="chips-fam">' + familles.map((f, i) =>
+        `<button type="button" class="chip-fam ${f === familleGroupes ? 'actif' : ''}" onclick="choisirFamilleGroupes(${i})">${escHtml(f)}</button>`).join('') + '</div>';
+      window.__famillesGroupes = familles;
+      const nbExc = groupes.filter(g => g.principal || g.seul).length;
+      html += `<div style="font-size:13px;color:var(--muted);margin-bottom:14px;">${escHtml(familleGroupes)} : ${produitsFam.length} produit(s) · ${groupes.length} groupe(s) distinct(s)${nbExc ? ' · ' + nbExc + ' exception(s)' : ''}</div>`;
+
+      if (groupes.length === 0) {
+        html += '<div class="no-data">Aucun groupe d\'options dans cette famille.</div>';
+      }
+      groupes.forEach((g, i) => {
+        const o = g.ex;
+        const ng = (o.donnees_fournisseur && o.donnees_fournisseur.nom_groupe) || '';
+        const autreGroupe = ng && kbCle(ng).replace(/S$/, '') !== kbCle(o.categorie_attribut).replace(/S$/, '');
+        const details = `${o.comportement || 'ajout'} · min ${o.min} · max ${o.max} · inclus ${o.inclus_gratuit} · ${o.obligatoire ? 'obligatoire' : 'facultatif'}`;
+        const noms = g.lignes.map(l => l.p.nom);
+        const visibles = noms.slice(0, 4).map(n => `<span class="chip-prod">${escHtml(n)}</span>`).join('');
+        const reste = noms.length > 4 ? `<span class="chip-prod" title="${escHtml(noms.slice(4).join(', '))}">+ ${noms.length - 4}</span>` : '';
+        const etiquette = (g.principal || g.seul)
+          ? `<span class="badge badge-warning">${g.seul ? 'Sur 1 produit seulement' : 'Exception'}</span>`
+          : `<span class="badge badge-info">${g.lignes.length} produit(s)</span>`;
+        const n = g.lignes.length;
+        let actions = `<button class="btn btn-sm btn-primary" onclick="ouvrirEditGroupe(${i})">✏️ Modifier ${n > 1 ? 'les ' + n + ' produits' : 'ce produit'}</button>`;
+        if (g.principal) actions += `<button class="btn btn-sm btn-secondary" onclick="alignerException(${i})">Aligner sur le groupe principal</button>`;
+        actions += `<button class="btn btn-sm btn-danger" onclick="supprimerGroupe(${i})">🗑️ Retirer ${n > 1 ? 'des ' + n + ' produits' : 'de ce produit'}</button>`;
+        html += `
+          <div class="groupe-carte">
+            <div class="groupe-tete">
+              <span class="opt-cat-pill ${catPillClass(o.categorie_attribut)}">${escHtml(o.categorie_attribut)}</span>
+              ${o.libelle ? `<span class="opt-libelle">« ${escHtml(o.libelle)} »</span>` : ''}
+              <span class="groupe-detail">${escHtml(details)}</span>
+              ${autreGroupe ? `<span class="badge badge-warning" title="Le fournisseur range ce groupe sous « ${escHtml(ng)} »">fournisseur : ${escHtml(ng)}</span>` : ''}
+              <span class="groupe-etiquette">${etiquette}</span>
+            </div>
+            <div class="groupe-produits">${visibles}${reste}</div>
+            <div class="groupe-actions">${actions}</div>
+          </div>`;
+      });
+
+      // Groupes présents sur une partie seulement des produits de la famille
+      const vus = new Set();
+      groupes.forEach(g => {
+        const cle = natureGroupe(g.ex);
+        if (vus.has(cle)) return;
+        vus.add(cle);
+        const idsAvec = new Set(groupes.filter(x => natureGroupe(x.ex) === cle).flatMap(x => x.lignes.map(l => l.p.id)));
+        const manquants = produitsFam.filter(p => !idsAvec.has(p.id));
+        if (idsAvec.size >= 2 && manquants.length > 0 && idsAvec.size >= manquants.length) {
+          html += `<div class="groupe-note">⚠️ ${escHtml(g.ex.categorie_attribut)} : absent de ${manquants.length} produit(s) sur ${produitsFam.length} : ${escHtml(manquants.slice(0, 5).map(p => p.nom).join(', '))}${manquants.length > 5 ? '…' : ''}</div>`;
+        }
+      });
+      container.innerHTML = html;
+    }
+
+    function choisirFamilleGroupes(i) {
+      familleGroupes = (window.__famillesGroupes || [])[i] || familleGroupes;
+      renderGroupesOptions();
+    }
+
+    function ouvrirEditGroupe(i) {
+      const g = groupesAffiches[i];
+      if (!g) return;
+      const o = g.ex;
+      const n = g.lignes.length;
+      const comps = [['ajout', 'Ajout (additionne les prix)'], ['choix_multiple', 'Choix multiple (jusqu\'à Max)'], ['choix_unique', 'Choix unique (un seul)'], ['retrait', 'Retrait (enlève des éléments)']];
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>✏️ Modifier : ${escHtml(o.categorie_attribut)} (${n} produit${n > 1 ? 's' : ''})</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <form onsubmit="enregistrerGroupe(event, ${i})">
+            <div class="form-group"><label>Question posée (vide = automatique)</label>
+              <input type="text" name="libelle" value="${escHtml(o.libelle || '')}" placeholder="Ex : Quelle sauce pour votre sandwich et vos frites ?"></div>
+            <div class="form-group"><label>Comportement *</label>
+              <select name="comportement">${comps.map(([v, t]) => `<option value="${v}" ${(o.comportement || 'ajout') === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+            <div style="display:flex; gap:12px;">
+              <div class="form-group" style="flex:1;"><label>Min *</label><input type="number" name="min" value="${Number(o.min) || 0}" required></div>
+              <div class="form-group" style="flex:1;"><label>Max *</label><input type="number" name="max" value="${Number(o.max) || 0}" required></div>
+              <div class="form-group" style="flex:1;"><label>Inclus gratuit *</label><input type="number" name="inclus_gratuit" value="${Number(o.inclus_gratuit) || 0}" required></div>
+            </div>
+            <div class="form-group"><label>Position (vide = inchangée)</label><input type="number" name="position" value=""></div>
+            <div class="form-group"><div class="checkbox-group">
+              <input type="checkbox" name="obligatoire" ${o.obligatoire ? 'checked' : ''}><label>Obligatoire (l'agent doit toujours poser la question)</label></div></div>
+            <div class="form-group"><label>Appliquer à</label>
+              <div class="checkbox-group"><input type="radio" name="portee" value="tous" checked onchange="document.getElementById('groupe-selection').style.display='none'"><label>Les ${n} produit${n > 1 ? 's' : ''} du groupe</label></div>
+              ${n > 1 ? `<div class="checkbox-group"><input type="radio" name="portee" value="selection" onchange="document.getElementById('groupe-selection').style.display='block'"><label>Une sélection de produits…</label></div>` : ''}
+              <div id="groupe-selection" style="display:none;margin-top:8px;padding:10px;background:#fafbfc;border-radius:8px;">
+                ${g.lignes.map(l => `<div class="checkbox-group" style="margin-bottom:4px;"><input type="checkbox" name="sel" value="${escHtml(l.o.id)}" checked><label>${escHtml(l.p.nom)}</label></div>`).join('')}
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+              <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+            </div>
+          </form>
+        </div>`;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function enregistrerGroupe(e, i) {
+      e.preventDefault();
+      const g = groupesAffiches[i];
+      if (!g) return;
+      const f = new FormData(e.target);
+      let ids = g.lignes.map(l => l.o.id);
+      if (f.get('portee') === 'selection') {
+        ids = f.getAll('sel');
+        if (ids.length === 0) { alert('Aucun produit sélectionné.'); return; }
+      }
+      const nombre = (v, defaut) => { const x = parseInt(v); return Number.isNaN(x) ? defaut : x; };
+      const payload = {
+        libelle: f.get('libelle') || null,
+        comportement: f.get('comportement'),
+        min: nombre(f.get('min'), 0),
+        max: nombre(f.get('max'), 1),
+        inclus_gratuit: nombre(f.get('inclus_gratuit'), 0),
+        obligatoire: f.get('obligatoire') === 'on'
+      };
+      if (String(f.get('position') || '').trim() !== '') payload.position = nombre(f.get('position'), 0);
+      try {
+        const { error } = await supabaseClient.from('produit_options').update(payload).in('id', ids);
+        if (error) throw error;
+        alert(`✅ Groupe mis à jour sur ${ids.length} produit(s)`);
+        closeModal('modal-edit');
+        await loadProduitOptions();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    async function supprimerGroupe(i) {
+      const g = groupesAffiches[i];
+      if (!g) return;
+      const n = g.lignes.length;
+      if (!confirm(`Retirer le groupe « ${g.ex.categorie_attribut} » de ${n} produit(s) de la famille ${familleGroupes} ? Cette action est irréversible.`)) return;
+      try {
+        const { error } = await supabaseClient.from('produit_options').delete().in('id', g.lignes.map(l => l.o.id));
+        if (error) throw error;
+        alert(`✅ Groupe retiré de ${n} produit(s)`);
+        await loadProduitOptions();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    // Aligne une exception sur le groupe principal de même nature (mêmes min, max, inclus, libellé, obligatoire...)
+    async function alignerException(i) {
+      const g = groupesAffiches[i];
+      if (!g || !g.principal) return;
+      const p = g.principal.ex;
+      if (!confirm(`Aligner ${g.lignes.length} produit(s) sur le groupe principal (min ${p.min}, max ${p.max}, inclus ${p.inclus_gratuit}) ?`)) return;
+      const payload = {
+        libelle: p.libelle || null, comportement: p.comportement, min: p.min, max: p.max,
+        inclus_gratuit: p.inclus_gratuit, obligatoire: !!p.obligatoire
+      };
+      try {
+        const { error } = await supabaseClient.from('produit_options').update(payload).in('id', g.lignes.map(l => l.o.id));
+        if (error) throw error;
+        alert('✅ Exception alignée');
+        await loadProduitOptions();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    // ========================================
+    // RÈGLES DE L'AGENT : cocher toutes les règles d'une famille ou d'un produit
+    // ========================================
+    function cocherReglesCible(niveau, nom) {
+      reglesAgent.forEach(r => {
+        const c = nomCible(r);
+        if (c.niveau === niveau && c.nom === nom) bulkSelections.regles.add(r.id);
+      });
+      document.querySelectorAll('input.bulk-check[data-type="regles"]').forEach(cb => { cb.checked = bulkSelections.regles.has(cb.dataset.id); });
+      renderBulkBar('regles');
+    }
+
+    // ========================================
+    // SUGGESTIONS DE RÈGLES : détection automatique d'après le menu
+    // ========================================
+    // Fonction pure : reçoit les données, renvoie la liste des suggestions (testable sans base)
+    function calculerSuggestions(produitsActifs, groupesOptions, reglesExistantes) {
+      const suggestions = [];
+      const norm = (t) => kbCle(t);
+      const deja = new Set((reglesExistantes || []).filter(r => r.actif !== false)
+        .map(r => [r.type_regle, r.famille_id || '', r.produit_id || '', norm(r.contenu)].join('|')));
+      const ajouter = (sug) => {
+        const cle = [sug.type_regle, sug.cibleType === 'famille' ? sug.cibleId : '', sug.cibleType === 'produit' ? sug.cibleId : '', norm(sug.contenu)].join('|');
+        if (!deja.has(cle)) suggestions.push(sug);
+      };
+      const parFamille = new Map();
+      produitsActifs.forEach(p => {
+        const cle = p.famille_id || ('cat:' + (p.categorie || 'AUTRES'));
+        if (!parFamille.has(cle)) parFamille.set(cle, { id: p.famille_id, nom: p.categorie || 'AUTRES', produits: [] });
+        parFamille.get(cle).produits.push(p);
+      });
+      const optionsParProduit = new Map();
+      (groupesOptions || []).forEach(o => {
+        if (!optionsParProduit.has(o.produit_id)) optionsParProduit.set(o.produit_id, []);
+        optionsParProduit.get(o.produit_id).push(o);
+      });
+
+      parFamille.forEach(fam => {
+        if (!fam.id) return;
+        const n = fam.produits.length;
+        // 1) Plusieurs tailles : demander la taille
+        const tailles = [...new Set(fam.produits.map(p => String(p.taille || '').trim()).filter(Boolean))].sort();
+        const avecTaille = fam.produits.filter(p => String(p.taille || '').trim() !== '').length;
+        if (tailles.length >= 2 && avecTaille >= n / 2) {
+          ajouter({ cibleType: 'famille', cibleId: fam.id, cibleNom: fam.nom, type_regle: 'question',
+            contenu: `Demander la taille : ${tailles.join(' ou ')}.`, pourquoi: `les produits existent en ${tailles.length} tailles (${tailles.join(', ')})` });
+        }
+        // 2) Choix de viandes : refuser les viandes hors liste
+        const aViande = fam.produits.some(p => (optionsParProduit.get(p.id) || []).some(o =>
+          /VIANDE/.test(kbCle((o.donnees_fournisseur && o.donnees_fournisseur.nom_groupe) || o.categorie_attribut || ''))));
+        if (aViande) {
+          ajouter({ cibleType: 'famille', cibleId: fam.id, cibleNom: fam.nom, type_regle: 'exclusivite',
+            contenu: 'Viandes uniquement parmi celles proposées pour ce produit. Toute autre viande demandée est refusée : redonner les viandes disponibles.',
+            pourquoi: 'un groupe de choix de viandes existe dans cette famille' });
+        }
+        // 3) Noms commençant par un chiffre : dire le nom exact
+        const chiffre = fam.produits.filter(p => /^\d/.test(String(p.nom || '').trim()));
+        if (n >= 2 && chiffre.length >= n / 2) {
+          ajouter({ cibleType: 'famille', cibleId: fam.id, cibleNom: fam.nom, type_regle: 'prononciation',
+            contenu: `Toujours dire le nom exact du produit, chiffre compris (ex. ${chiffre[0].nom}).`,
+            pourquoi: 'la plupart des noms commencent par un nombre' });
+        }
+      });
+
+      // 4) Même nom dans plusieurs familles : demander laquelle
+      const parNom = new Map();
+      produitsActifs.forEach(p => {
+        const base = kbCle(String(p.nom || '').replace(/\([^)]*\)/g, ' '));
+        if (!base) return;
+        if (!parNom.has(base)) parNom.set(base, []);
+        parNom.get(base).push(p);
+      });
+      parNom.forEach(liste => {
+        const fams = [...new Set(liste.map(p => p.categorie || 'AUTRES'))];
+        if (fams.length < 2) return;
+        liste.forEach(p => {
+          const autres = fams.filter(f => f !== (p.categorie || 'AUTRES'));
+          ajouter({ cibleType: 'produit', cibleId: p.id, cibleNom: p.nom, type_regle: 'question',
+            contenu: `Ce produit existe aussi dans ${autres.join(', ')} : demander au client laquelle des versions il veut.`,
+            pourquoi: `même nom dans ${fams.length} familles (${fams.join(', ')})` });
+        });
+      });
+      return suggestions;
+    }
+
+    let suggestionsCourantes = [];
+
+    async function analyserSuggestions() {
+      const zone = document.getElementById('suggestions-contenu');
+      zone.innerHTML = '<div class="loading">🔎 Analyse du menu…</div>';
+      try {
+        const [prodRes, optRes, regRes] = await Promise.all([
+          supabaseClient.from('produits').select('id, nom, categorie, taille, famille_id').eq('business_id', BUSINESS_ID).eq('actif', true),
+          supabaseClient.from('produit_options').select('produit_id, categorie_attribut, donnees_fournisseur').eq('business_id', BUSINESS_ID),
+          supabaseClient.from('regles_categorie').select('famille_id, produit_id, type_regle, contenu, actif').eq('business_id', BUSINESS_ID)
+        ]);
+        if (prodRes.error) throw prodRes.error;
+        if (optRes.error) throw optRes.error;
+        if (regRes.error) throw regRes.error;
+        suggestionsCourantes = calculerSuggestions(prodRes.data || [], optRes.data || [], regRes.data || []);
+        renderSuggestions();
+      } catch (err) {
+        zone.innerHTML = `<div class="no-data">❌ Erreur: ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderSuggestions() {
+      const zone = document.getElementById('suggestions-contenu');
+      if (suggestionsCourantes.length === 0) {
+        zone.innerHTML = '<div class="suggestions-zone">✅ Aucune nouvelle suggestion : ce que le menu permet de détecter est déjà couvert par vos règles.</div>';
+        return;
+      }
+      let html = `<div class="suggestions-zone"><strong>💡 ${suggestionsCourantes.length} règle(s) suggérée(s)</strong>
+        <div style="font-size:13px;color:var(--muted);margin:4px 0 12px;">Décochez ce que vous ne voulez pas, modifiez le texte si besoin. Rien n'est créé sans votre validation.</div>
+        <div class="table-container"><table><thead><tr><th></th><th>Portée</th><th>Type</th><th>Règle proposée</th><th>Pourquoi</th></tr></thead><tbody>`;
+      suggestionsCourantes.forEach((s, i) => {
+        html += `<tr>
+          <td><input type="checkbox" id="sug-coche-${i}" checked aria-label="Créer cette règle"></td>
+          <td><span class="badge badge-info">${s.cibleType === 'famille' ? 'Famille' : 'Produit'}</span> ${escHtml(s.cibleNom)}</td>
+          <td>${labelType(s.type_regle)}</td>
+          <td style="min-width:280px;"><textarea id="sug-contenu-${i}" style="width:100%;min-height:54px;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;">${escHtml(s.contenu)}</textarea></td>
+          <td style="font-size:12px;color:var(--muted);">Détecté : ${escHtml(s.pourquoi)}</td></tr>`;
+      });
+      html += `</tbody></table></div>
+        <div class="form-actions" style="justify-content:flex-start;">
+          <button class="btn btn-primary" onclick="creerSuggestionsCochees()">💾 Créer les règles cochées</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('suggestions-contenu').innerHTML=''">Fermer</button>
+        </div></div>`;
+      zone.innerHTML = html;
+    }
+
+    async function creerSuggestionsCochees() {
+      const lignes = [];
+      suggestionsCourantes.forEach((s, i) => {
+        const coche = document.getElementById('sug-coche-' + i);
+        const contenu = (document.getElementById('sug-contenu-' + i) || {}).value;
+        if (coche && coche.checked && String(contenu || '').trim() !== '') {
+          lignes.push({
+            business_id: BUSINESS_ID,
+            famille_id: s.cibleType === 'famille' ? s.cibleId : null,
+            produit_id: s.cibleType === 'produit' ? s.cibleId : null,
+            type_regle: s.type_regle, contenu: contenu.trim(), actif: true
+          });
+        }
+      });
+      if (lignes.length === 0) { alert('Aucune règle cochée.'); return; }
+      try {
+        const { error } = await supabaseClient.from('regles_categorie').insert(lignes);
+        if (error) throw error;
+        alert(`✅ ${lignes.length} règle(s) créée(s)`);
+        await loadRegles();
+        majPastillesParam();
+        analyserSuggestions();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
     function catPillClass(cat) {
       const c = (cat || '').toLowerCase();
       if (c === 'viande') return 'cat-viande';
@@ -2529,6 +3071,7 @@
     }
 
     function renderProduitOptions() {
+      if (vueOptions === 'groupes') { renderGroupesOptions(); return; }
       const container = document.getElementById('options-content');
       const search = (document.getElementById('search-options')?.value || '').toLowerCase();
       const catFilter = document.getElementById('filter-options-categorie')?.value || '';
