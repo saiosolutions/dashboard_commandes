@@ -726,6 +726,7 @@
           </div>
           <div class="nav-groupe"><div class="nav-groupe-titre">Import</div>
             <button type="button" class="nav-item" data-section="import" onclick="allerSection('import')"><span class="nav-pastille" id="pastille-import"></span><span class="nav-lib">Import produits (CSV)</span><span class="nav-compte" id="compte-import"></span></button>
+            <button type="button" class="nav-item" data-section="api" onclick="allerSection('api')"><span class="nav-pastille" id="pastille-api"></span><span class="nav-lib">Connexion API</span><span class="nav-compte" id="compte-api"></span></button>
           </div>
         </aside>
         <div class="param-main">
@@ -752,15 +753,7 @@
                   <button class="menu-item" id="btn-gen-kbzones" data-ferme="1" onclick="genererKbZones()">📍 Générer le KB_ZONE_LIVRAISON</button>
                 </div>
               </details>
-              <details class="menu-actions">
-                <summary class="btn btn-secondary">🚀 Publier et synchroniser ▾</summary>
-                <div class="menu-panel">
-                  <button class="menu-item" id="btn-publier-restaurant" onclick="publierRestaurantActuel()">🚀 Publier ce restaurant</button>
-                  <div class="menu-titre" id="agent-api-titre" style="display:none;">Base du fournisseur (API)</div>
-                  <button class="menu-item" id="btn-sync-api" onclick="testerSynchroApi()" style="display:none;">🔎 Tester la synchro API</button>
-                  <button class="menu-item" id="btn-sync-ecrire" onclick="synchroniserApi()" style="display:none;">✍️ Synchroniser depuis l'API</button>
-                </div>
-              </details>
+              <button class="btn btn-secondary" id="btn-publier-restaurant" onclick="publierRestaurantActuel()" style="border: 2px solid var(--accent); font-weight: 700;">🚀 Publier ce restaurant</button>
             </div>
           </div>
           <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
@@ -857,6 +850,15 @@
 
         <div id="param-messages" class="param-section" style="display:none;">
           <div id="messages-content"></div>
+        </div>
+
+        <!-- SECTION CONNEXION API DU FOURNISSEUR -->
+        <div id="param-api" class="param-section" style="display:none;">
+          <div class="options-help">
+            🔌 Relie ce restaurant à la base de son fournisseur : <strong>adresse de l'API</strong>, <strong>clé</strong> et
+            <strong>identifiant du restaurant</strong>. La clé est enregistrée en lieu sûr et n'est jamais réaffichée.
+          </div>
+          <div id="api-contenu"><div class="loading">Chargement...</div></div>
         </div>
 
         <div id="param-agent" class="param-section" style="display:none;">
@@ -1558,11 +1560,6 @@
       const enAgent = currentParamSection === 'agent';
       const zone = document.getElementById('agent-actions');
       if (zone) zone.style.display = enAgent ? 'flex' : 'none';
-      const relie = businessCourantRelie();
-      ['agent-api-titre', 'btn-sync-api', 'btn-sync-ecrire'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = (enAgent && relie) ? '' : 'none';
-      });
     }
 
     function switchParamSection(section) {
@@ -1573,7 +1570,7 @@
       // Masquer le bouton "Ajouter" sur Messages et Agent (ils ont leurs propres boutons)
       const btnAdd = document.getElementById('btn-add-param');
       if (btnAdd) {
-        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires' || section === 'import') ? 'none' : '';
+        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires' || section === 'import' || section === 'api') ? 'none' : '';
       }
       // Afficher les boutons de génération uniquement sur la section Agent IA
       const btnGenMenu = document.getElementById('btn-gen-kbmenu');
@@ -1582,10 +1579,6 @@
       if (btnGenZones) btnGenZones.style.display = (section === 'agent') ? '' : 'none';
       const btnPublierRestaurant = document.getElementById('btn-publier-restaurant');
       if (btnPublierRestaurant) btnPublierRestaurant.style.display = (section === 'agent') ? '' : 'none';
-      const btnSyncApi = document.getElementById('btn-sync-api');
-      if (btnSyncApi) btnSyncApi.style.display = (section === 'agent') ? '' : 'none';
-      const btnSyncEcrire = document.getElementById('btn-sync-ecrire');
-      if (btnSyncEcrire) btnSyncEcrire.style.display = (section === 'agent') ? '' : 'none';
       majNavParam();
       majBoutonsAgent();
       
@@ -1602,6 +1595,7 @@
       else if (currentParamSection === 'familles') await loadFamilles();
       else if (currentParamSection === 'messages') await loadMessagesAccueil();
       else if (currentParamSection === 'agent') await loadRegles();   // 🆕
+      else if (currentParamSection === 'api') await chargerConnexionApi();
     }
 
     async function loadProduits() {
@@ -2660,6 +2654,7 @@
         poserPastille('horaires', null, etat(hor), hor ? '' : 'à compléter');
         poserPastille('agent', reg, etat(reg));
         poserPastille('import', null, '', '');
+        poserPastille('api', null, businessCourantRelie() ? 'ok' : '', businessCourantRelie() ? 'reliée' : 'non reliée');
         const m = (biz && biz.data && biz.data.messages_accueil) || {};
         const complet = ['ouvert_connu', 'ouvert_inconnu', 'ferme_connu', 'ferme_inconnu'].every(k => String(m[k] || '').trim() !== '');
         poserPastille('messages', null, complet ? 'ok' : 'warn', complet ? '' : 'à compléter');
@@ -3110,6 +3105,88 @@
         afficherGroupesExclus();
       } catch (err) {
         alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    // ========================================
+    // CONNEXION API DU FOURNISSEUR : adresse (URL), clé, identifiant du restaurant
+    // La clé passe par la fonction connexion-api : elle n'est jamais lue ni réaffichée par cette page.
+    // ========================================
+    async function appelConnexionApi(body) {
+      const { data, error } = await supabaseClient.functions.invoke('connexion-api', { body });
+      if (error) {
+        let detail = error.message;
+        try { const corps = await error.context.json(); if (corps && corps.erreur) detail = corps.erreur; } catch (_) {}
+        throw new Error(detail);
+      }
+      if (data && data.ok === false) throw new Error(data.erreur || 'Erreur inconnue');
+      return data;
+    }
+
+    async function chargerConnexionApi() {
+      const zone = document.getElementById('api-contenu');
+      zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
+      try {
+        const d = await appelConnexionApi({ action: 'lire', business_id: BUSINESS_ID });
+        const relie = Boolean(d.relie);
+        const defaut = d.url_par_defaut || (d.fournisseurs_connus && d.fournisseurs_connus.length ? '' : '');
+        const cle = d.cle_enregistree
+          ? `<span class="badge badge-success">Clé enregistrée${d.cle_fin ? ' (se termine par ' + escHtml(d.cle_fin) + ')' : ''}</span>`
+          : '<span class="badge badge-warning">Aucune clé enregistrée</span>';
+        zone.innerHTML = `
+          <div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+              <span class="badge ${relie ? 'badge-success' : 'badge-warning'}">${relie ? 'Restaurant relié' : 'Non relié'}</span>${cle}
+            </div>
+            <form onsubmit="enregistrerConnexionApi(event)">
+              <div class="form-group"><label>Fournisseur *</label>
+                <input type="text" id="api-fournisseur" value="${escHtml(d.fournisseur || 'demo-pizza')}" placeholder="ex. demo-pizza">
+              </div>
+              <div class="form-group"><label>Adresse de l'API (URL)</label>
+                <input type="text" id="api-url" value="${escHtml(d.url_api || '')}" placeholder="${escHtml(defaut || 'https://apiv1.exemple.com')}">
+                <small style="color:var(--muted);font-size:12px;">${defaut ? 'Laisser vide = adresse habituelle du fournisseur : ' + escHtml(defaut) + '. ' : ''}À renseigner si le fournisseur change d'adresse pour la production. Sans « /v1 » à la fin.</small>
+              </div>
+              <div class="form-group"><label>Clé API ${d.cle_enregistree ? '' : '*'}</label>
+                <input type="password" id="api-cle" autocomplete="new-password" value="" placeholder="${d.cle_enregistree ? 'Laisser vide pour conserver la clé actuelle' : 'Collez la clé fournie'}">
+              </div>
+              <div class="form-group"><label>Identifiant du restaurant chez le fournisseur ${relie ? '' : '*'}</label>
+                <input type="text" id="api-idresto" value="${escHtml(d.id_externe || '')}" placeholder="ex. 8422">
+              </div>
+              <div class="form-actions" style="justify-content:flex-start;flex-wrap:wrap;">
+                <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+                <button type="button" class="btn btn-secondary" id="btn-api-tester" onclick="testerSynchroApi()" ${relie && d.cle_enregistree ? '' : 'disabled'}>🔎 Tester la connexion</button>
+                <button type="button" class="btn btn-secondary" id="btn-api-sync" onclick="synchroniserApi()" ${relie && d.cle_enregistree ? '' : 'disabled'}>✍️ Synchroniser depuis l'API</button>
+              </div>
+              <div style="font-size:12px;color:var(--muted);margin-top:8px;">Le test ne modifie rien : il lit la carte du fournisseur et signale ce qui poserait problème.</div>
+            </form>
+          </div>`;
+      } catch (err) {
+        zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    async function enregistrerConnexionApi(e) {
+      e.preventDefault();
+      const corps = {
+        action: 'enregistrer',
+        business_id: BUSINESS_ID,
+        fournisseur: document.getElementById('api-fournisseur').value.trim(),
+        url_api: document.getElementById('api-url').value.trim(),
+        id_externe: document.getElementById('api-idresto').value.trim()
+      };
+      const cle = document.getElementById('api-cle').value.trim();
+      if (cle) corps.api_key = cle;
+      try {
+        const d = await appelConnexionApi(corps);
+        document.getElementById('api-cle').value = '';
+        const b = businessesList.find(x => x.id === BUSINESS_ID);
+        if (b) b.id_externe = d.id_externe || null;
+        majBoutonsAgent();
+        majPastillesParam();
+        alert(d.champs_modifies && d.champs_modifies.length ? '✅ Connexion enregistrée' : 'Aucun changement à enregistrer.');
+        chargerConnexionApi();
+      } catch (err) {
+        alert('❌ ' + err.message);
       }
     }
 
@@ -5817,14 +5894,14 @@
     }
 
     function testerSynchroApi() {
-      return lancerSynchroApi('test', 'btn-sync-api', '🔎 Tester la synchro API');
+      return lancerSynchroApi('test', 'btn-api-tester', '🔎 Tester la connexion');
     }
 
     function synchroniserApi() {
       const biz = businessesList.find(b => b.id === BUSINESS_ID);
       const nom = biz ? biz.nom : 'ce restaurant';
       if (!confirm(`Synchroniser « ${nom} » avec la base du fournisseur ?\n\nLes produits, zones, horaires et suppléments seront créés ou mis à jour dans Supabase. Rien n'est supprimé.`)) return;
-      return lancerSynchroApi('ecrire', 'btn-sync-ecrire', '✍️ Synchroniser depuis l\'API');
+      return lancerSynchroApi('ecrire', 'btn-api-sync', '✍️ Synchroniser depuis l\'API');
     }
 
        function afficherRapportSynchro(rapport, nomResto) {
