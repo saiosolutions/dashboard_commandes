@@ -178,6 +178,34 @@
     .btn-danger { background: var(--err); color: white; }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
 
+    /* MENUS DÉROULANTS — section Agent IA */
+    .agent-actions { display: none; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .menu-actions { position: relative; }
+    .menu-actions > summary { list-style: none; cursor: pointer; user-select: none; border: 2px solid var(--accent); font-weight: 700; }
+    .menu-actions > summary::-webkit-details-marker { display: none; }
+    .menu-panel {
+      position: absolute; top: calc(100% + 6px); left: 0; z-index: 50; min-width: 270px;
+      background: white; border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(43,47,54,0.16); padding: 6px;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .menu-item {
+      text-align: left; background: none; border: none; border-radius: 8px;
+      padding: 10px 12px; font-size: 14px; font-weight: 600; color: var(--ink);
+      cursor: pointer; font-family: inherit;
+    }
+    .menu-item:hover { background: #eceef1; }
+    .menu-item:disabled { opacity: 0.65; cursor: wait; }
+    .menu-titre {
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--muted); padding: 10px 12px 4px; border-top: 1px solid var(--line); margin-top: 4px;
+    }
+    @media (max-width: 768px) {
+      .agent-actions { width: 100%; }
+      .menu-actions { flex: 1; }
+      .menu-panel { min-width: 100%; }
+    }
+
     /* TOOLBAR */
     .toolbar {
       display: flex; justify-content: space-between; align-items: center;
@@ -644,11 +672,25 @@
               <option value="agent">Agent IA</option>
             </select>
             <button class="btn btn-primary" id="btn-add-param" onclick="openAddModal()">➕ Ajouter</button>
-            <button class="btn btn-secondary" id="btn-gen-kbmenu" onclick="genererKbMenu()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📄 Générer le KB_MENU</button>
-            <button class="btn btn-secondary" id="btn-gen-kbzones" onclick="genererKbZones()" style="display:none; border: 2px solid var(--accent); font-weight: 700;">📍 Générer le KB_ZONE_LIVRAISON</button>
-            <button class="btn btn-secondary" id="btn-publier-restaurant" onclick="publierRestaurantActuel()" style="display:none; border: 2px solid var(--ok); font-weight: 700;">🚀 Publier ce restaurant</button>
-            <button class="btn btn-secondary" id="btn-sync-api" onclick="testerSynchroApi()" style="display:none; border: 2px solid var(--info); font-weight: 700;">🔎 Tester la synchro API</button>
-            <button class="btn btn-secondary" id="btn-sync-ecrire" onclick="synchroniserApi()" style="display:none; border: 2px solid var(--ok); font-weight: 700;">✍️ Synchroniser depuis l'API</button>
+            <!-- Section Agent IA : deux menus (visibles seulement dans cette section) -->
+            <div id="agent-actions" class="agent-actions" style="display:none;">
+              <details class="menu-actions">
+                <summary class="btn btn-secondary">📄 Textes de l'agent ▾</summary>
+                <div class="menu-panel">
+                  <button class="menu-item" id="btn-gen-kbmenu" data-ferme="1" onclick="genererKbMenu()">📄 Générer le KB_MENU</button>
+                  <button class="menu-item" id="btn-gen-kbzones" data-ferme="1" onclick="genererKbZones()">📍 Générer le KB_ZONE_LIVRAISON</button>
+                </div>
+              </details>
+              <details class="menu-actions">
+                <summary class="btn btn-secondary">🚀 Publier et synchroniser ▾</summary>
+                <div class="menu-panel">
+                  <button class="menu-item" id="btn-publier-restaurant" onclick="publierRestaurantActuel()">🚀 Publier ce restaurant</button>
+                  <div class="menu-titre" id="agent-api-titre" style="display:none;">Base du fournisseur (API)</div>
+                  <button class="menu-item" id="btn-sync-api" onclick="testerSynchroApi()" style="display:none;">🔎 Tester la synchro API</button>
+                  <button class="menu-item" id="btn-sync-ecrire" onclick="synchroniserApi()" style="display:none;">✍️ Synchroniser depuis l'API</button>
+                </div>
+              </details>
+            </div>
           </div>
           <button class="btn btn-secondary" onclick="loadParamData()">🔄 Actualiser</button>
         </div>
@@ -794,13 +836,7 @@
         <div id="logs-content"></div>
       </div>
     </div>
-    <button id="btn-publier-tout-flottant" onclick="publierToutLesRestaurants()"
-      style="...">
-      🔄 Synchroniser tout
-    </button>
-  </div>
-
-  <!-- MODALS -->
+    <!-- Bouton flottant unique : publie le menu et les zones de TOUS les restaurants actifs -->
     <button id="btn-publier-tout-flottant" onclick="publierToutLesRestaurants()"
       style="position:fixed; bottom:20px; right:20px; z-index:500; background:var(--accent); color:white;
              border:none; border-radius:999px; padding:13px 20px; font-size:14px; font-weight:700;
@@ -978,7 +1014,7 @@
       try {
         const { data, error } = await supabaseClient
           .from('business')
-          .select('id, nom, type, ville, code_postal')
+          .select('id, nom, type, ville, code_postal, id_externe')
           .eq('actif', true)
           .order('nom', { ascending: true });
         if (error) throw error;
@@ -990,6 +1026,7 @@
         }
         renderBusinessSelector();
         updateHeaderResto();
+        majBoutonsAgent();
       } catch (err) {
         console.error('Erreur chargement liste restaurants', err);
       }
@@ -1021,6 +1058,7 @@
       BUSINESS_ID = id;
       localStorage.setItem('saios_business_id', id);
       updateHeaderResto();
+      majBoutonsAgent();
       await chargerTarifs();
       // Recharge l'onglet actuellement affiché avec les données du nouveau restaurant
       if (currentTab === 'commandes') loadCommandes();
@@ -1428,6 +1466,24 @@
     // ========================================
     // PARAMETRAGES
     // ========================================
+    // Restaurant sélectionné relié à la base d'un fournisseur (business.id_externe renseigné) ?
+    function businessCourantRelie() {
+      const b = businessesList.find(x => x.id === BUSINESS_ID);
+      return Boolean(b && b.id_externe);
+    }
+
+    // Affiche les menus de la section Agent IA ; les actions API n'apparaissent que pour un restaurant relié
+    function majBoutonsAgent() {
+      const enAgent = currentParamSection === 'agent';
+      const zone = document.getElementById('agent-actions');
+      if (zone) zone.style.display = enAgent ? 'flex' : 'none';
+      const relie = businessCourantRelie();
+      ['agent-api-titre', 'btn-sync-api', 'btn-sync-ecrire'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (enAgent && relie) ? '' : 'none';
+      });
+    }
+
     function switchParamSection(section) {
       currentParamSection = section;
       document.querySelectorAll('.param-section').forEach(s => s.style.display = 'none');
@@ -1449,6 +1505,7 @@
       if (btnSyncApi) btnSyncApi.style.display = (section === 'agent') ? '' : 'none';
       const btnSyncEcrire = document.getElementById('btn-sync-ecrire');
       if (btnSyncEcrire) btnSyncEcrire.style.display = (section === 'agent') ? '' : 'none';
+      majBoutonsAgent();
       
       loadParamData();
     }
@@ -2370,195 +2427,6 @@
         txt += `${indent}${k} : ${noms.join(', ')}\n`;
       });
       return txt;
-    }
-
-    // Libellé par défaut de la question sauce quand le produit est servi avec des frites
-    function kbLibelleSauceParDefaut(p) {
-      const cat = kbCle(p.categorie || '');
-      const plat = /SANDWICH/.test(cat) ? 'sandwich' : /BURGER/.test(cat) ? 'burger' : /TACO/.test(cat) ? 'tacos' : 'plat';
-      return `sauce(s) pour votre ${plat} et vos frites`;
-    }
-
-    function kbDecrireOptionRelie(o, produit) {
-      // Un libellé saisi à la main est toujours prioritaire ; sinon, question unique « plat + frites »
-      let opt = o;
-      if (produit && !o.libelle && String(o.categorie_attribut || '').toUpperCase() === 'SAUCE'
-          && /frites/i.test(String(produit.details || ''))) {
-        opt = Object.assign({}, o, { libelle: kbLibelleSauceParDefaut(produit) });
-      }
-      let desc = kbDecrireOption(opt);
-      const oblig = / \[à demander\]$/.test(desc);
-      desc = desc.replace(/ \[à demander\]$/, '');
-      const px = o.donnees_fournisseur && o.donnees_fournisseur.prix_unitaire;
-      if (px && (o.comportement || '') !== 'retrait') {
-        const payant = [px.livraison, px.emporter, px.sur_place].some(x => Number(x) > 0);
-        if (payant) {
-          desc += ` (chacun : ${kbPrixModes(px.livraison, px.emporter, px.sur_place, 0)})`;
-          const inclus = Number(o.inclus_gratuit) || 0;
-          desc += inclus > 0
-            ? ` → PAYANT : mettre TOUS les choix du client dans supplements (les ${inclus} premiers sont offerts, le système les déduit)`
-            : ` → PAYANT : mettre chaque choix du client dans supplements`;
-        } else {
-          desc += ` → INCLUS : ne rien mettre dans supplements`;
-        }
-      }
-      return desc + (oblig ? ' [à demander]' : '');
-    }
-
-    async function genererTexteKbMenuRelie(businessId) {
-      const { data: produitsData, error: e1 } = await supabaseClient
-        .from('produits')
-        .select('id, nom, categorie, prix, prix_livraison, prix_emporter, prix_sur_place, taille, details, type_produit, position, famille_id, metadata, id_externe, produit_familles(nom, position), produit_options(*)')
-        .eq('business_id', businessId)
-        .eq('actif', true);
-      if (e1) throw e1;
-
-      const { data: attributsData, error: e2 } = await supabaseClient
-        .from('attributs')
-        .select('nom, categorie, position')
-        .eq('business_id', businessId)
-        .eq('actif', true)
-        .order('position', { ascending: true });
-      if (e2) throw e2;
-
-      const { data: suppData, error: e3 } = await supabaseClient
-        .from('supplements_prix')
-        .select('famille_id, produit_id, taille, prix_livraison, prix_emporter, prix_sur_place, attributs(nom)')
-        .eq('business_id', businessId);
-      if (e3) throw e3;
-
-      const { data: regles, error: e4 } = await supabaseClient
-        .from('regles_categorie')
-        .select('famille_id, produit_id, type_regle, contenu, position')
-        .eq('business_id', businessId)
-        .eq('actif', true)
-        .order('position', { ascending: true });
-      if (e4) throw e4;
-
-      const biz = await getInfosResto2(businessId);
-      let infoResto = '';
-      if (biz && biz.nom) {
-        infoResto = `RESTAURANT : ${biz.nom}\n`;
-        const adresse = formatAdresseResto(biz);
-        if (adresse) infoResto += `ADRESSE : ${adresse}\n`;
-        infoResto += '\n';
-      }
-
-      // ---- Index ----
-      const reglesParFamilleId = {}, reglesParProduitId = {};
-      (regles || []).forEach(r => {
-        if (r.famille_id) (reglesParFamilleId[r.famille_id] = reglesParFamilleId[r.famille_id] || []).push(r);
-        else if (r.produit_id) (reglesParProduitId[r.produit_id] = reglesParProduitId[r.produit_id] || []).push(r);
-      });
-      const formatRegle = (r) => `${{ question: '❓', deduction: '📏', exclusivite: '⚠️', prononciation: '🔤' }[r.type_regle] || '•'} ${r.contenu}`;
-
-      // Suppléments : liste par famille + taille, exceptions par produit
-      const suppDefaut = {};   // famille_id -> taille -> [{nom,l,e,s}]
-      const suppProduit = {};  // produit_id -> [{nom,l,e,s,taille}]
-      (suppData || []).forEach(s => {
-        const ligne = { nom: (s.attributs && s.attributs.nom) || '?', l: s.prix_livraison, e: s.prix_emporter, s: s.prix_sur_place, taille: s.taille || '' };
-        if (s.produit_id) (suppProduit[s.produit_id] = suppProduit[s.produit_id] || []).push(ligne);
-        else if (s.famille_id) {
-          const f = (suppDefaut[s.famille_id] = suppDefaut[s.famille_id] || {});
-          (f[ligne.taille] = f[ligne.taille] || []).push(ligne);
-        }
-      });
-
-      // Nom de base d'un produit (sans sa taille) d'après son identifiant fournisseur : sert aux formules
-      const nomParExt = new Map();
-      (produitsData || []).forEach(p => {
-        if (!p.id_externe || nomParExt.has(p.id_externe)) return;
-        nomParExt.set(p.id_externe, (p.taille && p.nom.endsWith(' ' + p.taille)) ? p.nom.slice(0, -(p.taille.length + 1)) : p.nom);
-      });
-
-      // ---- Texte ----
-      let kb = 'MENU COMPLET\n\n' + infoResto;
-      const groupes = {};
-      (produitsData || []).forEach(p => {
-        const cat = p.categorie || 'AUTRES';
-        if (!groupes[cat]) groupes[cat] = { produits: [], ordre: p.produit_familles?.position ?? 999, familleId: p.famille_id };
-        groupes[cat].produits.push(p);
-      });
-      const cats = Object.keys(groupes).sort((a, b) => groupes[a].ordre - groupes[b].ordre);
-
-      cats.forEach(cat => {
-        const g = groupes[cat];
-        kb += `=== ${cat} ===\n\n`;
-        (reglesParFamilleId[g.familleId] || []).forEach(r => { kb += `${formatRegle(r)}\n`; });
-        if ((reglesParFamilleId[g.familleId] || []).length > 0) kb += '\n';
-
-        const prods = g.produits.sort((a, b) => (a.position || 0) - (b.position || 0) || a.nom.localeCompare(b.nom));
-        prods.forEach(p => {
-          kb += `${p.nom} - ${kbPrixModes(p.prix_livraison, p.prix_emporter, p.prix_sur_place, p.prix)}\n`;
-          const compo = p.details || ((p.metadata && p.metadata.composition) || []).map(c => c.nom).join(', ');
-          if (compo) kb += `  Composition : ${compo}\n`;
-
-          // Formule (menu à prix fixe)
-          const formule = p.metadata && p.metadata.menu_compose;
-          if (formule && formule.length > 0) {
-            const morceaux = formule.map(c => {
-              const noms = (c.choix || []).map(id => nomParExt.get(id)).filter(Boolean);
-              const choix = (noms.length > 0 && noms.length <= 8) ? ` au choix : ${noms.join(', ')}` : ` au choix parmi les ${c.nom_famille} de la carte`;
-              return `${c.quantite} × ${c.nom_famille}${c.taille ? ` (taille ${c.taille})` : ''}${choix}`;
-            });
-            kb += `  Formule : ${morceaux.join(' ; ')}\n`;
-            kb += `  Prix fixe : les éléments choisis dans la formule ne sont pas facturés en plus.\n`;
-          }
-
-          (p.produit_options || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0))
-            .forEach(o => { kb += `  - ${kbDecrireOptionRelie((o, p))}\n`; });
-
-          // Suppléments propres à ce produit (différences avec la liste de sa famille)
-          const propres = suppProduit[p.id];
-          if (propres && propres.length > 0) {
-            const base = ((suppDefaut[p.famille_id] || {})[p.taille || ''] || []);
-            const cle = (x) => `${kbCle(x.nom)}|${x.l}|${x.e}|${x.s}`;
-            const dansBase = new Set(base.map(cle));
-            const differents = propres.filter(x => !dansBase.has(cle(x)));
-            if (differents.length > 0) {
-              kb += `  Suppléments particuliers à ce produit :\n` + kbLignesSupplements(differents, '    ');
-            }
-            const nomsPropres = new Set(propres.map(x => kbCle(x.nom)));
-            const retires = base.filter(x => !nomsPropres.has(kbCle(x.nom))).map(x => x.nom);
-            if (retires.length > 0) kb += `  Non disponibles sur ce produit : ${retires.join(', ')}\n`;
-          }
-          (reglesParProduitId[p.id] || []).forEach(r => { kb += `  ${formatRegle(r)}\n`; });
-          kb += '\n';
-        });
-
-        // Suppléments de la famille (par taille)
-        const defaut = suppDefaut[g.familleId];
-        if (defaut) {
-          const tailles = [];
-          prods.forEach(p => { const t = p.taille || ''; if (!tailles.includes(t)) tailles.push(t); });
-          Object.keys(defaut).forEach(t => { if (!tailles.includes(t)) tailles.push(t); });
-          kb += `SUPPLÉMENTS POSSIBLES - ${cat} (à ajouter sur demande du client) :\n`;
-          tailles.filter(t => defaut[t]).forEach(t => {
-            kb += t ? `  Taille ${t} :\n` : '';
-            kb += kbLignesSupplements(defaut[t], t ? '    ' : '  ');
-          });
-          kb += '\n';
-        }
-      });
-
-      // Choix proposés (sauces, boissons, desserts...) d'après les groupes d'options des produits
-      const nomParCat = new Map((attributsData || []).map(a => [`${String(a.categorie || '').toUpperCase()}|${kbCle(a.nom)}`, a.nom]));
-      const choix = new Map();
-      (produitsData || []).forEach(p => (p.produit_options || []).forEach(o => {
-        const ids = o.donnees_fournisseur && o.donnees_fournisseur.ids;
-        if (!ids) return;
-        const c = String(o.categorie_attribut || '').toUpperCase();
-        if (!choix.has(c)) choix.set(c, new Map());
-        Object.keys(ids).forEach(k => choix.get(c).set(k, nomParCat.get(`${c}|${k}`) || k));
-      }));
-      const labels = { VIANDE: 'VIANDES', SAUCE: 'SAUCES', FROMAGE: 'FROMAGES', BOISSON: 'BOISSONS', DESSERT: 'DESSERTS' };
-      choix.forEach((noms, c) => {
-        kb += `=== ${labels[c] || c.replace(/_/g, ' ')} À CHOISIR AVEC LES PRODUITS ===\n\n`;
-        [...noms.values()].sort((a, b) => a.localeCompare(b, 'fr')).forEach(n => { kb += `- ${n}\n`; });
-        kb += '\n';
-      });
-
-      return kb;
     }
 
     // Infos restaurant pour un business donné (nom + adresse)
@@ -5738,6 +5606,21 @@
 
       return kb;
     }
+    // ========================================
+    // MENUS DÉROULANTS (section Agent IA)
+    // Fermeture au clic extérieur, avec Échap, et après une génération de texte.
+    // Les publications / synchros laissent le menu ouvert pour montrer « En cours… ».
+    // ========================================
+    document.addEventListener('click', (e) => {
+      document.querySelectorAll('details.menu-actions[open]').forEach(d => {
+        if (!d.contains(e.target)) d.removeAttribute('open');
+      });
+      const item = e.target.closest ? e.target.closest('.menu-item[data-ferme]') : null;
+      if (item) { const d = item.closest('details'); if (d) d.removeAttribute('open'); }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') document.querySelectorAll('details.menu-actions[open]').forEach(d => d.removeAttribute('open'));
+    });
   </script>
 </body>
 </html>
