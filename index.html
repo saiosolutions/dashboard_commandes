@@ -6332,6 +6332,10 @@
       return question + (parts.length ? ` (${parts.join(' ; ')})` : '') + (demander ? ' [à demander]' : '');
     }
 
+    // Les formules (menus à prix fixe) ne sont pas encore gérées de bout en bout (choix des composants, prix, cuisine) :
+    // elles sont donc laissées hors du texte de l'agent. Passer à true pour les remettre, une fois ce chantier terminé.
+    const KB_INCLURE_FORMULES = false;
+
     async function genererTexteKbMenuRelieV2(businessId) {
       const { data: produitsData, error: e1 } = await supabaseClient
         .from('produits')
@@ -6442,6 +6446,8 @@
 
       const groupes = {};
       (produitsData || []).forEach(p => {
+        // formule (menu à prix fixe) : exclue du texte tant que KB_INCLURE_FORMULES est false
+        if (!KB_INCLURE_FORMULES && p.metadata && Array.isArray(p.metadata.menu_compose) && p.metadata.menu_compose.length > 0) return;
         const cat = p.categorie || 'AUTRES';
         if (!groupes[cat]) groupes[cat] = { produits: [], ordre: p.produit_familles?.position ?? 999, familleId: p.famille_id };
         groupes[cat].produits.push(p);
