@@ -2786,7 +2786,9 @@
           html += `<div class="groupe-note">⚠️ ${escHtml(g.ex.categorie_attribut)} : absent de ${manquants.length} produit(s) sur ${produitsFam.length} : ${escHtml(manquants.slice(0, 5).map(p => p.nom).join(', '))}${manquants.length > 5 ? '…' : ''}</div>`;
         }
       });
+      html += '<div id="groupes-exclus"></div>';
       container.innerHTML = html;
+      afficherGroupesExclus();
     }
 
     function choisirFamilleGroupes(i) {
@@ -2876,6 +2878,7 @@
       try {
         const { error } = await supabaseClient.from('produit_options').delete().in('id', g.lignes.map(l => l.o.id));
         if (error) throw error;
+        await memoriserGroupesExclus(g.lignes.map(l => l.o));
         alert(`✅ Groupe retiré de ${n} produit(s)`);
         await loadProduitOptions();
       } catch (err) {
@@ -3056,6 +3059,55 @@
         await loadRegles();
         majPastillesParam();
         analyserSuggestions();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    // ========================================
+    // GROUPES RETIRÉS VOLONTAIREMENT
+    // La synchro API recrée tout groupe absent : on mémorise ceux que vous retirez pour qu'elle ne les recrée pas.
+    // La clé (produit | groupe fournisseur) est la même que celle utilisée par la fonction sync-catalogue.
+    // ========================================
+    async function memoriserGroupesExclus(lignes) {
+      const cles = (lignes || [])
+        .filter(o => o && o.donnees_fournisseur && o.donnees_fournisseur.id_famille_externe)
+        .map(o => `${o.produit_id}|${o.donnees_fournisseur.id_famille_externe}|${o.donnees_fournisseur.nom_groupe}`);
+      if (cles.length === 0) return;
+      const { data, error } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+      if (error) throw error;
+      const tp = (data && data.type_params) || {};
+      const exclus = new Set(tp.groupes_exclus || []);
+      cles.forEach(c => exclus.add(c));
+      const { error: e2 } = await supabaseClient.from('business')
+        .update({ type_params: { ...tp, groupes_exclus: [...exclus] } }).eq('id', BUSINESS_ID);
+      if (e2) throw e2;
+    }
+
+    async function afficherGroupesExclus() {
+      const zone = document.getElementById('groupes-exclus');
+      if (!zone) return;
+      try {
+        const { data } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+        const n = ((data && data.type_params && data.type_params.groupes_exclus) || []).length;
+        zone.innerHTML = n
+          ? `<div class="groupe-note" style="background:var(--info-bg);color:var(--info);">🔒 ${n} groupe(s) retiré(s) volontairement : la synchro API ne les recrée pas.
+              <button class="btn btn-sm btn-secondary" style="margin-left:10px;" onclick="retablirGroupesExclus()">Rétablir</button></div>`
+          : '';
+      } catch (_) { /* affichage facultatif */ }
+    }
+
+    async function retablirGroupesExclus() {
+      if (!confirm('Rétablir tous les groupes retirés ? Ils seront recréés à la prochaine synchro API.')) return;
+      try {
+        const { data, error } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+        if (error) throw error;
+        const tp = { ...((data && data.type_params) || {}) };
+        delete tp.groupes_exclus;
+        const { error: e2 } = await supabaseClient.from('business').update({ type_params: tp }).eq('id', BUSINESS_ID);
+        if (e2) throw e2;
+        alert('✅ Rétabli : les groupes seront recréés à la prochaine synchro API.');
+        afficherGroupesExclus();
       } catch (err) {
         alert('❌ Erreur: ' + err.message);
       }
@@ -3481,17 +3533,21 @@
       if (n === 0) return;
       if (!confirm(`Tu vas supprimer ${n} règle(s). Cette action est irréversible. Confirmer ?`)) return;
       const ids = Array.from(reglesSelectionnees);
+      const supprimes = [];
       let ok = 0, erreurs = 0;
       for (const id of ids) {
         try {
+          const ligneSupprimee = findOptionById(id);
           const { error } = await supabaseClient.from('produit_options').delete().eq('id', id);
           if (error) throw error;
+          if (ligneSupprimee) supprimes.push(ligneSupprimee);
           ok++;
         } catch (err) {
           console.error('Erreur suppression', id, err);
           erreurs++;
         }
       }
+      if (supprimes.length > 0) { try { await memoriserGroupesExclus(supprimes); } catch (e) { console.warn('Groupes exclus non mémorisés', e); } }
       alert(`✅ ${ok} règle(s) supprimée(s)` + (erreurs ? `, ${erreurs} erreur(s)` : ''));
       modeSuppression = false;
       reglesSelectionnees.clear();
@@ -3659,12 +3715,14 @@
 
     async function deleteOption(id) {
       if (!confirm('Supprimer ce groupe d\'options ? Cette action est irréversible.')) return;
+      const ligneSupprimee = findOptionById(id);
       try {
         const { error } = await supabaseClient
           .from('produit_options')
           .delete()
           .eq('id', id);
         if (error) throw error;
+        if (ligneSupprimee) await memoriserGroupesExclus([ligneSupprimee]);
         alert('✅ Groupe supprimé');
         loadProduitOptions();
       } catch (error) {
