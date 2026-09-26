@@ -6339,7 +6339,7 @@
       return 'plat';
     }
 
-    // Une ligne de question pour un groupe d'options
+// Une ligne de question pour un groupe d'options
     function kb2Ligne(o, p, listes, nomParCle) {
       const type = kb2Type(o);
       const noms = kb2NomsChoix(o, nomParCle);
@@ -6379,17 +6379,27 @@
       const parts = [];
       if (!retrait) {
         let compte = '';
-        if (ma > 0) compte = (mi === ma) ? String(ma) : (ma === 1 && mi === 0 ? '0 ou 1' : `de ${mi} à ${ma}`);
+        // CORRECTIF : « exactement N » quand le nombre est imposé (min = max > 1)
+        if (ma > 0) compte = (mi === ma) ? (ma > 1 ? `exactement ${ma}` : String(ma)) : (ma === 1 && mi === 0 ? '0 ou 1' : `de ${mi} à ${ma}`);
         if (liste) compte += (compte ? ', ' : '') + `parmi ${liste}`;
         if (compte) parts.push(compte);
+        // CORRECTIF : chaque choix est facturé à son propre prix, dès le premier (0 € = inclus)
         const px = o.donnees_fournisseur && o.donnees_fournisseur.prix_unitaire;
+        const choixPrix = (o.donnees_fournisseur && Array.isArray(o.donnees_fournisseur.choix)) ? o.donnees_fournisseur.choix : [];
         if (px) {
           const txt = kbLibellePrixSupplement(px.livraison, px.emporter, px.sur_place);
-          if (txt === 'gratuit') parts.push('inclus');
-          else {
-            const inc = Number(o.inclus_gratuit) || 0;
-            parts.push(inc > 0 ? `les ${inc} premiers inclus, ensuite ${txt}` : txt);
-          }
+          parts.push(txt === 'gratuit' ? 'inclus' : txt);
+        } else if (choixPrix.length > 0) {
+          // Prix différents selon le choix : regroupés (« inclus : POULET, KEBAB | +1,00€ chacun : MERGUEZ »)
+          const parPrix = new Map();
+          choixPrix.forEach(c => {
+            const p3 = c.prix || {};
+            const t = kbLibellePrixSupplement(p3.livraison, p3.emporter, p3.sur_place);
+            const k = t === 'gratuit' ? 'inclus' : t;
+            if (!parPrix.has(k)) parPrix.set(k, []);
+            parPrix.get(k).push(nomParCle.get(kbCle(c.nom)) || c.nom);
+          });
+          parts.push([...parPrix.entries()].map(([k, n]) => `${k} : ${n.join(', ')}`).join(' | '));
         }
         if (mi === 0) parts.push('le client peut refuser');
       } else {
@@ -6506,8 +6516,10 @@
       kb += '=== LECTURE DU MENU ===\n\n';
       kb += '• Chaque ligne « - » sous un produit est une question à poser, dans l\'ordre. [à demander] = question obligatoire.\n';
       kb += '• Les choix ne viennent QUE de la liste nommée sur la ligne (voir LISTES DE CHOIX en fin de menu). Un choix hors liste est refusé.\n';
-      kb += '• Sur une ligne à plusieurs choix, chaque choix ne se prend qu\'une seule fois (deux sauces différentes, jamais deux fois la même).\n';
+      // CORRECTIF : un même choix peut être pris plusieurs fois ; retraits jamais proposés
+      kb += '• Sur une ligne à plusieurs choix, un même choix peut être pris plusieurs fois (ex. « deux fois samouraï ») : l\'écrire autant de fois dans supplements.\n';
       kb += '• Tout choix du client sur une ligne « - » se met dans supplements : le système applique le prix indiqué sur la ligne (inclus ou payant). Seule exception : une ligne « retrait » va dans modifications.\n';
+      kb += '• Retraits : ne JAMAIS les proposer. Seulement si le client le demande, et seulement pour un élément de la Composition du produit (à noter dans modifications).\n';
       kb += '• Une boisson choisie sur une ligne « - » d\'un produit fait partie de ce produit (jamais un article séparé) et compte comme boisson de la commande.\n';
       kb += '• Un produit SANS ligne boisson n\'inclut pas de boisson : si le client en veut une, c\'est un ARTICLE À PART (famille BOISSONS, prix indiqué), jamais un choix noté sur un autre produit.\n\n';
 
@@ -6603,7 +6615,7 @@
 
       return kb;
     }
-    // ========================================
+   // ========================================
     // MENUS DÉROULANTS (section Agent IA)
     // Fermeture au clic extérieur, avec Échap, et après une génération de texte.
     // Les publications / synchros laissent le menu ouvert pour montrer « En cours… ».
