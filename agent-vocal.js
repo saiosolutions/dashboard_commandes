@@ -44,6 +44,11 @@
     retention: [[7, '7 jours'], [30, '30 jours'], [90, '90 jours']],
     transfer: [['cold', 'Direct (sans annonce)'], ['warm', 'Avec annonce (l\'agent résume la commande)']]
   };
+  // Réglages visibles mais pas encore pris en compte par l'agent LiveKit (à retirer de cette liste au fur et à mesure du branchement)
+  var NON_APPLIQUES = ['stt_kw', 'llm_temp', 'llm_maxtok', 'llm_par', 'tool_snd', 'flow', 'tool_val',
+    'tool_transfer', 'transfer_num', 'transfer_mode', 'transfer_phrase', 'transfer_open_only',
+    'tool_sms', 'sms_sender', 'sms_tpl', 'sms_modes', 'numero_public', 'maxdur', 'sil_hang', 'consent',
+    'metrics', 'record', 'retention', 'mask'];
   var f1 = function (v) { return Number(v).toFixed(1).replace('.', ','); };
   var pct = function (v) { return Math.round(v * 100) + ' %'; };
 
@@ -58,8 +63,8 @@
       { k: 'llm_maxtok', t: 'select', num: 1, l: 'Plafond de longueur de réponse', o: OPT.maxtok, h: 'Limite de sécurité, pas la longueur visée : 300 tokens ≈ 150 à 200 mots. Trop bas, il peut couper un appel d\'outil.' },
       { k: 'llm_par', t: 'toggle', l: 'Appels d\'outils en parallèle', adv: 1 },
       { k: 'tts_model', t: 'model', mt: 'tts', l: 'Voix (TTS)' },
-      { k: 'tts_voice_id', t: 'text', l: 'Identifiant de la voix', ph: '[identifiant fourni par le fournisseur]', h: 'Vide = voix par défaut du fournisseur.' },
-      { k: 'tts_speed', t: 'range', l: 'Vitesse de parole', min: 0.7, max: 1.3, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ',') + '×'; } },
+      { k: 'tts_voice_id', t: 'text', l: 'Identifiant de la voix', ph: '[identifiant fourni par le fournisseur]', h: 'Vide = voix par défaut du fournisseur. Exemples : xAI = celeste, iris, carina, ara, eve (en minuscules) ; Deepgram Aura-2 = agathe, hector ; Cartesia, Fish Audio, Gradium = identifiant de la bibliothèque du fournisseur.' },
+      { k: 'tts_speed', t: 'range', l: 'Vitesse de parole', h: 'Appliquée avec Fish Audio, Cartesia et xAI (xAI : de 0,7 à 1,5). Les autres voix gardent leur rythme naturel (Deepgram Aura-2 : réglage de vitesse limité à l\'anglais et l\'espagnol).', min: 0.7, max: 1.3, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ',') + '×'; } },
       { k: 'fb_llm', t: 'model', mt: 'llm', none: 1, l: 'LLM de secours', h: 'Prend le relais si le LLM principal ne répond plus.' },
       { k: 'fb_tts', t: 'model', mt: 'tts', none: 1, l: 'Voix de secours', adv: 1 },
       { k: 'fb_stt', t: 'model', mt: 'stt', none: 1, l: 'Écoute de secours', adv: 1 }
@@ -84,7 +89,7 @@
       { k: 'noise', t: 'select', l: 'Suppression de bruit', o: OPT.noise, adv: 1 }
     ] },
     { id: 'prompt', title: 'Prompt', fields: [
-      { k: 'prompt_modele', t: 'prompt', l: 'Prompt de l\'agent', h: 'Modifié dans « Prompts de l\'agent » : le changement s\'applique à tous les agents qui l\'utilisent.' },
+      { k: 'prompt_modele', t: 'prompt', l: 'Prompt de l\'agent', h: 'Choisis ici le prompt de l\'agent (créé dans « Prompts de l\'agent »). Vide ou trop court : l\'agent garde son prompt intégré. Le menu et les zones s\'insèrent avec les repères {{kb_menu}} (menu complet), {{kb_menu_compact}} (menu regroupé par tailles) et {{kb_zones}}. Attention : un changement de ce prompt s\'applique à tous les agents qui l\'utilisent, dès l\'appel suivant.' },
       { k: 'info_ailleurs', t: 'info', l: 'Déjà réglés dans les sections existantes (pas de doublon ici)', h: 'Messages d\'accueil, modes de commande, horaires, zones de livraison et menu se règlent là où ils sont déjà. L\'agent LiveKit les lit au décrochage. Les modifications non enregistrées de cet écran sont conservées si tu y reviens.', links: [['messages', 'Messages d\'accueil'], ['modes', 'Modes de commande'], ['horaires', 'Horaires'], ['zones', 'Zones de livraison'], ['produits', 'Produits (menu)']] }
     ] },
     { id: 'flow', title: 'Déroulé de l\'appel', fields: [
@@ -116,6 +121,7 @@
       { k: 'mask', t: 'toggle', l: 'Masquer les données sensibles' }
     ] }
   ];
+  SCHEMA.forEach(function (sec) { sec.fields.forEach(function (f) { if (NON_APPLIQUES.indexOf(f.k) >= 0) f.nb = true; }); });
   var FM = {};
   SCHEMA.forEach(function (s) { s.fields.forEach(function (f) { FM[f.k] = f; }); });
 
@@ -415,6 +421,8 @@
     var val = cfg[f.k], id = 'avf_' + t + '_' + f.k;
     var perso = prof && !f.col && !eq(val, prof[f.k]);
     var rs = perso ? badge('Personnalisé', 'warn') + '<button class="av-reset" data-avact="reset" data-id="' + f.k + '">Rétablir</button>' : '';
+    if (f.k === 'tts_speed' && cfg && cfg.tts_model && !/^(fishaudio|cartesia|xai)\//.test(String(cfg.tts_model))) rs = '<span class="av-nb" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#fff3e0;color:#8a4b08;font-size:11px;font-weight:600;">Sans effet avec cette voix</span>' + rs;
+    if (f.nb) rs = '<span class="av-nb" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#eceef1;color:#5c6570;font-size:11px;font-weight:600;">Pas encore appliqué par l\'agent</span>' + rs;
     var rv = f.t === 'range' ? '<b id="avlab_' + t + '_' + f.k + '">' + f.fmt(val) + '</b>' : '';
     var extra = '';
     if (f.t === 'model') extra = infoModele(val) + formCustom(f);
@@ -1121,6 +1129,22 @@
   }
   function stat(l, nom) { var s = obj(l.latences)[nom]; return s ? fs(s.moyenne) + ' (médiane ' + fs(s.mediane) + ', max ' + fs(s.max) + ', ' + s.n + ' tours)' : '—'; }
 
+  // Lignes de coût : avec la formule de calcul quand l'appel l'a enregistrée (appels récents), sinon affichage résumé
+  function lignesCout(c, t) {
+    var note = '<div style="font-size:11px;color:#999;margin-top:4px;">' + esc(c.note || '') + (c.inconnus && c.inconnus.length ? ' Prix manquant ou déduit pour : ' + esc(c.inconnus.join(', ')) + '.' : '') + '</div>';
+    if (c.lignes && c.lignes.length) {
+      var corps = c.lignes.map(function (x) {
+        return '<div style="padding:2px 0;"><div style="display:flex;justify-content:space-between;gap:12px;font-size:14px;"><span>' + esc(x.libelle) + (x.exact === false ? ' <span style="font-size:11px;color:#8a4b08;background:#fff3e0;border-radius:4px;padding:1px 6px;">estimation</span>' : '') + '</span><span>' + fu(x.montant) + '</span></div>' +
+          (x.formule ? '<div style="font-size:11px;color:#8a8f98;">' + esc(x.formule) + '</div>' : '') + '</div>';
+      }).join('');
+      var dont = c.dont_estime_usd ? '<div style="font-size:12px;color:#8a4b08;">dont ' + fu(c.dont_estime_usd) + ' d\'estimation (Twilio)</div>' : '';
+      return corps + ligne('Total', fu(c.total_usd), true) + dont + note;
+    }
+    return ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus' + (t.entree_cache ? ', dont ' + t.entree_cache + ' en cache' : ', aucun en cache') + ', ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) +
+      ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) +
+      ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + ligne('Total', fu(c.total_usd), true) + note;
+  }
+
   function blocDetail(l) {
     var m = obj(l.modeles), rg = m.reglages || {}, d = obj(l.demarrage), c = obj(l.cout), res = obj(l.resultat), t = c.tokens || {};
     var chips = ['stt', 'llm', 'tts'].map(function (k) {
@@ -1128,6 +1152,7 @@
     }).join('');
     var reg = [];
     if (rg.source) reg.push('réglages : ' + rg.source);
+    if (rg.prompt) reg.push('prompt : ' + rg.prompt);
     if (rg.vitesse != null) reg.push('vitesse ' + String(rg.vitesse).replace('.', ',') + '×');
     if (rg.expressif != null) reg.push('mode expressif ' + (rg.expressif ? 'oui' : 'non'));
     if (rg.attente_min) reg.push('attente min. ' + rg.attente_min);
@@ -1150,10 +1175,10 @@
       '<div style="margin-top:8px;">' + chips + '</div>' +
       (reg.length ? '<div style="font-size:12px;color:#666;">' + esc(reg.join(' · ')) + '</div>' : '') +
       secoursHtml +
+      (d.room ? '<div style="font-size:12px;color:#5c6570;margin-top:8px;">Session dans la console LiveKit (Sessions) : <b style="user-select:all;">' + esc(d.room) + '</b></div>' : '') +
       bloc('Démarrage', ligne('Connexion', fs(d.connexion_s)) + ligne('preCallWebhook', fs(d.precall_s)) + ligne('Démarrage de la session', fs(d.session_s)) + ligne('Total avant l\'accueil', fs(d.total_avant_accueil_s), true)) +
       bloc('Latence', ligne('Réponse (fin de parole → voix)', stat(l, 'reponse')) + ligne('Premier mot du cerveau', stat(l, 'cerveau_premier_mot')) + ligne('Premier son de la voix', stat(l, 'voix_premier_son')) + ligne('Attente de fin de parole', stat(l, 'fin_de_parole')) + detailTours) +
-      bloc('Coût estimé', ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus' + (t.entree_cache ? ', dont ' + t.entree_cache + ' en cache' : ', aucun en cache') + ', ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) + ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) + ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + ligne('Total', fu(c.total_usd), true) +
-        '<div style="font-size:11px;color:#999;margin-top:4px;">' + esc(c.note || '') + (c.inconnus && c.inconnus.length ? ' Prix inconnu pour : ' + esc(c.inconnus.join(', ')) + '.' : '') + '</div>') +
+      bloc('Coût de l\'appel', lignesCout(c, t)) +
       bloc('Résultat de la commande', ligne('Statut', res.statut || '—') + ligne('Numéro de commande', res.numero_commande || 'aucune commande créée') + anomalies) +
       '</div>';
   }
