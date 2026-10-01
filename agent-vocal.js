@@ -73,7 +73,7 @@
       { k: 'preempt', t: 'toggle', l: 'Réponse anticipée', h: 'Prépare la réponse avant la fin de la phrase.' },
       { k: 'expressif', t: 'toggle', l: 'Mode expressif', h: 'Voix plus naturelle (émotion, rythme). Compatible : Fish Audio S2.1 Pro, Inworld TTS 2.0, Cartesia Sonic, xAI. Sans effet avec les autres voix ; peut ajouter un peu de latence.' },
       { k: 'disfluences', t: 'toggle', l: 'Autoriser les hésitations (« euh »)', h: 'Réglage de départ de LiveKit : activé, en anglais. Laisser désactivé.', adv: 1 },
-      { k: 'vad', t: 'range', l: 'Sensibilité de détection de voix', min: 0.1, max: 0.9, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ','); }, adv: 1 }
+      { k: 'vad', t: 'range', l: 'Seuil de détection de voix', h: 'Plus bas : l\'agent détecte aussi les voix faibles, mais réagit davantage au bruit. Par défaut 0,5. Essayer 0,3 si l\'agent n\'entend pas bien.', min: 0.1, max: 0.9, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ','); }, adv: 1 }
     ] },
     { id: 'sounds', title: 'Sons', fields: [
       { k: 'think', t: 'select', l: 'Son de réflexion (pendant les outils)', o: OPT.think, h: 'Comble le blanc pendant que l\'agent travaille.' },
@@ -1131,7 +1131,8 @@
     if (rg.vitesse != null) reg.push('vitesse ' + String(rg.vitesse).replace('.', ',') + '×');
     if (rg.expressif != null) reg.push('mode expressif ' + (rg.expressif ? 'oui' : 'non'));
     if (rg.attente_min) reg.push('attente min. ' + rg.attente_min);
-    if (rg.bruit != null) reg.push('suppression de bruit ' + (rg.bruit ? 'oui' : 'non'));
+    if (rg.bruit != null) reg.push('suppression de bruit ' + (rg.bruit ? ('oui' + (rg.bruit_modele ? ' (' + rg.bruit_modele + ')' : '')) : 'non'));
+    if (rg.seuil_voix != null) reg.push('seuil de voix ' + String(rg.seuil_voix).replace('.', ','));
     var tours = (obj(l.latences).tours || []).filter(function (x) { return x.role === 'assistant' && x.e2e_latency; });
     var detailTours = tours.length
       ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:13px;color:#1f5f8b;">Détail par réponse de l\'agent</summary>' +
@@ -1151,7 +1152,7 @@
       secoursHtml +
       bloc('Démarrage', ligne('Connexion', fs(d.connexion_s)) + ligne('preCallWebhook', fs(d.precall_s)) + ligne('Démarrage de la session', fs(d.session_s)) + ligne('Total avant l\'accueil', fs(d.total_avant_accueil_s), true)) +
       bloc('Latence', ligne('Réponse (fin de parole → voix)', stat(l, 'reponse')) + ligne('Premier mot du cerveau', stat(l, 'cerveau_premier_mot')) + ligne('Premier son de la voix', stat(l, 'voix_premier_son')) + ligne('Attente de fin de parole', stat(l, 'fin_de_parole')) + detailTours) +
-      bloc('Coût estimé', ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus, ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) + ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) + ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + ligne('Total', fu(c.total_usd), true) +
+      bloc('Coût estimé', ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus' + (t.entree_cache ? ', dont ' + t.entree_cache + ' en cache' : ', aucun en cache') + ', ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) + ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) + ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + ligne('Total', fu(c.total_usd), true) +
         '<div style="font-size:11px;color:#999;margin-top:4px;">' + esc(c.note || '') + (c.inconnus && c.inconnus.length ? ' Prix inconnu pour : ' + esc(c.inconnus.join(', ')) + '.' : '') + '</div>') +
       bloc('Résultat de la commande', ligne('Statut', res.statut || '—') + ligne('Numéro de commande', res.numero_commande || 'aucune commande créée') + anomalies) +
       '</div>';
