@@ -41,8 +41,6 @@
     think: [['none', 'Aucun'], ['keyboard1', 'Clavier 1'], ['keyboard2', 'Clavier 2'], ['keyboard_mix', 'Mélange clavier 1 et 2']],
     amb: [['none', 'Aucune'], ['office', 'Ambiance bureau']],
     noise: [['none', 'Aucune'], ['standard', 'Standard'], ['telephony', 'Téléphonie']],
-    greet: [['fixed', 'Phrase fixe'], ['generated', 'Générée par le LLM']],
-    sync: [['auto', 'Automatique (webhook fournisseur)'], ['manual', 'Manuelle']],
     retention: [[7, '7 jours'], [30, '30 jours'], [90, '90 jours']],
     transfer: [['cold', 'Direct (sans annonce)'], ['warm', 'Avec annonce (l\'agent résume la commande)']]
   };
@@ -51,6 +49,7 @@
 
   var SCHEMA = [
     { id: 'models', title: 'Modèles et voix', fields: [
+      { k: 'info_branche', t: 'info', l: 'Ce que l\'agent applique à chaque appel', h: 'Quand l\'agent est « en service », il applique : écoute (modèle, langue), cerveau (modèle), voix (modèle, identifiant, vitesse), modèles de secours, mode expressif, fin de tour, attentes, interruptions, réponse anticipée, sons et suppression de bruit. Pas encore branchés : température, plafond de réponse, mots à reconnaître, outils, prompt. Hors service, l\'agent garde les réglages de son déploiement. Un modèle choisi ici est toujours doublé par la combinaison de référence du déploiement : si le modèle ne répond pas, l\'appel continue.', links: [] },
       { k: 'stt_model', t: 'model', mt: 'stt', l: 'Écoute (STT)' },
       { k: 'stt_lang', t: 'select', l: 'Langue d\'écoute', o: OPT.lang },
       { k: 'stt_kw', t: 'text', l: 'Mots à reconnaître (plats, marques)', h: 'Séparés par des virgules', adv: 1 },
@@ -71,7 +70,9 @@
       { k: 'd_max', t: 'range', l: 'Attente maximale', min: 1, max: 6, step: 0.5, fmt: function (v) { return f1(v) + ' s'; } },
       { k: 'inter', t: 'toggle', l: 'Interruptions autorisées', h: 'Le client peut couper la parole à l\'agent.' },
       { k: 'int_words', t: 'range', l: 'Mots minimum pour couper', min: 1, max: 5, step: 1, fmt: function (v) { return v + ' mot(s)'; } },
-      { k: 'preempt', t: 'toggle', l: 'Réponse anticipée', h: 'Prépare la réponse avant la fin de la phrase.', adv: 1 },
+      { k: 'preempt', t: 'toggle', l: 'Réponse anticipée', h: 'Prépare la réponse avant la fin de la phrase.' },
+      { k: 'expressif', t: 'toggle', l: 'Mode expressif', h: 'Voix plus naturelle (émotion, rythme). Compatible : Fish Audio S2.1 Pro, Inworld TTS 2.0, Cartesia Sonic, xAI. Sans effet avec les autres voix ; peut ajouter un peu de latence.' },
+      { k: 'disfluences', t: 'toggle', l: 'Autoriser les hésitations (« euh »)', h: 'Réglage de départ de LiveKit : activé, en anglais. Laisser désactivé.', adv: 1 },
       { k: 'vad', t: 'range', l: 'Sensibilité de détection de voix', min: 0.1, max: 0.9, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ','); }, adv: 1 }
     ] },
     { id: 'sounds', title: 'Sons', fields: [
@@ -82,18 +83,12 @@
       { k: 'tool_snd', t: 'select', l: 'Son au lancement de validationCommande', o: OPT.think },
       { k: 'noise', t: 'select', l: 'Suppression de bruit', o: OPT.noise, adv: 1 }
     ] },
-    { id: 'prompt', title: 'Prompt et accueil', fields: [
+    { id: 'prompt', title: 'Prompt', fields: [
       { k: 'prompt_modele', t: 'prompt', l: 'Prompt de l\'agent', h: 'Modifié dans « Prompts de l\'agent » : le changement s\'applique à tous les agents qui l\'utilisent.' },
-      { k: 'greet_mode', t: 'select', l: 'Message d\'accueil', o: OPT.greet },
-      { k: 'greet', t: 'area', l: 'Phrase d\'accueil', h: 'Variables : {{nom_resto}}, {{horaires}}, {{date_heure}}' },
-      { k: 'vars', t: 'multi', l: 'Variables injectées à chaque appel', o: ['nom_resto', 'ouvert_ferme', 'horaires', 'date_heure', 'modes_actifs'], h: 'modes_actifs : les modes réellement disponibles à cet instant (sur place, emporter, livraison).' },
-      { k: 'modes', t: 'multi', l: 'Modes de commande proposés', o: ['sur_place', 'a_emporter', 'livraison'], h: 'Réglage fixe du restaurant, distinct de modes_actifs.' }
+      { k: 'info_ailleurs', t: 'info', l: 'Déjà réglés dans les sections existantes (pas de doublon ici)', h: 'Messages d\'accueil, modes de commande, horaires, zones de livraison et menu se règlent là où ils sont déjà. L\'agent LiveKit les lit au décrochage. Les modifications non enregistrées de cet écran sont conservées si tu y reviens.', links: [['messages', 'Messages d\'accueil'], ['modes', 'Modes de commande'], ['horaires', 'Horaires'], ['zones', 'Zones de livraison'], ['produits', 'Produits (menu)']] }
     ] },
     { id: 'flow', title: 'Déroulé de l\'appel', fields: [
-      { k: 'flow', t: 'flow', l: 'Étapes de l\'appel', h: 'Tu actives les étapes, modifies les phrases et choisis les questions obligatoires. Le calcul des prix reste verrouillé.' }
-    ] },
-    { id: 'menu', title: 'Menu', fields: [
-      { k: 'menu_sync', t: 'select', l: 'Mise à jour du menu', o: OPT.sync, h: 'Le menu est injecté dans le prompt (décision V1).' }
+      { k: 'flow', t: 'flow', l: 'Étapes de l\'appel', h: 'Optionnel. Ce bloc n\'est utilisé que si le prompt contient le repère {{deroule_appel}} : il y est remplacé par ces étapes. Sans ce repère, ces réglages sont ignorés. Le calcul des prix reste verrouillé.' }
     ] },
     { id: 'tools', title: 'Outils', fields: [
       { k: 'tool_val', t: 'toggle', l: 'validationCommande (calcul des prix)', locked: 1, h: 'Verrouillé : les prix sont calculés par les fonctions Supabase, jamais par le LLM.' },
@@ -104,7 +99,7 @@
       { k: 'transfer_open_only', t: 'toggle', l: 'Transférer seulement quand le restaurant est ouvert', h: 'Sinon l\'agent explique que personne n\'est disponible.' },
       { k: 'tool_sms', t: 'toggle', l: 'SMS de confirmation de commande', h: '≈ 0,08 $ par SMS de 160 caractères (0,16 $ s\'il en faut deux) : presque autant qu\'un appel entier. Désactivé par défaut.' },
       { k: 'sms_sender', t: 'text', l: 'Nom d\'expéditeur du SMS', ph: 'ex. DEMOPIZZA', h: '11 caractères maximum, lettres et chiffres. Le client ne peut pas répondre. Obligatoire si le SMS est activé.' },
-      { k: 'sms_tpl', t: 'area', l: 'Texte du SMS', h: 'Variables : {{nom_resto}}, {{numero_commande}}, {{total}}, {{heure}}. Évite les accents rares (â, ê, ô…) : ils ramènent la limite à 70 caractères par SMS.' },
+      { k: 'sms_tpl', t: 'area', l: 'Texte du SMS', h: 'Variables : {{nom_restaurant}}, {{numero_commande}}, {{total}}, {{heure}}. Évite les accents rares (â, ê, ô…) : ils ramènent la limite à 70 caractères par SMS.' },
       { k: 'sms_modes', t: 'multi', l: 'SMS envoyé pour', o: ['a_emporter', 'livraison'], h: 'Limiter à la livraison réduit le coût.' }
     ] },
     { id: 'tel', title: 'Téléphonie', fields: [
@@ -138,13 +133,12 @@
     llm_model: 'google/gemini-3-flash-preview', llm_temp: 0.3, llm_maxtok: 300, llm_par: false,
     tts_model: 'inworld/inworld-tts-2', tts_voice_id: '', tts_speed: 1,
     fb_llm: 'openai/gpt-5-mini', fb_tts: '', fb_stt: '',
-    turn: 'multilingual_model', d_min: 0.5, d_max: 3, inter: true, int_words: 2, preempt: false, vad: 0.5,
+    turn: 'multilingual_model', d_min: 0.5, d_max: 3, inter: true, int_words: 2, preempt: true, vad: 0.5, expressif: false, disfluences: false,
     think: 'keyboard1', think_vol: 0.6, amb: 'none', amb_vol: 0.2, tool_snd: 'keyboard1', noise: 'telephony',
-    prompt_modele: 'Modèle SAIOS restaurant (défaut)', greet_mode: 'fixed', greet: 'Bonjour, restaurant {{nom_resto}}, je vous écoute.',
-    vars: ['nom_resto', 'ouvert_ferme', 'horaires', 'date_heure', 'modes_actifs'], modes: ['a_emporter', 'livraison'],
-    flow: FLOW0, menu_sync: 'auto', tool_val: true,
+    prompt_modele: 'Modèle SAIOS restaurant (défaut)',
+    flow: FLOW0, tool_val: true,
     tool_transfer: false, transfer_num: '', transfer_mode: 'cold', transfer_phrase: 'Je vous passe un collaborateur, ne quittez pas.', transfer_open_only: true,
-    tool_sms: false, sms_sender: '', sms_tpl: '{{nom_resto}} : commande {{numero_commande}} confirmee, total {{total}}, prete a {{heure}}.', sms_modes: ['livraison'],
+    tool_sms: false, sms_sender: '', sms_tpl: '{{nom_restaurant}} : commande {{numero_commande}} confirmee, total {{total}}, prete a {{heure}}.', sms_modes: ['livraison'],
     maxdur: 10, sil_hang: 20, consent: false,
     metrics: true, record: false, retention: 30, mask: true
   };
@@ -179,7 +173,7 @@
   var cfgOf = function (bid) { return AV.configs.find(function (c) { return c.business_id === bid; }); };
   var nomBiz = function (bid) { var b = (typeof businessesList !== 'undefined' ? businessesList : []).find(function (x) { return x.id === bid; }); return b ? b.nom : '(restaurant inconnu)'; };
   var sante = function (id) { var m = M(id); return m ? m.sante : 'ok'; };
-  var resolu = function (row) { return Object.assign(clone(BASE), clone(row.reglages || {})); };
+  var resolu = function (row) { var r = row.reglages || {}, out = clone(BASE); Object.keys(BASE).forEach(function (k) { if (k in r) out[k] = clone(r[k]); }); return out; };
   var primaires = function (c) { return [c.stt_model, c.llm_model, c.tts_model]; };
   var coutDe = function (c) {
     var inc = primaires(c).some(function (id) { var m = M(id); return !m || m.prix_minute == null; });
@@ -417,6 +411,7 @@
     return '<div class="av-card" style="margin-top:8px"><b>Modèle hors catalogue</b><div class="av-field"><label class="av-l" for="avf_custom_id">Identifiant du modèle</label><input type="text" id="avf_custom_id" data-avt="custom" data-avk="id" value="' + esc(c.id) + '" placeholder="fournisseur/modele"></div><div class="av-field"><label class="av-l" for="avf_custom_pm">Prix par minute en $ (facultatif)</label><input type="text" id="avf_custom_pm" data-avt="custom" data-avk="pm" value="' + esc(c.pm) + '" placeholder="0,0000"><div class="av-help">Sans prix, le coût estimé est signalé incomplet. Le modèle est ajouté « non testé ».</div></div><div class="av-row"><button class="btn btn-primary btn-sm" data-avact="addcustom">Ajouter ce modèle</button><button class="btn btn-secondary btn-sm" data-avact="cancelcustom">Annuler</button></div></div>';
   }
   function ligneChamp(f, cfg, prof, t) {
+    if (f.t === 'info') return '<div class="av-field"><div class="av-l">' + esc(f.l) + '</div><div class="av-help">' + esc(f.h) + '</div><div class="av-row" style="margin-top:8px">' + f.links.map(function (x) { return '<button class="btn btn-secondary btn-sm" data-avact="aller" data-id="' + x[0] + '">' + esc(x[1]) + ' ›</button>'; }).join('') + '</div></div>';
     var val = cfg[f.k], id = 'avf_' + t + '_' + f.k;
     var perso = prof && !f.col && !eq(val, prof[f.k]);
     var rs = perso ? badge('Personnalisé', 'warn') + '<button class="av-reset" data-avact="reset" data-id="' + f.k + '">Rétablir</button>' : '';
@@ -579,7 +574,7 @@
       h += '<label class="av-check"><input type="checkbox" data-avt="bulk" data-avk="useFb"' + (b.useFb ? ' checked' : '') + '> Utiliser d\'abord le modèle de secours propre à chaque agent</label>';
     }
     if (b.action === 'field') {
-      var nm = []; SCHEMA.forEach(function (s) { s.fields.forEach(function (f) { if (!f.locked && !f.col && f.t !== 'model' && f.t !== 'flow') nm.push(f); }); });
+      var nm = []; SCHEMA.forEach(function (s) { s.fields.forEach(function (f) { if (!f.locked && !f.col && f.t !== 'model' && f.t !== 'flow' && f.t !== 'info') nm.push(f); }); });
       var f = FM[b.fk];
       h += '<div class="av-field"><label class="av-l" for="avf_bulk_fk">Réglage</label><select id="avf_bulk_fk" data-avt="bulk" data-avk="fk">' + nm.map(function (x) { return '<option value="' + x.k + '"' + (x.k === b.fk ? ' selected' : '') + '>' + esc(x.l) + '</option>'; }).join('') + '</select></div><div class="av-field"><div class="av-top"><label class="av-l" for="avf_bulk_val">Nouvelle valeur</label>' + (f.t === 'range' ? '<b id="avlab_bulk_val">' + f.fmt(b.val) + '</b>' : '') + '</div>' + ctl(Object.assign({}, f, { k: 'val' }), b.val, 'bulk') + '</div>';
     }
@@ -972,5 +967,229 @@
     rendre();
   });
 
-  window.AgentVocal = { version: '1.0', etat: AV };
+  window.AgentVocal = { version: '3.0', etat: AV };
+})();
+
+/* =====================================================================
+   Module « Journal d'appel » — ajoute des informations aux appels LiveKit
+   SANS modifier l'existant : les fonctions renderEvenements et
+   openEvenementDetail sont simplement enveloppées ; le Journal fait d'abord
+   exactement ce qu'il faisait, puis on ajoute :
+     - une pastille du moteur (LiveKit / ElevenLabs) sur chaque appel,
+     - la latence de réponse dans la ligne des appels LiveKit,
+     - un bandeau de moyennes (coût par appel, latences) sous les totaux,
+     - un bloc « Détail technique » dans le détail d'un appel LiveKit.
+   Table lue : appels_livekit (voir agent_vocal_etape2_appels.sql).
+   ===================================================================== */
+(function () {
+  'use strict';
+  if (window.__agentVocalJournal) return;
+  if (typeof window.renderEvenements !== 'function' || typeof window.openEvenementDetail !== 'function' ||
+      typeof supabaseClient === 'undefined') {
+    console.warn('[agent-vocal] module Journal non chargé (page inattendue)');
+    return;
+  }
+  window.__agentVocalJournal = true;
+
+  var cache = {};            // conversation_id -> ligne appels_livekit (ou null si absente)
+  var tableAbsente = false;
+  var enCours = false;
+
+  var esc = function (t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+  var fs = function (x) { return x == null ? '—' : Number(x).toFixed(2).replace('.', ',') + ' s'; };
+  var fu = function (x, d) { return x == null ? '—' : Number(x).toFixed(d == null ? 4 : d).replace('.', ',') + ' $'; };
+  var estLiveKit = function (evt) { return !!evt && typeof evt.call_id === 'string' && evt.call_id.indexOf('lk_') === 0; };
+  var liste = function () { try { return (typeof evenements !== 'undefined' && Array.isArray(evenements)) ? evenements : []; } catch (e) { return []; } };
+  var obj = function (v) { if (typeof v === 'string') { try { return JSON.parse(v); } catch (e) { return {}; } } return v || {}; };
+
+  function pastille(evt) {
+    return estLiveKit(evt)
+      ? '<span class="av-moteur" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#e7f1f8;color:#1f5f8b;font-size:11px;font-weight:700;">LiveKit</span>'
+      : '<span class="av-moteur" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#efe9f5;color:#5d3d7a;font-size:11px;font-weight:700;">ElevenLabs</span>';
+  }
+
+  async function charger(ids) {
+    var manquants = ids.filter(function (id) { return !(id in cache); });
+    if (!manquants.length || tableAbsente) return false;
+    try {
+      var r = await supabaseClient.from('appels_livekit').select('*').in('conversation_id', manquants);
+      if (r.error) { if (r.error.code === '42P01' || /does not exist|schema cache/i.test(r.error.message || '')) tableAbsente = true; throw r.error; }
+      manquants.forEach(function (id) { cache[id] = null; });
+      (r.data || []).forEach(function (l) { cache[l.conversation_id] = l; });
+      return true;
+    } catch (e) {
+      console.warn('[agent-vocal] mesures LiveKit indisponibles :', e && e.message);
+      manquants.forEach(function (id) { cache[id] = null; });
+      return false;
+    }
+  }
+
+  function moyenne(tab) { return tab.length ? tab.reduce(function (s, x) { return s + x; }, 0) / tab.length : null; }
+
+  function comparatif(lignes) {
+    function groupe(cle, titre) {
+      var g = {};
+      lignes.forEach(function (l) { var m = obj(l.modeles)[cle]; if (m) { (g[m] = g[m] || []).push(l); } });
+      var noms = Object.keys(g).sort();
+      if (!noms.length) return '';
+      var moy = function (ls, champ) {
+        return moyenne(ls.map(function (l) { var st = obj(l.latences)[champ]; return st ? Number(st.moyenne) : null; }).filter(function (x) { return x > 0; }));
+      };
+      var th = '<tr style="text-align:left;color:#666;"><th style="padding:4px 8px;">Modèle</th><th style="padding:4px 8px;">Appels</th><th style="padding:4px 8px;">Réponse</th><th style="padding:4px 8px;">1er mot cerveau</th><th style="padding:4px 8px;">1er son voix</th><th style="padding:4px 8px;">Coût moyen</th></tr>';
+      var rows = noms.map(function (nom) {
+        var ls = g[nom];
+        var cm = moyenne(ls.map(function (l) { return Number(obj(l.cout).total_usd); }).filter(function (x) { return x > 0; }));
+        return '<tr><td style="padding:4px 8px;">' + esc(nom) + '</td><td style="padding:4px 8px;">' + ls.length + '</td><td style="padding:4px 8px;">' + fs(moy(ls, 'reponse')) + '</td><td style="padding:4px 8px;">' + fs(moy(ls, 'cerveau_premier_mot')) + '</td><td style="padding:4px 8px;">' + fs(moy(ls, 'voix_premier_son')) + '</td><td style="padding:4px 8px;">' + fu(cm, 3) + '</td></tr>';
+      }).join('');
+      return '<div style="margin-top:10px;font-weight:700;font-size:13px;">' + esc(titre) + '</div><table style="border-collapse:collapse;font-size:13px;width:100%;">' + th + rows + '</table>';
+    }
+    return '<details style="width:100%;margin-top:4px;"><summary style="cursor:pointer;font-size:13px;color:#1f5f8b;">Comparer les modèles utilisés (cerveau, voix, écoute)</summary>' +
+      groupe('llm', 'Cerveau') + groupe('tts', 'Voix') + groupe('stt', 'Écoute') +
+      '<div style="font-size:11px;color:#999;margin-top:6px;">Pour une comparaison juste : changer un seul réglage à la fois, avec au moins 3 appels de même type par réglage.</div></details>';
+  }
+
+  function bandeau(lignes) {
+    var recap = document.getElementById('logs-recap');
+    var conteneur = document.getElementById('logs-content');
+    var cible = recap || conteneur;
+    if (!cible || !cible.parentNode) return;
+    var el = document.getElementById('av-journal-resume');
+    if (!lignes.length) { if (el) el.remove(); return; }
+    var couts = lignes.map(function (l) { return Number(obj(l.cout).total_usd); }).filter(function (x) { return x > 0; });
+    var rep = lignes.map(function (l) { var m = obj(l.latences).reponse; return m ? Number(m.moyenne) : null; }).filter(function (x) { return x > 0; });
+    var cer = lignes.map(function (l) { var m = obj(l.latences).cerveau_premier_mot; return m ? Number(m.moyenne) : null; }).filter(function (x) { return x > 0; });
+    var voi = lignes.map(function (l) { var m = obj(l.latences).voix_premier_son; return m ? Number(m.moyenne) : null; }).filter(function (x) { return x > 0; });
+    var dem = lignes.map(function (l) { var d = obj(l.demarrage); return d.total_avant_accueil_s != null ? Number(d.total_avant_accueil_s) : null; }).filter(function (x) { return x > 0; });
+    var cartes = [
+      ['Appels LiveKit affichés', String(lignes.length)],
+      ['Coût moyen par appel', fu(moyenne(couts), 3)],
+      ['Réponse (fin de parole → voix)', fs(moyenne(rep))],
+      ['Premier mot du cerveau', fs(moyenne(cer))],
+      ['Premier son de la voix', fs(moyenne(voi))],
+      ['Démarrage avant accueil', fs(moyenne(dem))]
+    ];
+    var html = '<div style="font-size:12px;color:var(--muted,#6b7480);width:100%;">Moyennes sur les appels LiveKit affichés ci-dessous (estimation de coût d\'après les prix du catalogue)</div>' +
+      cartes.map(function (c) {
+        return '<div class="recap-card"><div class="recap-label">' + esc(c[0]) + '</div><div class="recap-value" style="font-size:18px;">' + esc(c[1]) + '</div></div>';
+      }).join('') + comparatif(lignes);
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'av-journal-resume';
+      el.className = 'recap-bar';
+      el.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;margin:0 0 12px;';
+      cible.parentNode.insertBefore(el, recap ? recap.nextSibling : conteneur);
+    }
+    el.innerHTML = html;
+  }
+
+  async function decorer() {
+    if (enCours) return;
+    enCours = true;
+    try {
+      var evts = liste();
+      var conteneur = document.getElementById('logs-content');
+      if (!conteneur || !evts.length) { bandeau([]); return; }
+      var ids = evts.filter(estLiveKit).map(function (e) { return e.call_id; });
+      await charger(ids);
+      var parId = {};
+      evts.forEach(function (e) { parId[String(e.id)] = e; });
+      conteneur.querySelectorAll('.row-item').forEach(function (row) {
+        var m = /openEvenementDetail\('([^']+)'\)/.exec(row.getAttribute('onclick') || '');
+        var evt = m ? parId[m[1]] : null;
+        if (!evt || row.querySelector('.av-moteur')) return;
+        var droite = row.querySelector('.row-right');
+        if (droite) droite.insertAdjacentHTML('afterbegin', pastille(evt));
+        if (estLiveKit(evt) && cache[evt.call_id]) {
+          var rep = obj(cache[evt.call_id].latences).reponse;
+          var sub = row.querySelector('.row-sub');
+          if (rep && sub) sub.insertAdjacentHTML('beforeend', ' • ⚡ ' + fs(rep.moyenne));
+        }
+      });
+      bandeau(ids.map(function (id) { return cache[id]; }).filter(Boolean));
+    } catch (e) {
+      console.warn('[agent-vocal] Journal : décoration impossible', e);
+    } finally {
+      enCours = false;
+    }
+  }
+
+  function bloc(titre, corps) {
+    return '<div style="margin-top:12px;"><div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#666;margin-bottom:4px;">' + esc(titre) + '</div>' + corps + '</div>';
+  }
+  function ligne(a, b, fort) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:2px 0;' + (fort ? 'font-weight:700;border-top:1px solid #ddd;margin-top:4px;padding-top:6px;' : '') + '"><span>' + esc(a) + '</span><span>' + esc(b) + '</span></div>';
+  }
+  function stat(l, nom) { var s = obj(l.latences)[nom]; return s ? fs(s.moyenne) + ' (médiane ' + fs(s.mediane) + ', max ' + fs(s.max) + ', ' + s.n + ' tours)' : '—'; }
+
+  function blocDetail(l) {
+    var m = obj(l.modeles), rg = m.reglages || {}, d = obj(l.demarrage), c = obj(l.cout), res = obj(l.resultat), t = c.tokens || {};
+    var chips = ['stt', 'llm', 'tts'].map(function (k) {
+      return m[k] ? '<span style="display:inline-block;padding:2px 8px;margin:2px 4px 2px 0;border-radius:6px;background:#eceef1;font-size:12px;">' + esc(m[k]) + '</span>' : '';
+    }).join('');
+    var reg = [];
+    if (rg.source) reg.push('réglages : ' + rg.source);
+    if (rg.vitesse != null) reg.push('vitesse ' + String(rg.vitesse).replace('.', ',') + '×');
+    if (rg.expressif != null) reg.push('mode expressif ' + (rg.expressif ? 'oui' : 'non'));
+    if (rg.attente_min) reg.push('attente min. ' + rg.attente_min);
+    if (rg.bruit != null) reg.push('suppression de bruit ' + (rg.bruit ? 'oui' : 'non'));
+    var tours = (obj(l.latences).tours || []).filter(function (x) { return x.role === 'assistant' && x.e2e_latency; });
+    var detailTours = tours.length
+      ? '<details style="margin-top:8px;"><summary style="cursor:pointer;font-size:13px;color:#1f5f8b;">Détail par réponse de l\'agent</summary>' +
+        tours.map(function (x, i) {
+          return ligne('Réponse ' + (i + 1), fs(x.e2e_latency) + ' (cerveau ' + fs(x.llm_node_ttft) + ' · voix ' + fs(x.tts_node_ttfb) + ')');
+        }).join('') + '</details>'
+      : '';
+    var secoursHtml = (m.secours || []).map(function (x) {
+      var nom = { stt: 'écoute', llm: 'cerveau', tts: 'voix' }[x.type] || x.type;
+      return '<div style="font-size:13px;color:#b26a00;margin-top:6px;">⚠️ Modèle de secours utilisé pour ' + esc(nom) + ' : demandé ' + esc(x.demande) + ', utilisé ' + esc(x.utilise) + '. Les mesures de cet appel concernent le modèle utilisé.</div>';
+    }).join('');
+    var anomalies = (res.anomalies || []).map(function (a) { return '<div style="font-size:13px;color:#f57c00;">⚠️ ' + esc(a && a.message ? a.message : a) + '</div>'; }).join('');
+    return '<div class="av-detail-technique" style="background:#f8f9fa;padding:16px;border-radius:8px;margin-bottom:16px;border-left:4px solid #1f5f8b;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;"><strong>⚡ Détail technique</strong>' + pastille({ call_id: 'lk_' }) + '</div>' +
+      '<div style="margin-top:8px;">' + chips + '</div>' +
+      (reg.length ? '<div style="font-size:12px;color:#666;">' + esc(reg.join(' · ')) + '</div>' : '') +
+      secoursHtml +
+      bloc('Démarrage', ligne('Connexion', fs(d.connexion_s)) + ligne('preCallWebhook', fs(d.precall_s)) + ligne('Démarrage de la session', fs(d.session_s)) + ligne('Total avant l\'accueil', fs(d.total_avant_accueil_s), true)) +
+      bloc('Latence', ligne('Réponse (fin de parole → voix)', stat(l, 'reponse')) + ligne('Premier mot du cerveau', stat(l, 'cerveau_premier_mot')) + ligne('Premier son de la voix', stat(l, 'voix_premier_son')) + ligne('Attente de fin de parole', stat(l, 'fin_de_parole')) + detailTours) +
+      bloc('Coût estimé', ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus, ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) + ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) + ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + ligne('Total', fu(c.total_usd), true) +
+        '<div style="font-size:11px;color:#999;margin-top:4px;">' + esc(c.note || '') + (c.inconnus && c.inconnus.length ? ' Prix inconnu pour : ' + esc(c.inconnus.join(', ')) + '.' : '') + '</div>') +
+      bloc('Résultat de la commande', ligne('Statut', res.statut || '—') + ligne('Numéro de commande', res.numero_commande || 'aucune commande créée') + anomalies) +
+      '</div>';
+  }
+
+  var rendreOrigine = window.renderEvenements;
+  window.renderEvenements = function () {
+    var r = rendreOrigine.apply(this, arguments);
+    setTimeout(decorer, 0);
+    return r;
+  };
+
+  var detailOrigine = window.openEvenementDetail;
+  window.openEvenementDetail = function (id) {
+    var r = detailOrigine.apply(this, arguments);
+    (async function () {
+      try {
+        var evt = liste().find(function (e) { return String(e.id) === String(id); });
+        if (!estLiveKit(evt)) return;
+        var modal = document.getElementById('modal-commande');
+        if (!modal) return;
+        modal.setAttribute('data-av-evt', String(id));
+        await charger([evt.call_id]);
+        var l = cache[evt.call_id];
+        if (!l || modal.getAttribute('data-av-evt') !== String(id) || modal.querySelector('.av-detail-technique')) return;
+        var corps = modal.querySelector('.modal-body');
+        if (!corps) return;
+        var cartes = Array.prototype.slice.call(corps.children);
+        var infos = cartes.filter(function (x) { return x.textContent.indexOf('Informations appel') >= 0; })[0];
+        var html = blocDetail(l);
+        if (infos) infos.insertAdjacentHTML('afterend', html); else corps.insertAdjacentHTML('beforeend', html);
+      } catch (e) {
+        console.warn('[agent-vocal] Journal : détail technique indisponible', e);
+      }
+    })();
+    return r;
+  };
+
+  // Si le Journal est déjà affiché, on ajoute tout de suite les informations
+  setTimeout(decorer, 0);
 })();
