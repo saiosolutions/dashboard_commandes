@@ -45,7 +45,7 @@
     transfer: [['cold', 'Direct (sans annonce)'], ['warm', 'Avec annonce (l\'agent résume la commande)']]
   };
   // Réglages visibles mais pas encore pris en compte par l'agent LiveKit (à retirer de cette liste au fur et à mesure du branchement)
-  var NON_APPLIQUES = ['stt_kw', 'llm_temp', 'llm_maxtok', 'llm_par', 'tool_snd', 'flow', 'tool_val',
+  var NON_APPLIQUES = ['stt_kw', 'llm_temp', 'llm_maxtok', 'llm_par', 'flow', 'tool_val',
     'tool_transfer', 'transfer_num', 'transfer_mode', 'transfer_phrase', 'transfer_open_only',
     'tool_sms', 'sms_sender', 'sms_tpl', 'sms_modes', 'numero_public', 'maxdur', 'sil_hang', 'consent',
     'metrics', 'record', 'retention', 'mask'];
@@ -81,11 +81,11 @@
       { k: 'vad', t: 'range', l: 'Seuil de détection de voix', h: 'Plus bas : l\'agent détecte aussi les voix faibles, mais réagit davantage au bruit. Par défaut 0,5. Essayer 0,3 si l\'agent n\'entend pas bien.', min: 0.1, max: 0.9, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ','); }, adv: 1 }
     ] },
     { id: 'sounds', title: 'Sons', fields: [
-      { k: 'think', t: 'select', l: 'Son de réflexion (pendant les outils)', o: OPT.think, h: 'Comble le blanc pendant que l\'agent travaille.' },
+      { k: 'think', t: 'select', l: 'Son de réflexion (à chaque réponse de l\'agent)', o: OPT.think, h: 'Joué chaque fois que l\'agent prépare sa réponse, y compris pendant un outil. Aucun = silence entre vos phrases et sa réponse.' },
       { k: 'think_vol', t: 'range', l: 'Volume du son de réflexion', min: 0, max: 1, step: 0.05, fmt: pct },
       { k: 'amb', t: 'select', l: 'Ambiance de fond', o: OPT.amb },
       { k: 'amb_vol', t: 'range', l: 'Volume d\'ambiance', min: 0, max: 1, step: 0.05, fmt: pct },
-      { k: 'tool_snd', t: 'select', l: 'Son au lancement de validationCommande', o: OPT.think },
+      { k: 'tool_snd', t: 'select', l: 'Son pendant le calcul du prix (validationCommande)', o: OPT.think, h: 'Joué seulement pendant le calcul du prix. Utile si le son de réflexion est sur Aucun. Ignoré si le son de réflexion est actif (il couvre déjà ce moment). Le volume est celui du son de réflexion.' },
       { k: 'noise', t: 'select', l: 'Suppression de bruit', o: OPT.noise, adv: 1 }
     ] },
     { id: 'prompt', title: 'Prompt', fields: [
