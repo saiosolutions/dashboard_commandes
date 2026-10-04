@@ -967,7 +967,7 @@
     rendre();
   });
 
-  window.AgentVocal = { version: '3.1', etat: AV };
+  window.AgentVocal = { version: '3.2', etat: AV };
 })();
 
 /* =====================================================================
@@ -1266,4 +1266,207 @@
 
   // Si le Journal est déjà affiché, on ajoute tout de suite les informations
   setTimeout(decorer, 0);
+})();
+
+/* =====================================================================
+   Module « Commandes et indépendance d'ElevenLabs » (Agent V2)
+   SANS modifier l'existant : les fonctions openCommandeDetail,
+   chargerAppelsSansCommande et afficherResultatKb sont remplacées ou
+   enveloppées ici ; rien n'est supprimé dans index.html.
+     - Commandes : bloc « Détail des prix » (prix de base, choix payants,
+       suppléments, frais de livraison, contrôle du total) ;
+     - Commandes : le bandeau « commande non créée » signale aussi les
+       paniers laissés sans validation ;
+     - ElevenLabs : boutons de publication retirés (le menu n'est plus
+       envoyé vers ElevenLabs), textes d'aide mis à jour.
+   ===================================================================== */
+(function () {
+  'use strict';
+  if (window.__saiosV2Commandes) return;
+  if (typeof window.openCommandeDetail !== 'function' || typeof supabaseClient === 'undefined') {
+    console.warn('[agent-vocal] module Commandes non chargé (page inattendue)');
+    return;
+  }
+  window.__saiosV2Commandes = true;
+
+  var esc = function (t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+  var eur = function (x) { return Number(x).toFixed(2).replace('.', ',') + ' €'; };
+  var liste = function (x) { return (Array.isArray(x) ? x : (x ? String(x).split(',') : [])).map(function (v) { return String(v).trim(); }).filter(Boolean); };
+  var cmdListe = function () { try { return (typeof commandes !== 'undefined' && Array.isArray(commandes)) ? commandes : []; } catch (e) { return []; } };
+  var CLE_MODE = { livraison: 'livraison', a_emporter: 'emporter', sur_place: 'sur_place' };
+  var CHAMP_PRIX = { livraison: 'prix_livraison', emporter: 'prix_emporter', sur_place: 'prix_sur_place' };
+  var LIB_MODE = { livraison: 'livraison', a_emporter: 'à emporter', sur_place: 'sur place' };
+
+  /* ---------- Détail des prix d'une commande ---------- */
+  async function calculerDetailPrix(cmd) {
+    var items = cmd.produits_commandes || [];
+    if (!items.length) return null;
+    var ids = Array.from(new Set(items.map(function (i) { return i.produit_id; }).filter(Boolean)));
+    var rp = await supabaseClient.from('produits')
+      .select('id, nom, famille_id, taille, prix, prix_livraison, prix_emporter, prix_sur_place').in('id', ids);
+    if (rp.error) throw rp.error;
+    var prods = {};
+    (rp.data || []).forEach(function (p) { prods[p.id] = p; });
+    var cle = CLE_MODE[cmd.type_livraison] || 'sur_place';
+    var champ = CHAMP_PRIX[cle];
+    var lignes = [], somme = 0;
+    for (var k = 0; k < items.length; k++) {
+      var it = items[k], p = prods[it.produit_id] || {};
+      var q = Number(it.quantite) || 1;
+      var base = (p[champ] !== null && p[champ] !== undefined) ? Number(p[champ])
+        : Number(p.prix != null ? p.prix : (it.produit && it.produit.prix) || 0);
+      var choix = liste((it.attributs_choisis || {}).supplements);
+      var details = [];
+      if (choix.length) {
+        var r = await supabaseClient.rpc('panier_prix_par_choix', {
+          p_business_id: cmd.business_id || BUSINESS_ID, p_produit_id: it.produit_id,
+          p_famille_id: p.famille_id || null, p_taille: p.taille || null, p_cle_prix: cle, p_choix: choix
+        });
+        if (!r.error && Array.isArray(r.data)) details = r.data;
+      }
+      var payants = details.filter(function (d) { return Number(d.prix_choix) > 0; });
+      var inclus = details.length
+        ? details.filter(function (d) { return !(Number(d.prix_choix) > 0); }).map(function (d) { return d.nom_choix; })
+        : choix;
+      var calcule = base * q + payants.reduce(function (s, d) { return s + Number(d.prix_choix); }, 0);
+      var enregistre = Number(it.total);
+      somme += Number.isFinite(enregistre) ? enregistre : 0;
+      lignes.push({ qte: q, nom: (p.nom || (it.produit && it.produit.nom) || 'Produit'), base: base, payants: payants, inclus: inclus,
+        calcule: calcule, enregistre: enregistre, ecart: Number.isFinite(enregistre) ? enregistre - calcule : 0 });
+    }
+    var total = Number(cmd.prix);
+    var frais = Number.isFinite(total) ? Math.round((total - somme) * 100) / 100 : 0;
+    return { lignes: lignes, frais: frais > 0.009 ? frais : 0, total: total, cle: cle };
+  }
+
+  function rangee(a, b, fort, couleur) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:1px 0;' + (fort ? 'font-weight:700;' : '') + (couleur ? 'color:' + couleur + ';' : '') + '"><span>' + a + '</span><span style="white-space:nowrap;">' + b + '</span></div>';
+  }
+
+  function htmlDetailPrix(d, cmd) {
+    var h = '<div class="av-detail-prix" style="margin-bottom:16px;"><strong>💶 Détail des prix</strong>' +
+      '<div style="font-size:12px;color:#888;margin:2px 0 8px;">Prix ' + esc(LIB_MODE[cmd.type_livraison] || '') + '. Un choix est payant s\'il est hors du quota inclus ou proposé en supplément.</div>';
+    d.lignes.forEach(function (l) {
+      h += '<div style="background:#f8f9fa;padding:10px 12px;border-radius:8px;margin-bottom:6px;font-size:14px;">';
+      h += rangee('<strong>' + l.qte + ' ×</strong> ' + esc(l.nom), eur(l.enregistre), true);
+      h += rangee('<span style="color:#666;">Prix de base' + (l.qte > 1 ? ' (' + l.qte + ' × ' + eur(l.base) + ')' : '') + '</span>', eur(l.base * l.qte));
+      l.payants.forEach(function (c) {
+        h += rangee('<span style="color:#666;">+ ' + esc(String(c.nom_choix).toLowerCase()) + ' <span style="font-size:11px;">(' + (c.origine_choix === 'supplement' ? 'supplément' : 'choix payant') + ')</span></span>', '+ ' + eur(c.prix_choix));
+      });
+      if (l.inclus.length) h += '<div style="font-size:12px;color:#888;margin-top:3px;">Inclus : ' + esc(l.inclus.map(function (x) { return String(x).toLowerCase(); }).join(', ')) + '</div>';
+      if (Math.abs(l.ecart) > 0.009) {
+        h += '<div style="font-size:12px;color:#c0392b;margin-top:3px;">⚠️ Écart : calculé ' + eur(l.calcule) + ', enregistré ' + eur(l.enregistre) + ' (à vérifier)</div>';
+      }
+      h += '</div>';
+    });
+    if (d.frais > 0) h += rangee('Frais de livraison', eur(d.frais));
+    h += '</div>';
+    return h;
+  }
+
+  var detailOrigine = window.openCommandeDetail;
+  window.openCommandeDetail = function (id) {
+    var r = detailOrigine.apply(this, arguments);
+    (async function () {
+      try {
+        var cmd = cmdListe().find(function (c) { return String(c.id) === String(id); });
+        if (!cmd) return;
+        var modal = document.getElementById('modal-commande');
+        if (!modal) return;
+        modal.setAttribute('data-saios-cmd', String(id));
+        var d = await calculerDetailPrix(cmd);
+        if (!d || modal.getAttribute('data-saios-cmd') !== String(id) || modal.querySelector('.av-detail-prix')) return;
+        var corps = modal.querySelector('.modal-body');
+        if (!corps) return;
+        var blocs = Array.prototype.slice.call(corps.children);
+        var articles = blocs.filter(function (x) { return x.textContent.trim().indexOf('📦 Articles') === 0; })[0];
+        var html = htmlDetailPrix(d, cmd);
+        if (articles) articles.insertAdjacentHTML('afterend', html); else corps.insertAdjacentHTML('beforeend', html);
+      } catch (e) {
+        console.warn('[agent-vocal] détail des prix indisponible', e && e.message);
+      }
+    })();
+    return r;
+  };
+
+  /* ---------- Bandeau « commande annoncée mais non créée » : inclut les paniers non validés ---------- */
+  window.chargerAppelsSansCommande = async function () {
+    var zone = document.getElementById('commandes-alerte');
+    if (!zone) return;
+    try {
+      var depuis = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+      var r = await supabaseClient.from('evenements').select('*')
+        .eq('business_id', BUSINESS_ID).eq('type_evenement', 'appel_termine').eq('statut', 'a_verifier')
+        .is('traite_le', null)
+        .gte('created_at', depuis).order('created_at', { ascending: false }).limit(50);
+      if (r.error) throw r.error;
+      var lire = function (e) { var d = e.details || {}; if (typeof d === 'string') { try { d = JSON.parse(d); } catch (_) { d = {}; } } return d; };
+      var manquantes = (r.data || []).filter(function (e) {
+        var d = lire(e);
+        var anom = Array.isArray(d.anomalies) ? d.anomalies : [];
+        var annonce = d.montant_annonce || (Array.isArray(d.articles) && d.articles.length > 0) || (Array.isArray(d.panier) && d.panier.length > 0);
+        return d.commande_creee === false && annonce && !anom.some(function (a) { return a.type === 'refus_client'; });
+      });
+      if (manquantes.length === 0) { zone.innerHTML = ''; return; }
+      manquantes.forEach(function (e) { if (!evenements.some(function (x) { return x.id === e.id; })) evenements.push(e); });
+      var lignes = manquantes.map(function (e) {
+        var d = lire(e);
+        var anom = Array.isArray(d.anomalies) ? d.anomalies : [];
+        var raison = (anom.find(function (a) { return ['panier_non_valide', 'refus_metier', 'erreur_technique', 'aucun_produit_reconnu', 'articles_non_extraits'].indexOf(a.type) >= 0; }) || anom[0] || {}).message || '';
+        var quand = new Date(e.created_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+        return '<div id="alerte-' + esc(e.id) + '" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">' +
+          '<span><strong>' + esc(quand) + '</strong> · ' + esc(e.client_nom || 'client inconnu') + ' ' + esc(e.client_telephone || '') + '</span>' +
+          '<span style="color:var(--muted);flex:1;min-width:200px;">' + esc(raison) + '</span>' +
+          '<button class="btn btn-sm btn-secondary" onclick="openEvenementDetail(\'' + esc(e.id) + '\')">Voir l\'appel</button>' +
+          '<button class="btn-close" style="position:static;font-size:20px;line-height:1;" title="Marquer comme traité (retire l\'alerte)" onclick="marquerAppelTraite(\'' + esc(e.id) + '\')">×</button></div>';
+      }).join('');
+      zone.innerHTML = '<div class="groupe-note" id="commandes-alerte-bloc" style="margin-bottom:14px;">' +
+        '<strong>⚠️ <span id="commandes-alerte-titre">' + manquantes.length + ' appel(s)</span> des 7 derniers jours : commande annoncée ou panier rempli, mais NON créée.</strong> À saisir à la main ou à rappeler.' +
+        '<div id="commandes-alerte-lignes">' + lignes + '</div></div>';
+    } catch (err) {
+      console.warn('Appels sans commande : vérification impossible', err);
+      zone.innerHTML = '';
+    }
+  };
+
+  /* ---------- Indépendance d'ElevenLabs : fin de la publication du menu et des zones ---------- */
+  var texteAgent = '🤖 Cette section définit le comportement de l\'agent vocal : les <strong>règles</strong> qu\'il applique (questions à poser, déductions de taille, exclusivités, prononciation). ' +
+    'Les boutons « Aperçu », en haut, montrent le texte du <strong>menu</strong> et des <strong>zones de livraison</strong> construit d\'après les données du restaurant. ' +
+    'Plus rien n\'est publié vers ElevenLabs : l\'agent LiveKit utilise le prompt choisi dans <strong>Agent vocal › Prompts de l\'agent</strong>.';
+
+  window.afficherResultatKb = function (kb, filename) {
+    window.__kbFilename = filename;
+    var estZones = String(filename).indexOf('ZONE') >= 0;
+    window.__kbType = estZones ? 'zones' : 'menu';
+    var titre = estZones ? '📍 Texte des zones de livraison' : '📄 Texte du menu';
+    var modal = document.getElementById('modal-edit');
+    modal.innerHTML = '<div class="modal-content" onclick="event.stopPropagation()" style="max-width:760px;">' +
+      '<div class="modal-header"><h2>' + titre + '</h2><button class="btn-close" onclick="closeModal(\'modal-edit\')">×</button></div>' +
+      '<div class="modal-body">' +
+      '<div style="background:#e7f1f8;border:1px solid #cfe1ee;border-left:4px solid #2c6e9c;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:12px;color:#2c5a7a;">' +
+      '💡 Aperçu généré à partir des données du restaurant (produits, choix, prix, zones, horaires). Il n\'est plus envoyé vers ElevenLabs. Copie ou télécharge-le si besoin.</div>' +
+      '<textarea id="kb-output" style="width:100%;min-height:340px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">' + String(kb).replace(/</g, '&lt;') + '</textarea>' +
+      '<div class="form-actions"><button class="btn btn-secondary" onclick="copierKb()">📋 Copier</button><button class="btn btn-secondary" onclick="telechargerKb()">⬇️ Télécharger</button></div>' +
+      '</div></div>';
+  };
+
+  // Garde-fous : si un ancien appel survivait quelque part, il n'envoie plus rien vers ElevenLabs
+  var abandonne = function () { alert('La publication vers ElevenLabs est supprimée : l\'agent LiveKit n\'en a plus besoin.'); };
+  window.publierKbVersElevenLabs = abandonne;
+  window.publierRestaurantActuel = abandonne;
+  window.publierToutLesRestaurants = abandonne;
+
+  function nettoyerInterface() {
+    ['btn-publier-tout-flottant', 'btn-publier-restaurant'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    });
+    var resume = document.querySelector('#agent-actions summary');
+    if (resume) resume.textContent = '📄 Aperçu des textes de l\'agent ▾';
+    var m = document.getElementById('btn-gen-kbmenu'); if (m) m.textContent = '📄 Aperçu du menu';
+    var z = document.getElementById('btn-gen-kbzones'); if (z) z.textContent = '📍 Aperçu des zones de livraison';
+    var aide = document.querySelector('#param-agent .options-help');
+    if (aide) aide.innerHTML = texteAgent;
+  }
+  nettoyerInterface();
 })();
