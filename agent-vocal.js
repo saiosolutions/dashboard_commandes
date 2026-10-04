@@ -44,17 +44,12 @@
     retention: [[7, '7 jours'], [30, '30 jours'], [90, '90 jours']],
     transfer: [['cold', 'Direct (sans annonce)'], ['warm', 'Avec annonce (l\'agent résume la commande)']]
   };
-  // Réglages visibles mais pas encore pris en compte par l'agent LiveKit (à retirer de cette liste au fur et à mesure du branchement)
-  var NON_APPLIQUES = ['stt_kw', 'llm_temp', 'llm_maxtok', 'llm_par', 'flow', 'tool_val',
-    'tool_transfer', 'transfer_num', 'transfer_mode', 'transfer_phrase', 'transfer_open_only',
-    'tool_sms', 'sms_sender', 'sms_tpl', 'sms_modes', 'numero_public', 'maxdur', 'sil_hang', 'consent',
-    'metrics', 'record', 'retention', 'mask'];
   var f1 = function (v) { return Number(v).toFixed(1).replace('.', ','); };
   var pct = function (v) { return Math.round(v * 100) + ' %'; };
 
   var SCHEMA = [
     { id: 'models', title: 'Modèles et voix', fields: [
-      { k: 'info_branche', t: 'info', l: 'Ce que l\'agent applique à chaque appel', h: 'Quand l\'agent est « en service », il applique : écoute (modèle, langue), cerveau (modèle), voix (modèle, identifiant, vitesse), modèles de secours, mode expressif, fin de tour, attentes, interruptions, réponse anticipée, sons et suppression de bruit. Pas encore branchés : température, plafond de réponse, mots à reconnaître, outils, prompt. Hors service, l\'agent garde les réglages de son déploiement. Un modèle choisi ici est toujours doublé par la combinaison de référence du déploiement : si le modèle ne répond pas, l\'appel continue.', links: [] },
+      { k: 'info_branche', t: 'info', l: 'Ce que l\'agent applique à chaque appel', h: 'Quand l\'agent est « en service », il applique : écoute (modèle, langue), cerveau (modèle), voix (modèle, identifiant, vitesse), modèles de secours, mode expressif, fin de tour, attentes, interruptions, réponse anticipée, sons, suppression de bruit et le prompt choisi. Pas encore branchés : température, plafond de réponse, mots à reconnaître, transfert vers un humain et SMS. Hors service, l\'agent garde les réglages de son déploiement. Un modèle choisi ici est toujours doublé par la combinaison de référence du déploiement : si le modèle ne répond pas, l\'appel continue.', links: [] },
       { k: 'stt_model', t: 'model', mt: 'stt', l: 'Écoute (STT)' },
       { k: 'stt_lang', t: 'select', l: 'Langue d\'écoute', o: OPT.lang },
       { k: 'stt_kw', t: 'text', l: 'Mots à reconnaître (plats, marques)', h: 'Séparés par des virgules', adv: 1 },
@@ -63,8 +58,8 @@
       { k: 'llm_maxtok', t: 'select', num: 1, l: 'Plafond de longueur de réponse', o: OPT.maxtok, h: 'Limite de sécurité, pas la longueur visée : 300 tokens ≈ 150 à 200 mots. Trop bas, il peut couper un appel d\'outil.' },
       { k: 'llm_par', t: 'toggle', l: 'Appels d\'outils en parallèle', adv: 1 },
       { k: 'tts_model', t: 'model', mt: 'tts', l: 'Voix (TTS)' },
-      { k: 'tts_voice_id', t: 'text', l: 'Identifiant de la voix', ph: '[identifiant fourni par le fournisseur]', h: 'Vide = voix par défaut du fournisseur. Exemples : xAI = celeste, iris, carina, ara, eve (en minuscules) ; Deepgram Aura-2 = agathe, hector ; Cartesia, Fish Audio, Gradium = identifiant de la bibliothèque du fournisseur.' },
-      { k: 'tts_speed', t: 'range', l: 'Vitesse de parole', h: 'Appliquée avec Fish Audio, Cartesia et xAI (xAI : de 0,7 à 1,5). Les autres voix gardent leur rythme naturel (Deepgram Aura-2 : réglage de vitesse limité à l\'anglais et l\'espagnol).', min: 0.7, max: 1.3, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ',') + '×'; } },
+      { k: 'tts_voice_id', t: 'text', l: 'Identifiant de la voix', ph: '[identifiant fourni par le fournisseur]', h: 'Vide = voix par défaut du fournisseur.' },
+      { k: 'tts_speed', t: 'range', l: 'Vitesse de parole', min: 0.7, max: 1.3, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ',') + '×'; } },
       { k: 'fb_llm', t: 'model', mt: 'llm', none: 1, l: 'LLM de secours', h: 'Prend le relais si le LLM principal ne répond plus.' },
       { k: 'fb_tts', t: 'model', mt: 'tts', none: 1, l: 'Voix de secours', adv: 1 },
       { k: 'fb_stt', t: 'model', mt: 'stt', none: 1, l: 'Écoute de secours', adv: 1 }
@@ -81,22 +76,22 @@
       { k: 'vad', t: 'range', l: 'Seuil de détection de voix', h: 'Plus bas : l\'agent détecte aussi les voix faibles, mais réagit davantage au bruit. Par défaut 0,5. Essayer 0,3 si l\'agent n\'entend pas bien.', min: 0.1, max: 0.9, step: 0.05, fmt: function (v) { return Number(v).toFixed(2).replace('.', ','); }, adv: 1 }
     ] },
     { id: 'sounds', title: 'Sons', fields: [
-      { k: 'think', t: 'select', l: 'Son de réflexion (à chaque réponse de l\'agent)', o: OPT.think, h: 'Joué chaque fois que l\'agent prépare sa réponse, y compris pendant un outil. Aucun = silence entre vos phrases et sa réponse.' },
+      { k: 'think', t: 'select', l: 'Son de réflexion (pendant les outils)', o: OPT.think, h: 'Comble le blanc pendant que l\'agent travaille.' },
       { k: 'think_vol', t: 'range', l: 'Volume du son de réflexion', min: 0, max: 1, step: 0.05, fmt: pct },
       { k: 'amb', t: 'select', l: 'Ambiance de fond', o: OPT.amb },
       { k: 'amb_vol', t: 'range', l: 'Volume d\'ambiance', min: 0, max: 1, step: 0.05, fmt: pct },
-      { k: 'tool_snd', t: 'select', l: 'Son pendant le calcul du prix (validationCommande)', o: OPT.think, h: 'Joué seulement pendant le calcul du prix. Utile si le son de réflexion est sur Aucun. Ignoré si le son de réflexion est actif (il couvre déjà ce moment). Le volume est celui du son de réflexion.' },
+      { k: 'tool_snd', t: 'select', l: 'Son pendant les outils du panier', o: OPT.think, h: 'Joué pendant chaque outil du panier (ajout, modification, retrait, informations, validation). Sans effet si un son de réflexion est choisi ci-dessus : celui-ci couvre déjà ces moments.' },
       { k: 'noise', t: 'select', l: 'Suppression de bruit', o: OPT.noise, adv: 1 }
     ] },
     { id: 'prompt', title: 'Prompt', fields: [
-      { k: 'prompt_modele', t: 'prompt', l: 'Prompt de l\'agent', h: 'Choisis ici le prompt de l\'agent (créé dans « Prompts de l\'agent »). Vide ou trop court : l\'agent garde son prompt intégré. Le menu et les zones s\'insèrent avec les repères {{kb_menu}} (menu complet), {{kb_menu_compact}} (menu regroupé par tailles) et {{kb_zones}}. Attention : un changement de ce prompt s\'applique à tous les agents qui l\'utilisent, dès l\'appel suivant.' },
+      { k: 'prompt_modele', t: 'prompt', l: 'Prompt de l\'agent', h: 'Modifié dans « Prompts de l\'agent » : le changement s\'applique à tous les agents qui l\'utilisent.' },
       { k: 'info_ailleurs', t: 'info', l: 'Déjà réglés dans les sections existantes (pas de doublon ici)', h: 'Messages d\'accueil, modes de commande, horaires, zones de livraison et menu se règlent là où ils sont déjà. L\'agent LiveKit les lit au décrochage. Les modifications non enregistrées de cet écran sont conservées si tu y reviens.', links: [['messages', 'Messages d\'accueil'], ['modes', 'Modes de commande'], ['horaires', 'Horaires'], ['zones', 'Zones de livraison'], ['produits', 'Produits (menu)']] }
     ] },
     { id: 'flow', title: 'Déroulé de l\'appel', fields: [
       { k: 'flow', t: 'flow', l: 'Étapes de l\'appel', h: 'Optionnel. Ce bloc n\'est utilisé que si le prompt contient le repère {{deroule_appel}} : il y est remplacé par ces étapes. Sans ce repère, ces réglages sont ignorés. Le calcul des prix reste verrouillé.' }
     ] },
     { id: 'tools', title: 'Outils', fields: [
-      { k: 'tool_val', t: 'toggle', l: 'validationCommande (calcul des prix)', locked: 1, h: 'Verrouillé : les prix sont calculés par les fonctions Supabase, jamais par le LLM.' },
+      { k: 'tool_val', t: 'toggle', l: 'Panier et calcul des prix', locked: 1, h: 'Verrouillé : le panier est rempli par les outils ajouter, modifier, retirer et valider. Les prix sont calculés par les fonctions Supabase, jamais par le LLM.' },
       { k: 'tool_transfer', t: 'toggle', l: 'Transfert vers un humain', h: 'Pas d\'abonnement : on paie seulement les minutes de la conversation transférée (≈ 0,03 $/min vers un fixe, ≈ 0,05 $/min vers un mobile, estimation Twilio + entrant).' },
       { k: 'transfer_num', t: 'text', l: 'Numéro vers lequel transférer', ph: '+33…', h: 'Obligatoire si le transfert est activé.' },
       { k: 'transfer_mode', t: 'select', l: 'Type de transfert', o: OPT.transfer, h: 'Direct : simple et le moins cher. Avec annonce : l\'agent résume la commande avant de passer l\'appel (plus de minutes facturées).' },
@@ -121,7 +116,6 @@
       { k: 'mask', t: 'toggle', l: 'Masquer les données sensibles' }
     ] }
   ];
-  SCHEMA.forEach(function (sec) { sec.fields.forEach(function (f) { if (NON_APPLIQUES.indexOf(f.k) >= 0) f.nb = true; }); });
   var FM = {};
   SCHEMA.forEach(function (s) { s.fields.forEach(function (f) { FM[f.k] = f; }); });
 
@@ -351,7 +345,7 @@
       var c = cfgOf(b.id);
       var lieu = [b.ville, b.code_postal ? '(' + b.code_postal + ')' : ''].filter(Boolean).join(' ');
       if (!c) {
-        h += '<div class="av-card av-row av-between"><div class="av-grow"><div class="av-title">' + esc(b.nom) + ' ' + badge('Sans agent LiveKit') + '</div><div class="av-sub">' + esc(lieu) + ' · l\'agent ElevenLabs éventuel reste géré dans les autres sections</div></div><button class="btn btn-primary btn-sm" data-avact="creer" data-id="' + b.id + '">Créer l\'agent</button></div>';
+        h += '<div class="av-card av-row av-between"><div class="av-grow"><div class="av-title">' + esc(b.nom) + ' ' + badge('Sans agent vocal') + '</div><div class="av-sub">' + esc(lieu) + '</div></div><button class="btn btn-primary btn-sm" data-avact="creer" data-id="' + b.id + '">Créer l\'agent</button></div>';
         return;
       }
       var r = resolu(c), st = statutAgent(c), cout = coutDe(r);
@@ -421,8 +415,6 @@
     var val = cfg[f.k], id = 'avf_' + t + '_' + f.k;
     var perso = prof && !f.col && !eq(val, prof[f.k]);
     var rs = perso ? badge('Personnalisé', 'warn') + '<button class="av-reset" data-avact="reset" data-id="' + f.k + '">Rétablir</button>' : '';
-    if (f.k === 'tts_speed' && cfg && cfg.tts_model && !/^(fishaudio|cartesia|xai)\//.test(String(cfg.tts_model))) rs = '<span class="av-nb" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#fff3e0;color:#8a4b08;font-size:11px;font-weight:600;">Sans effet avec cette voix</span>' + rs;
-    if (f.nb) rs = '<span class="av-nb" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#eceef1;color:#5c6570;font-size:11px;font-weight:600;">Pas encore appliqué par l\'agent</span>' + rs;
     var rv = f.t === 'range' ? '<b id="avlab_' + t + '_' + f.k + '">' + f.fmt(val) + '</b>' : '';
     var extra = '';
     if (f.t === 'model') extra = infoModele(val) + formCustom(f);
@@ -975,7 +967,7 @@
     rendre();
   });
 
-  window.AgentVocal = { version: '3.0', etat: AV };
+  window.AgentVocal = { version: '3.1', etat: AV };
 })();
 
 /* =====================================================================
@@ -983,11 +975,13 @@
    SANS modifier l'existant : les fonctions renderEvenements et
    openEvenementDetail sont simplement enveloppées ; le Journal fait d'abord
    exactement ce qu'il faisait, puis on ajoute :
-     - une pastille du moteur (LiveKit / ElevenLabs) sur chaque appel,
+     - une pastille du moteur (LiveKit / appel plus ancien) sur chaque appel,
      - la latence de réponse dans la ligne des appels LiveKit,
      - un bandeau de moyennes (coût par appel, latences) sous les totaux,
+     - un bloc « Panier de l'appel » (articles, informations, chronologie),
      - un bloc « Détail technique » dans le détail d'un appel LiveKit.
-   Table lue : appels_livekit (voir agent_vocal_etape2_appels.sql).
+   Tables lues : appels_livekit (voir agent_vocal_etape2_appels.sql),
+   panier_commandes, panier_lignes, panier_journal (Agent V2).
    ===================================================================== */
 (function () {
   'use strict';
@@ -1006,6 +1000,7 @@
   var esc = function (t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
   var fs = function (x) { return x == null ? '—' : Number(x).toFixed(2).replace('.', ',') + ' s'; };
   var fu = function (x, d) { return x == null ? '—' : Number(x).toFixed(d == null ? 4 : d).replace('.', ',') + ' $'; };
+  var fe = function (x) { return x == null ? '—' : Number(x).toFixed(2).replace('.', ',') + ' €'; };
   var estLiveKit = function (evt) { return !!evt && typeof evt.call_id === 'string' && evt.call_id.indexOf('lk_') === 0; };
   var liste = function () { try { return (typeof evenements !== 'undefined' && Array.isArray(evenements)) ? evenements : []; } catch (e) { return []; } };
   var obj = function (v) { if (typeof v === 'string') { try { return JSON.parse(v); } catch (e) { return {}; } } return v || {}; };
@@ -1013,7 +1008,7 @@
   function pastille(evt) {
     return estLiveKit(evt)
       ? '<span class="av-moteur" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#e7f1f8;color:#1f5f8b;font-size:11px;font-weight:700;">LiveKit</span>'
-      : '<span class="av-moteur" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#efe9f5;color:#5d3d7a;font-size:11px;font-weight:700;">ElevenLabs</span>';
+      : '<span class="av-moteur" style="display:inline-block;padding:2px 8px;border-radius:6px;background:#eceef1;color:#5b6470;font-size:11px;font-weight:700;">Ancien</span>';
   }
 
   async function charger(ids) {
@@ -1129,22 +1124,6 @@
   }
   function stat(l, nom) { var s = obj(l.latences)[nom]; return s ? fs(s.moyenne) + ' (médiane ' + fs(s.mediane) + ', max ' + fs(s.max) + ', ' + s.n + ' tours)' : '—'; }
 
-  // Lignes de coût : avec la formule de calcul quand l'appel l'a enregistrée (appels récents), sinon affichage résumé
-  function lignesCout(c, t) {
-    var note = '<div style="font-size:11px;color:#999;margin-top:4px;">' + esc(c.note || '') + (c.inconnus && c.inconnus.length ? ' Prix manquant ou déduit pour : ' + esc(c.inconnus.join(', ')) + '.' : '') + '</div>';
-    if (c.lignes && c.lignes.length) {
-      var corps = c.lignes.map(function (x) {
-        return '<div style="padding:2px 0;"><div style="display:flex;justify-content:space-between;gap:12px;font-size:14px;"><span>' + esc(x.libelle) + (x.exact === false ? ' <span style="font-size:11px;color:#8a4b08;background:#fff3e0;border-radius:4px;padding:1px 6px;">estimation</span>' : '') + '</span><span>' + fu(x.montant) + '</span></div>' +
-          (x.formule ? '<div style="font-size:11px;color:#8a8f98;">' + esc(x.formule) + '</div>' : '') + '</div>';
-      }).join('');
-      var dont = c.dont_estime_usd ? '<div style="font-size:12px;color:#8a4b08;">dont ' + fu(c.dont_estime_usd) + ' d\'estimation (Twilio)</div>' : '';
-      return corps + ligne('Total', fu(c.total_usd), true) + dont + note;
-    }
-    return ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus' + (t.entree_cache ? ', dont ' + t.entree_cache + ' en cache' : ', aucun en cache') + ', ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) +
-      ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) +
-      ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + ligne('Total', fu(c.total_usd), true) + note;
-  }
-
   function blocDetail(l) {
     var m = obj(l.modeles), rg = m.reglages || {}, d = obj(l.demarrage), c = obj(l.cout), res = obj(l.resultat), t = c.tokens || {};
     var chips = ['stt', 'llm', 'tts'].map(function (k) {
@@ -1152,7 +1131,6 @@
     }).join('');
     var reg = [];
     if (rg.source) reg.push('réglages : ' + rg.source);
-    if (rg.prompt) reg.push('prompt : ' + rg.prompt);
     if (rg.vitesse != null) reg.push('vitesse ' + String(rg.vitesse).replace('.', ',') + '×');
     if (rg.expressif != null) reg.push('mode expressif ' + (rg.expressif ? 'oui' : 'non'));
     if (rg.attente_min) reg.push('attente min. ' + rg.attente_min);
@@ -1175,11 +1153,73 @@
       '<div style="margin-top:8px;">' + chips + '</div>' +
       (reg.length ? '<div style="font-size:12px;color:#666;">' + esc(reg.join(' · ')) + '</div>' : '') +
       secoursHtml +
-      (d.room ? '<div style="font-size:12px;color:#5c6570;margin-top:8px;">Session dans la console LiveKit (Sessions) : <b style="user-select:all;">' + esc(d.room) + '</b></div>' : '') +
       bloc('Démarrage', ligne('Connexion', fs(d.connexion_s)) + ligne('preCallWebhook', fs(d.precall_s)) + ligne('Démarrage de la session', fs(d.session_s)) + ligne('Total avant l\'accueil', fs(d.total_avant_accueil_s), true)) +
       bloc('Latence', ligne('Réponse (fin de parole → voix)', stat(l, 'reponse')) + ligne('Premier mot du cerveau', stat(l, 'cerveau_premier_mot')) + ligne('Premier son de la voix', stat(l, 'voix_premier_son')) + ligne('Attente de fin de parole', stat(l, 'fin_de_parole')) + detailTours) +
-      bloc('Coût de l\'appel', lignesCout(c, t)) +
+      bloc('Coût estimé', ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus' + (t.entree_cache ? ', dont ' + t.entree_cache + ' en cache' : ', aucun en cache') + ', ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) + ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) + ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + ligne('Total', fu(c.total_usd), true) +
+        '<div style="font-size:11px;color:#999;margin-top:4px;">' + esc(c.note || '') + (c.inconnus && c.inconnus.length ? ' Prix inconnu pour : ' + esc(c.inconnus.join(', ')) + '.' : '') + '</div>') +
       bloc('Résultat de la commande', ligne('Statut', res.statut || '—') + ligne('Numéro de commande', res.numero_commande || 'aucune commande créée') + anomalies) +
+      '</div>';
+  }
+
+  /* ---------- Panier de l'appel (Agent V2) ---------- */
+  var ACTIONS_PANIER = {
+    ouverture: 'Panier ouvert', reprise: 'Panier repris', abandon: 'Panier abandonné', reouverture: 'Panier rouvert',
+    ajout: 'Ajout', modification: 'Modification', retrait: 'Retrait', infos: 'Informations', validation: 'Validation',
+    fin_appel: 'Fin d\'appel', supplement_a_confirmer: 'Prix à confirmer', choix_refuse: 'Choix refusé',
+    produit_introuvable: 'Produit introuvable', produit_ambigu: 'Produit ambigu', retrait_ambigu: 'Retrait : plusieurs lignes',
+    retrait_introuvable: 'Retrait : ligne introuvable', modif_ambigue: 'Modification : plusieurs lignes',
+    modif_introuvable: 'Modification : ligne introuvable', minimum_livraison: 'Minimum de livraison',
+    validation_infos_manquantes: 'Validation : informations manquantes', validation_refusee: 'Validation refusée',
+    erreur_technique: 'Erreur technique'
+  };
+  var STATUTS_PANIER = { en_cours: 'En cours (non validé)', valide: 'Validé', abandonne: 'Abandonné' };
+  var MODES_PANIER = { livraison: 'Livraison', a_emporter: 'À emporter', sur_place: 'Sur place' };
+
+  async function chargerPanier(appelId) {
+    try {
+      var r = await supabaseClient.from('panier_commandes').select('*').eq('appel_id', appelId).limit(1);
+      if (r.error || !r.data || !r.data.length) return null;
+      var p = r.data[0];
+      var res = await Promise.all([
+        supabaseClient.from('panier_lignes').select('*').eq('panier_id', p.id).order('numero', { ascending: true }),
+        supabaseClient.from('panier_journal').select('*').eq('panier_id', p.id).order('created_at', { ascending: true })
+      ]);
+      return { panier: p, lignes: res[0].data || [], journal: res[1].data || [] };
+    } catch (e) {
+      console.warn('[agent-vocal] panier indisponible :', e && e.message);
+      return null;
+    }
+  }
+  function libelleLigne(l) {
+    var t = (Number(l.quantite) > 1 ? l.quantite + ' × ' : '') + l.nom_produit;
+    var ch = Array.isArray(l.choix) ? l.choix : [], re = Array.isArray(l.retraits) ? l.retraits : [];
+    if (ch.length) t += ' — ' + ch.join(', ');
+    if (re.length) t += ' — sans ' + re.join(', sans ');
+    if (l.instructions) t += ' (' + l.instructions + ')';
+    return t;
+  }
+  function blocPanier(d) {
+    var p = d.panier;
+    var couleur = p.statut === 'valide' ? '#2e7d32' : (p.statut === 'abandonne' ? '#c62828' : '#b26a00');
+    var adr = [p.adresse, [p.code_postal, p.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    var infos = ligne('Mode', MODES_PANIER[p.type_livraison] || '—');
+    if (p.type_livraison === 'livraison') infos += ligne('Adresse', adr || '—') + ligne('Zone', p.zone_livraison || '—') + (p.instructions_acces ? ligne('Accès', p.instructions_acces) : '');
+    infos += ligne('Client', [p.prenom_client, p.telephone_commande || p.telephone].filter(Boolean).join(' · ') || '—');
+    if (p.heure_souhaitee) infos += ligne('Heure souhaitée', (p.date_souhaitee ? String(p.date_souhaitee).slice(0, 10) + ' ' : '') + p.heure_souhaitee);
+    var articles = d.lignes.length
+      ? d.lignes.map(function (l) { return ligne(l.numero + '. ' + libelleLigne(l), fe(l.prix_ligne)); }).join('')
+      : '<div style="font-size:13px;color:#666;">Panier vide</div>';
+    if (p.prix_final != null) articles += ligne('Total annoncé (frais inclus)', fe(p.prix_final), true);
+    var chrono = d.journal.map(function (x) {
+      var h = x.created_at ? new Date(x.created_at).toLocaleTimeString('fr-FR') : '';
+      var msg = String(x.message || '');
+      if (msg.length > 150) msg = msg.slice(0, 150) + '…';
+      return '<div style="padding:4px 0;border-bottom:1px solid #eee;font-size:13px;"><div style="display:flex;justify-content:space-between;gap:10px;"><span><span style="color:#999;">' + esc(h) + '</span> · <b>' + esc(ACTIONS_PANIER[x.action] || String(x.action || '').replace(/_/g, ' ')) + '</b></span><span style="color:' + (x.succes === false ? '#c62828' : '#2e7d32') + ';">' + (x.succes === false ? '✗' : '✓') + '</span></div>' + (msg ? '<div style="color:#666;font-size:12px;">' + esc(msg) + '</div>' : '') + '</div>';
+    }).join('');
+    return '<div class="av-detail-panier" style="background:#f8f9fa;padding:16px;border-radius:8px;margin-bottom:16px;border-left:4px solid ' + couleur + ';">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;"><strong>🛒 Panier de l\'appel</strong><span style="padding:2px 8px;border-radius:6px;background:#fff;border:1px solid ' + couleur + ';color:' + couleur + ';font-size:12px;font-weight:700;">' + esc(STATUTS_PANIER[p.statut] || p.statut) + '</span></div>' +
+      bloc('Commande', infos) + bloc('Articles', articles) +
+      (chrono ? '<details style="margin-top:10px;"><summary style="cursor:pointer;font-size:13px;color:#1f5f8b;">Chronologie du panier (' + d.journal.length + ' actions)</summary>' + chrono + '</details>' : '') +
       '</div>';
   }
 
@@ -1202,13 +1242,21 @@
         modal.setAttribute('data-av-evt', String(id));
         await charger([evt.call_id]);
         var l = cache[evt.call_id];
-        if (!l || modal.getAttribute('data-av-evt') !== String(id) || modal.querySelector('.av-detail-technique')) return;
         var corps = modal.querySelector('.modal-body');
-        if (!corps) return;
+        if (!corps || modal.getAttribute('data-av-evt') !== String(id)) return;
         var cartes = Array.prototype.slice.call(corps.children);
         var infos = cartes.filter(function (x) { return x.textContent.indexOf('Informations appel') >= 0; })[0];
-        var html = blocDetail(l);
-        if (infos) infos.insertAdjacentHTML('afterend', html); else corps.insertAdjacentHTML('beforeend', html);
+        if (l && !modal.querySelector('.av-detail-technique')) {
+          var html = blocDetail(l);
+          if (infos) infos.insertAdjacentHTML('afterend', html); else corps.insertAdjacentHTML('beforeend', html);
+        }
+        var dp = await chargerPanier(evt.call_id);
+        if (dp && modal.getAttribute('data-av-evt') === String(id) && !modal.querySelector('.av-detail-panier')) {
+          var tech = modal.querySelector('.av-detail-technique');
+          if (tech) tech.insertAdjacentHTML('beforebegin', blocPanier(dp));
+          else if (infos) infos.insertAdjacentHTML('afterend', blocPanier(dp));
+          else corps.insertAdjacentHTML('beforeend', blocPanier(dp));
+        }
       } catch (e) {
         console.warn('[agent-vocal] Journal : détail technique indisponible', e);
       }
