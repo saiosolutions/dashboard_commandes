@@ -967,7 +967,7 @@
     rendre();
   });
 
-  window.AgentVocal = { version: '3.2', etat: AV };
+  window.AgentVocal = { version: '3.3', etat: AV };
 })();
 
 /* =====================================================================
@@ -1170,7 +1170,7 @@
     retrait_introuvable: 'Retrait : ligne introuvable', modif_ambigue: 'Modification : plusieurs lignes',
     modif_introuvable: 'Modification : ligne introuvable', minimum_livraison: 'Minimum de livraison',
     validation_infos_manquantes: 'Validation : informations manquantes', validation_refusee: 'Validation refusée',
-    erreur_technique: 'Erreur technique'
+    erreur_technique: 'Erreur technique', detail: 'Détail ou total demandé'
   };
   var STATUTS_PANIER = { en_cours: 'En cours (non validé)', valide: 'Validé', abandonne: 'Abandonné' };
   var MODES_PANIER = { livraison: 'Livraison', a_emporter: 'À emporter', sur_place: 'Sur place' };
@@ -1469,4 +1469,121 @@
     if (aide) aide.innerHTML = texteAgent;
   }
   nettoyerInterface();
+})();
+
+/* =====================================================================
+   Module « Texte envoyé à l'agent » (menu en direct)
+   Les boutons d'aperçu du back-office affichent EXACTEMENT ce que l'agent reçoit
+   à chaque appel : le texte est demandé à la même fonction (panier-agent, action kb)
+   que celle qui sert l'agent. Aucune copie du générateur dans le navigateur.
+   ===================================================================== */
+(function () {
+  'use strict';
+  if (window.__saiosV2Apercu) return;
+  if (typeof supabaseClient === 'undefined' || typeof window.genererKbMenu !== 'function') {
+    console.warn('[agent-vocal] module Texte envoyé à l\'agent non chargé (page inattendue)');
+    return;
+  }
+  window.__saiosV2Apercu = true;
+
+  var esc = function (t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+  var courant = null;   // { donnees, nom, onglets: [{ cle, titre, texte, fichier }] }
+
+  async function lireTexteAgent() {
+    var r = await supabaseClient.functions.invoke('panier-agent', {
+      body: { action: 'kb', business_id: BUSINESS_ID, appel_id: 'apercu', forcer: true }
+    });
+    if (r.error) {
+      var detail = r.error.message;
+      try { var c = await r.error.context.json(); if (c && c.message) detail = c.message; } catch (_) {}
+      throw new Error(detail);
+    }
+    var d = r.data;
+    if (!d || d.succes === false || !d.kb_menu) throw new Error((d && d.message) || 'Réponse vide');
+    return d;
+  }
+
+  function nomRestaurant() {
+    var b = (typeof businessesList !== 'undefined' ? businessesList : []).find(function (x) { return x.id === BUSINESS_ID; });
+    return b ? b.nom : 'restaurant';
+  }
+
+  function construireOnglets(d, nom) {
+    var fich = (typeof nomFichierBusiness === 'function') ? nomFichierBusiness(nom) : 'restaurant';
+    var onglets = [];
+    if (d.kb_menu_compact) {
+      onglets.push({ cle: 'compact', titre: 'Menu compact (reçu par l\'agent)', texte: d.kb_menu_compact, fichier: 'KB_MENU_' + fich });
+    }
+    onglets.push({ cle: 'complet', titre: d.kb_menu_compact ? 'Menu complet (source)' : 'Menu complet (reçu par l\'agent)', texte: d.kb_menu, fichier: 'KB_MENU_COMPLET_' + fich });
+    onglets.push({ cle: 'zones', titre: 'Zones et horaires', texte: d.kb_zones, fichier: 'KB_ZONE_LIVRAISON_' + fich });
+    return onglets;
+  }
+
+  function choisirOnglet(cle) {
+    if (!courant) return;
+    var o = courant.onglets.filter(function (x) { return x.cle === cle; })[0] || courant.onglets[0];
+    window.__kbFilename = o.fichier;
+    window.__kbType = o.cle === 'zones' ? 'zones' : 'menu';
+    var ta = document.getElementById('kb-output');
+    if (ta) ta.value = o.texte;
+    Array.prototype.forEach.call(document.querySelectorAll('#modal-edit .av-onglet'), function (b) {
+      b.className = 'av-onglet btn ' + (b.getAttribute('data-cle') === o.cle ? 'btn-primary' : 'btn-secondary');
+    });
+  }
+  window.avTexteAgentOnglet = choisirOnglet;
+
+  function afficher(d, ongletInitial) {
+    var nom = nomRestaurant();
+    courant = { donnees: d, nom: nom, onglets: construireOnglets(d, nom) };
+    var car = d.caracteres || {};
+    var tokens = function (n) { return n ? ' (≈ ' + Math.round(n / 4).toLocaleString('fr-FR') + ' tokens)' : ''; };
+    var stats = [];
+    if (car.compact) stats.push('Menu compact : <strong>' + Number(car.compact).toLocaleString('fr-FR') + ' caractères</strong>' + tokens(car.compact));
+    stats.push('Menu complet : ' + Number(car.menu || d.kb_menu.length).toLocaleString('fr-FR') + ' car.');
+    stats.push('Zones : ' + Number(car.zones || d.kb_zones.length).toLocaleString('fr-FR') + ' car.');
+    if (d.genere_en_ms != null) stats.push('généré en ' + d.genere_en_ms + ' ms');
+    var alerte = d.avertissement
+      ? '<div class="anomalie-box" style="margin-bottom:12px;"><strong>⚠️ Menu compact écarté par le contrôle de complétude</strong><div class="anomalie-item">' + esc(d.avertissement) + '</div><div style="font-size:12px;margin-top:4px;">L\'agent utilisera le menu complet tant que ce point n\'est pas corrigé.</div></div>'
+      : '';
+    var boutons = courant.onglets.map(function (o) {
+      return '<button type="button" class="av-onglet btn btn-secondary" data-cle="' + o.cle + '" onclick="avTexteAgentOnglet(\'' + o.cle + '\')">' + esc(o.titre) + '</button>';
+    }).join(' ');
+    var modal = document.getElementById('modal-edit');
+    modal.innerHTML = '<div class="modal-content" onclick="event.stopPropagation()" style="max-width:820px;">' +
+      '<div class="modal-header"><h2>📄 Texte reçu par l\'agent — ' + esc(nom) + '</h2><button class="btn-close" onclick="closeModal(\'modal-edit\')">×</button></div>' +
+      '<div class="modal-body">' +
+      '<div style="background:#e7f1f8;border:1px solid #cfe1ee;border-left:4px solid #2c6e9c;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:12px;color:#2c5a7a;">' +
+      '💡 C\'est <strong>exactement</strong> le texte que l\'agent reçoit à chaque appel, construit d\'après les données du restaurant (produits, choix, prix, zones, horaires). Il suit vos modifications au plus tard 60 secondes après.</div>' +
+      alerte +
+      '<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">' + stats.join(' · ') + '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">' + boutons + '</div>' +
+      '<textarea id="kb-output" readonly style="width:100%;min-height:360px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;"></textarea>' +
+      '<div class="form-actions"><button class="btn btn-secondary" onclick="copierKb()">📋 Copier</button><button class="btn btn-secondary" onclick="telechargerKb()">⬇️ Télécharger</button></div>' +
+      '</div></div>';
+    choisirOnglet(ongletInitial === 'zones' ? 'zones' : (d.kb_menu_compact ? 'compact' : 'complet'));
+  }
+
+  async function ouvrir(ongletInitial) {
+    var modal = document.getElementById('modal-edit');
+    modal.innerHTML = '<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-body"><div class="loading">🔄 Construction du texte reçu par l\'agent…</div></div></div>';
+    modal.classList.add('show');
+    modal.onclick = function () { closeModal('modal-edit'); };
+    try {
+      afficher(await lireTexteAgent(), ongletInitial);
+    } catch (err) {
+      modal.innerHTML = '<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><h2>Erreur</h2><button class="btn-close" onclick="closeModal(\'modal-edit\')">×</button></div>' +
+        '<div class="modal-body"><div class="no-data">❌ ' + esc(err.message) + '</div><div style="font-size:12.5px;color:var(--muted);text-align:center;">Vérifiez que la fonction panier-agent est à jour et que vous êtes connecté.</div></div></div>';
+    }
+  }
+
+  window.genererKbMenu = function () { return ouvrir('menu'); };
+  window.genererKbZones = function () { return ouvrir('zones'); };
+
+  var m = document.getElementById('btn-gen-kbmenu'); if (m) m.textContent = '📄 Menu envoyé à l\'agent';
+  var z = document.getElementById('btn-gen-kbzones'); if (z) z.textContent = '📍 Zones et horaires envoyés à l\'agent';
+  var resume = document.querySelector('#agent-actions summary'); if (resume) resume.textContent = '📄 Texte reçu par l\'agent ▾';
+  var aide = document.querySelector('#param-agent .options-help');
+  if (aide) aide.innerHTML = '🤖 Cette section définit le comportement de l\'agent vocal : les <strong>règles</strong> qu\'il applique (questions à poser, déductions de taille, exclusivités, prononciation). ' +
+    'Le menu, les zones et les horaires sont construits <strong>automatiquement</strong> d\'après les données du restaurant à chaque appel : le menu « compact » est celui que reçoit l\'agent. ' +
+    'Les boutons en haut affichent ce texte exact. Rien n\'est à publier ni à coller.';
 })();
