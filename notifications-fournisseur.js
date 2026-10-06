@@ -68,6 +68,19 @@
     return 'il y a ' + j + ' jour' + (j > 1 ? 's' : '');
   }
 
+  // Durée en secondes, quel que soit le format enregistré (nombre de ms, texte « 2400 », « 2.4s »…). « – » si illisible.
+  function dureeAffichee(valeur) {
+    if (valeur == null || valeur === '') return '–';
+    var ms = Number(valeur);
+    if (isNaN(ms)) {
+      var texte = String(valeur).replace(',', '.');
+      var nombre = parseFloat(texte);
+      if (isNaN(nombre)) return '–';
+      ms = /ms/i.test(texte) || !/s/i.test(texte) ? nombre : nombre * 1000;
+    }
+    return (ms / 1000).toFixed(1).replace('.', ',') + ' s';
+  }
+
   function estBloquee(ev) {
     return ev.etat === 'recu' && ev.recu_le &&
       (Date.now() - new Date(ev.recu_le).getTime()) > DELAI_BLOQUE_MIN * 60000;
@@ -196,8 +209,7 @@
     } else {
       html += '<div class="table-container"><table><thead><tr><th>Reçue le</th><th>Type</th><th>État</th><th>Durée</th><th>Résultat</th></tr></thead><tbody>';
       events.forEach(function (ev) {
-        var dureeMs = ev.resultat && ev.resultat.duree_ms;
-        var duree = dureeMs != null ? (Number(dureeMs) / 1000).toFixed(1).replace('.', ',') + ' s' : '–';
+        var duree = dureeAffichee(ev.resultat && ev.resultat.duree_ms);
         var detail;
         if (ev.etat === 'erreur') detail = '<span style="color:var(--err);">' + esc(ev.message_erreur || 'Erreur sans détail') + '</span>';
         else if (ev.etat === 'ignore') detail = '<span style="color:var(--muted);">' + esc(ev.message_erreur || 'Ignorée') + '</span>';
