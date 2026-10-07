@@ -1428,7 +1428,7 @@
                       cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
       let articlesHtml = '';
       if (cmd.produits_commandes) {
-        cmd.produits_commandes.forEach(item => {
+        cmd.produits_commandes.forEach((item, idx) => {
           const attrHtml = htmlChoixArticle(item);
           articlesHtml += `
             <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
@@ -1436,6 +1436,7 @@
                 <span><strong>${item.quantite}x</strong> ${item.produit?.nom}</span>
                 <strong>${item.total}€</strong>
               </div>
+              <div class="prix-ligne" data-ligne="${idx}" style="font-size: 12px; color: #666; margin-top: 4px;"></div>
               ${attrHtml}
               ${item.instructions_particulieres ? `<div style="color: #f57c00; margin-top: 6px;">💬 ${item.instructions_particulieres}</div>` : ''}
             </div>
@@ -1519,8 +1520,10 @@
               <strong>📦 Articles</strong>
               <div style="margin-top: 12px;">${articlesHtml}</div>
             </div>
-            <div style="border-top: 1px solid var(--line); padding-top: 14px; font-size: 18px; font-weight: bold; text-align: right;">
-              Total: ${cmd.prix}€
+            <div id="prix-frais"></div>
+            <div style="border-top: 1px solid var(--line); padding-top: 14px; display: flex; justify-content: space-between; align-items: baseline; gap: 16px;">
+              <span id="prix-note" style="font-size: 11px; color: var(--muted); max-width: 60%;"></span>
+              <span style="font-size: 18px; font-weight: bold;">Total: ${cmd.prix}€</span>
             </div>
             <div style="margin-top: 16px; font-size: 13px; color: var(--muted);">
               <div>Reçue le: ${formatDate(cmd.created_at)}</div>
@@ -3204,35 +3207,17 @@
       return `Ce serait ${libelles.join(', ')} ou ${dernier} ?`;
     }
 
-    // Remplace la dernière phrase-question qui parle des modes par {{question_mode}}
-    function convertirMessageMode(texte) {
-      const t = String(texte || '');
-      if (/\{\{\s*question_mode\s*\}\}/.test(t)) return { etat: 'deja', texte: t };
-      const phrases = t.split(/(?<=[.!?])\s+/);
-      let idx = -1;
-      phrases.forEach((p, i) => { if (/\?\s*$/.test(p) && /emporter|livraison|sur place/i.test(p)) idx = i; });
-      if (idx < 0) return { etat: 'aucune', texte: t };
-      phrases[idx] = '{{question_mode}}';
-      return { etat: 'convertible', texte: phrases.join(' ') };
-    }
-
-    const MESSAGES_ACCUEIL_LIBELLES = [
-      ['ouvert_connu', 'Ouvert, client connu'], ['ouvert_inconnu', 'Ouvert, client inconnu'],
-      ['ferme_connu', 'Fermé, client connu'], ['ferme_inconnu', 'Fermé, client inconnu']
-    ];
-
     async function chargerModes() {
       const zone = document.getElementById('modes-contenu');
       zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
       try {
-        const { data, error } = await supabaseClient.from('business').select('type_params, messages_accueil').eq('id', BUSINESS_ID).single();
+        const { data, error } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
         if (error) throw error;
         const tp = (data && data.type_params) || {};
         const fournisseur = (Array.isArray(tp.modes) ? tp.modes : []).map(m => m === 'emporter' ? 'a_emporter' : m);
         const enregistres = Array.isArray(tp.modes_actifs);
         let actifs = enregistres ? tp.modes_actifs : fournisseur.filter(m => m !== 'sur_place');
         if (!enregistres && actifs.length === 0) actifs = ['a_emporter', 'livraison'];
-        const messages = (data && data.messages_accueil) || {};
 
         let html = `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:18px;">
           <div style="margin-bottom:12px;">${enregistres ? '<span class="badge badge-success">Réglage enregistré</span>' : '<span class="badge badge-warning">Pas encore enregistré : valeurs par défaut</span>'}</div>`;
@@ -3249,25 +3234,6 @@
           <div class="form-actions" style="justify-content:flex-start;margin-top:0;border-top:none;padding-top:0;">
             <button class="btn btn-primary" onclick="enregistrerModes()">💾 Enregistrer les modes</button></div></div>`;
 
-        html += `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;">
-          <h3 style="font-size:16px;margin-bottom:6px;">Messages d'accueil</h3>
-          <p style="font-size:13px;color:var(--muted);margin-bottom:12px;">Pour que la question suive les modes, le message doit contenir <strong>{{question_mode}}</strong> à la place de la phrase actuelle. Un message sans ce texte n'est jamais modifié.</p>`;
-        let convertibles = 0;
-        MESSAGES_ACCUEIL_LIBELLES.forEach(([cle, lib]) => {
-          const r = convertirMessageMode(messages[cle]);
-          if (r.etat === 'convertible') convertibles++;
-          const badge = r.etat === 'deja' ? '<span class="badge badge-success">déjà dynamique</span>'
-            : r.etat === 'convertible' ? '<span class="badge badge-warning">à convertir</span>'
-            : '<span class="badge badge-info">aucune question de mode détectée</span>';
-          html += `<div style="border-top:1px solid var(--line);padding:10px 0;font-size:13px;">
-            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><strong>${lib}</strong>${badge}</div>
-            <div style="color:var(--muted);">${escHtml(messages[cle] || '(vide)')}</div>
-            ${r.etat === 'convertible' ? `<div style="margin-top:4px;">➜ ${escHtml(r.texte)}</div>` : ''}</div>`;
-        });
-        html += convertibles > 0
-          ? `<div class="form-actions" style="justify-content:flex-start;"><button class="btn btn-secondary" onclick="convertirMessagesModes()">✍️ Insérer {{question_mode}} dans ${convertibles} message(s)</button></div>`
-          : '';
-        html += '</div>';
         zone.innerHTML = html;
         majApercuModes();
       } catch (err) {
@@ -3289,7 +3255,6 @@
       let txt = '';
       if (modes.length === 0) txt += '<div class="groupe-note">⚠️ Cochez au moins un mode.</div>';
       if (modes.length === 1) txt += '<div class="groupe-note">⚠️ Un seul mode : la question n\'est pas posée. Le prompt de l\'agent devra alors être adapté (il demande encore « livraison ou à emporter »).</div>';
-      if (modes.includes('sur_place')) txt += '<div class="groupe-note">⚠️ « Sur place » n\'est pas encore géré par le prompt ni par l\'outil de l\'agent : ne l\'activez pas sur un restaurant en service avant leur adaptation.</div>';
       al.innerHTML = txt;
     }
 
@@ -3304,26 +3269,6 @@
         if (e2) throw e2;
         alert('✅ Modes enregistrés');
         majPastillesParam();
-        chargerModes();
-      } catch (err) {
-        alert('❌ Erreur: ' + err.message);
-      }
-    }
-
-    async function convertirMessagesModes() {
-      if (!confirm('Remplacer, dans les messages concernés, la phrase sur les modes par {{question_mode}} ?')) return;
-      try {
-        const { data, error } = await supabaseClient.from('business').select('messages_accueil').eq('id', BUSINESS_ID).single();
-        if (error) throw error;
-        const messages = { ...((data && data.messages_accueil) || {}) };
-        let n = 0;
-        MESSAGES_ACCUEIL_LIBELLES.forEach(([cle]) => {
-          const r = convertirMessageMode(messages[cle]);
-          if (r.etat === 'convertible') { messages[cle] = r.texte; n++; }
-        });
-        const { error: e2 } = await supabaseClient.from('business').update({ messages_accueil: messages }).eq('id', BUSINESS_ID);
-        if (e2) throw e2;
-        alert(`✅ ${n} message(s) converti(s)`);
         chargerModes();
       } catch (err) {
         alert('❌ Erreur: ' + err.message);
@@ -4321,7 +4266,7 @@
 
     // Calcule le coût total d'un appel en dollars
     // Formule : (crédits × prix_credit) + (minutes × prix_minute)
-    // Les tarifs viennent de la base (variable tarifsAppels, modifiable dans le journal)
+    // Les tarifs viennent de la base (variable tarifsAppels, colonne business.tarifs_appels)
     function calculerCoutAppel(credits, dureeSecondes) {
       const c = Number(credits) || 0;
       const d = Number(dureeSecondes) || 0;
@@ -4494,7 +4439,7 @@
       }
     }
 
-    // Affiche le bandeau récapitulatif (compteur exact) + le formulaire de tarifs
+    // Affiche le bandeau récapitulatif (compteur exact)
     function afficherRecap(nbAppels, totalSecondes, totalCredits) {
       const recapEl = document.getElementById('logs-recap');
       if (!recapEl) return;
@@ -4517,48 +4462,7 @@
           <div class="recap-label">Coût cumulé</div>
           <div class="recap-value cost">${coutTotal.toFixed(2).replace('.', ',')} $</div>
         </div>
-        <div class="recap-card" style="flex:1.4;min-width:220px;">
-          <div class="recap-label">Tarifs (modifiables)</div>
-          <div style="display:flex;gap:8px;align-items:flex-end;margin-top:4px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:90px;">
-              <label style="font-size:10px;color:var(--muted);display:block;">$ / crédit</label>
-              <input type="number" id="tarif-credit" step="0.00001" value="${tarifsAppels.prix_credit}"
-                     style="width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:13px;">
-            </div>
-            <div style="flex:1;min-width:90px;">
-              <label style="font-size:10px;color:var(--muted);display:block;">$ / minute</label>
-              <input type="number" id="tarif-minute" step="0.001" value="${tarifsAppels.prix_minute}"
-                     style="width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:13px;">
-            </div>
-            <button class="btn btn-primary btn-sm" onclick="sauvegarderTarifs()" style="white-space:nowrap;">💾</button>
-          </div>
-        </div>
       `;
-    }
-
-    // Sauvegarde les tarifs modifiés dans la base
-    async function sauvegarderTarifs() {
-      const credit = parseFloat(document.getElementById('tarif-credit').value);
-      const minute = parseFloat(document.getElementById('tarif-minute').value);
-      if (isNaN(credit) || isNaN(minute) || credit < 0 || minute < 0) {
-        alert('Merci de saisir des tarifs valides (nombres positifs).');
-        return;
-      }
-      try {
-        const nouveauxTarifs = { prix_credit: credit, prix_minute: minute };
-        const { error } = await supabaseClient
-          .from('business')
-          .update({ tarifs_appels: nouveauxTarifs })
-          .eq('id', BUSINESS_ID);
-        if (error) throw error;
-        tarifsAppels = nouveauxTarifs;
-        alert('✅ Tarifs enregistrés');
-        // Recalcule le compteur et la liste avec les nouveaux tarifs
-        await chargerStatsJournal();
-        renderEvenements();
-      } catch (err) {
-        alert('❌ Erreur: ' + err.message);
-      }
     }
 
     // Charge une page d'appels (les ajoute à la liste existante)
