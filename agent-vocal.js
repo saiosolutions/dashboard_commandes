@@ -49,7 +49,7 @@
 
   var SCHEMA = [
     { id: 'models', title: 'Modèles et voix', fields: [
-      { k: 'info_branche', t: 'info', l: 'Ce que l\'agent applique à chaque appel', h: 'Quand l\'agent est « en service », il applique : écoute (modèle, langue), cerveau (modèle), voix (modèle, identifiant, vitesse), modèles de secours, mode expressif, fin de tour, attentes, interruptions, réponse anticipée, sons, suppression de bruit et le prompt choisi. Pas encore branchés : température, plafond de réponse, mots à reconnaître, transfert vers un humain et SMS. Hors service, l\'agent garde les réglages de son déploiement. Un modèle choisi ici est toujours doublé par la combinaison de référence du déploiement : si le modèle ne répond pas, l\'appel continue.', links: [] },
+      { k: 'info_branche', t: 'info', l: 'Ce que l\'agent applique à chaque appel', h: 'Quand l\'agent est « en service », il applique : écoute (modèle, langue), cerveau (modèle), voix (modèle, identifiant, vitesse), modèles de secours, mode expressif, fin de tour, attentes, interruptions, réponse anticipée, sons, suppression de bruit, transfert vers un humain (transfert direct et motifs) et le prompt choisi. Pas encore branchés : température, plafond de réponse, mots à reconnaître et SMS. Hors service, l\'agent garde les réglages de son déploiement. Un modèle choisi ici est toujours doublé par la combinaison de référence du déploiement : si le modèle ne répond pas, l\'appel continue.', links: [] },
       { k: 'stt_model', t: 'model', mt: 'stt', l: 'Écoute (STT)' },
       { k: 'stt_lang', t: 'select', l: 'Langue d\'écoute', o: OPT.lang },
       { k: 'stt_kw', t: 'text', l: 'Mots à reconnaître (plats, marques)', h: 'Séparés par des virgules', adv: 1 },
@@ -94,9 +94,10 @@
       { k: 'tool_val', t: 'toggle', l: 'Panier et calcul des prix', locked: 1, h: 'Verrouillé : le panier est rempli par les outils ajouter, modifier, retirer et valider. Les prix sont calculés par les fonctions Supabase, jamais par le LLM.' },
       { k: 'tool_transfer', t: 'toggle', l: 'Transfert vers un humain', h: 'Pas d\'abonnement : on paie seulement les minutes de la conversation transférée (≈ 0,03 $/min vers un fixe, ≈ 0,05 $/min vers un mobile, estimation Twilio + entrant).' },
       { k: 'transfer_num', t: 'text', l: 'Numéro vers lequel transférer', ph: '+33…', h: 'Obligatoire si le transfert est activé.' },
-      { k: 'transfer_mode', t: 'select', l: 'Type de transfert', o: OPT.transfer, h: 'Direct : simple et le moins cher. Avec annonce : l\'agent résume la commande avant de passer l\'appel (plus de minutes facturées).' },
+      { k: 'transfer_mode', t: 'select', l: 'Type de transfert', o: OPT.transfer, h: 'Direct : simple et le moins cher. Avec annonce : pas encore géré, le transfert reste direct en attendant.' },
       { k: 'transfer_phrase', t: 'text', l: 'Phrase avant le transfert', ph: 'Je vous passe un collaborateur…' },
       { k: 'transfer_open_only', t: 'toggle', l: 'Transférer seulement quand le restaurant est ouvert', h: 'Sinon l\'agent explique que personne n\'est disponible.' },
+      { k: 'transfer_motifs', t: 'motifs', l: 'Motifs de transfert', h: 'L\'agent ne transfère que pour les motifs cochés. Le texte de chaque motif est ce que l\'agent reçoit : reformule-le si l\'agent se trompe. Ces motifs guident son jugement, ils ne le verrouillent pas. Sans transfert activé, ils sont ignorés.' },
       { k: 'tool_sms', t: 'toggle', l: 'SMS de confirmation de commande', h: '≈ 0,08 $ par SMS de 160 caractères (0,16 $ s\'il en faut deux) : presque autant qu\'un appel entier. Désactivé par défaut.' },
       { k: 'sms_sender', t: 'text', l: 'Nom d\'expéditeur du SMS', ph: 'ex. DEMOPIZZA', h: '11 caractères maximum, lettres et chiffres. Le client ne peut pas répondre. Obligatoire si le SMS est activé.' },
       { k: 'sms_tpl', t: 'area', l: 'Texte du SMS', h: 'Variables : {{nom_restaurant}}, {{numero_commande}}, {{total}}, {{heure}}. Évite les accents rares (â, ê, ô…) : ils ramènent la limite à 70 caractères par SMS.' },
@@ -127,6 +128,15 @@
     { l: 'Récapitulatif et validation', on: true, lock: true, mand: true, phrase: 'Je récapitule votre commande.' },
     { l: 'Clôture', on: true, lock: false, mand: false, phrase: 'Merci, bonne journée !' }
   ];
+  // Motifs de transfert proposés par défaut. Le premier est toujours actif (lock). Un motif ajouté à la main porte perso: true.
+  var MOTIFS0 = [
+    { id: 'humain', l: 'Le client demande un humain', on: true, lock: true, txt: 'Le client demande explicitement un responsable, un humain ou une personne.' },
+    { id: 'modif_passee', l: 'Modifier ou annuler une commande déjà passée', on: true, txt: 'Le client veut modifier, annuler ou compléter une commande passée lors d\'un appel précédent.' },
+    { id: 'reclamation', l: 'Réclamation', on: true, txt: 'Le client se plaint d\'une erreur, d\'un retard, d\'un produit manquant ou de la qualité.' },
+    { id: 'suivi', l: 'Suivi d\'une commande en cours', on: true, txt: 'Le client demande où en est sa commande, son retard ou l\'heure d\'arrivée du livreur.' },
+    { id: 'hors_commande', l: 'Demande hors prise de commande', on: false, txt: 'Le client pose une question que l\'agent ne peut pas traiter : facture, traiteur, groupe, allergie grave.' },
+    { id: 'incomprehension', l: 'Incompréhension répétée', on: false, txt: 'L\'agent n\'a pas compris le client après deux tentatives de suite.' }
+  ];
   // Valeurs de départ (le profil Équilibré = BASE). Les réglages sont des données : en ajouter un = ajouter une ligne ci-dessus + ici.
   var BASE = {
     stt_model: 'deepgram/nova-3', stt_lang: 'fr', stt_kw: '',
@@ -137,7 +147,7 @@
     think: 'keyboard1', think_vol: 0.6, amb: 'none', amb_vol: 0.2, tool_snd: 'keyboard1', noise: 'telephony',
     prompt_modele: 'Modèle SAIOS restaurant (défaut)',
     flow: FLOW0, tool_val: true,
-    tool_transfer: false, transfer_num: '', transfer_mode: 'cold', transfer_phrase: 'Je vous passe un collaborateur, ne quittez pas.', transfer_open_only: true,
+    tool_transfer: false, transfer_num: '', transfer_mode: 'cold', transfer_phrase: 'Je vous passe un collaborateur, ne quittez pas.', transfer_open_only: true, transfer_motifs: MOTIFS0,
     tool_sms: false, sms_sender: '', sms_tpl: '{{nom_restaurant}} : commande {{numero_commande}} confirmee, total {{total}}, prete a {{heure}}.', sms_modes: ['livraison'],
     maxdur: 10, sil_hang: 20, consent: false,
     metrics: true, record: false, retention: 30, mask: true
@@ -167,6 +177,15 @@
     return identique ? badge(PROFILS[cle].nom) : '';
   };
   var pairs = function (o) { return Array.isArray(o) ? o : [o, o]; };
+  // Texte des motifs de transfert tel que l'agent le reçoit (aperçu en lecture seule dans l'éditeur)
+  function texteAgentMotifs(motifs) {
+    var l = (motifs || []).filter(function (m) { return m.on && String(m.txt || '').trim(); });
+    return 'Appelle transferer_vers_humain uniquement dans ces cas :\n' + l.map(function (m) { return '- ' + String(m.txt).trim(); }).join('\n') + '\nDans tous les autres cas, ne transfère pas.';
+  }
+  function majApercuMotifs() {
+    var el = $('avmotifs-apercu');
+    if (el && AV.ed && AV.ed.cfg) el.textContent = texteAgentMotifs(AV.ed.cfg.transfer_motifs);
+  }
 
   /* ---------- État ---------- */
   var AV = {
@@ -413,6 +432,26 @@
     if (f.t === 'flow') return (val || []).map(function (st, i) {
       return '<div class="av-card" style="padding:12px 14px;margin-bottom:8px"><div class="av-row av-between"><label class="av-row av-l"><input type="checkbox" data-avt="flow" data-avk="' + i + '" data-avp="on"' + (st.on ? ' checked' : '') + (st.lock ? ' disabled' : '') + ' style="width:18px;height:18px"> ' + esc(st.l) + '</label>' + (st.lock ? badge('Toujours actif', 'dark') : '') + '</div><input type="text" class="av-in" style="margin-top:8px" data-avt="flow" data-avk="' + i + '" data-avp="phrase" value="' + esc(st.phrase) + '" aria-label="Phrase : ' + esc(st.l) + '"><label class="av-check"><input type="checkbox" data-avt="flow" data-avk="' + i + '" data-avp="mand"' + (st.mand ? ' checked' : '') + '> Question obligatoire</label></div>';
     }).join('');
+    if (f.t === 'motifs') {
+      var liste = (val || []).map(function (m, i) {
+        var b = MOTIFS0.filter(function (x) { return x.id === m.id; })[0];
+        var perso = !!b && !m.lock && (b.txt !== m.txt || b.on !== m.on);
+        var coche = '<input type="checkbox" data-avt="motif" data-avk="' + i + '" data-avp="on"' + (m.on ? ' checked' : '') + (m.lock ? ' disabled' : '') + ' style="width:18px;height:18px" aria-label="Activer : ' + esc(m.l) + '">';
+        var nom = m.perso
+          ? '<input type="text" class="av-in" style="max-width:320px" data-avt="motif" data-avk="' + i + '" data-avp="l" value="' + esc(m.l) + '" placeholder="Nom du motif" aria-label="Nom du motif">'
+          : '<span class="av-l">' + esc(m.l) + '</span>';
+        var droite = m.lock
+          ? badge('Toujours actif', 'dark')
+          : (m.perso
+            ? '<button class="av-reset" data-avact="delmotif" data-id="' + i + '">Supprimer</button>'
+            : (perso ? badge('Personnalisé', 'warn') + '<button class="av-reset" data-avact="resetmotif" data-id="' + i + '">Rétablir</button>' : ''));
+        return '<div class="av-card" style="padding:10px 12px;margin-bottom:8px"><div class="av-row av-between"><div class="av-row" style="flex:1">' + coche + nom + '</div><span class="av-row">' + droite + '</span></div><input type="text" class="av-in" style="margin-top:8px" data-avt="motif" data-avk="' + i + '" data-avp="txt" value="' + esc(m.txt) + '" placeholder="Décris le cas où l\'agent doit transférer" aria-label="Texte du motif : ' + esc(m.l) + '"></div>';
+      }).join('');
+      return liste +
+        '<div class="av-row" style="margin:6px 0 10px"><button class="btn btn-secondary btn-sm" data-avact="addmotif">➕ Ajouter un motif</button></div>' +
+        '<div class="av-l" style="margin-bottom:4px">Consigne envoyée à l\'agent</div><div class="av-help" style="margin:0 0 6px">Aperçu en lecture seule, construit d\'après les motifs cochés.</div>' +
+        '<div class="av-pre" id="avmotifs-apercu" style="max-height:none">' + esc(texteAgentMotifs(val)) + '</div>';
+    }
     return '';
   }
   function formCustom(f) {
@@ -462,6 +501,7 @@
     if (f.t === 'range') return f.fmt(v);
     if (f.t === 'multi') return (v || []).join(', ') || '—';
     if (f.t === 'flow') return v.filter(function (x) { return x.on; }).length + ' étape(s) active(s)';
+    if (f.t === 'motifs') return (v || []).filter(function (x) { return x.on; }).length + ' motif(s) actif(s)';
     if (f.t === 'select') { var o = f.o.map(pairs).find(function (p) { return String(p[0]) === String(v); }); return o ? o[1] : String(v); }
     return String(v == null || v === '' ? '—' : v);
   }
@@ -584,7 +624,7 @@
       h += '<label class="av-check"><input type="checkbox" data-avt="bulk" data-avk="useFb"' + (b.useFb ? ' checked' : '') + '> Utiliser d\'abord le modèle de secours propre à chaque agent</label>';
     }
     if (b.action === 'field') {
-      var nm = []; SCHEMA.forEach(function (s) { s.fields.forEach(function (f) { if (!f.locked && !f.col && f.t !== 'model' && f.t !== 'flow' && f.t !== 'info') nm.push(f); }); });
+      var nm = []; SCHEMA.forEach(function (s) { s.fields.forEach(function (f) { if (!f.locked && !f.col && f.t !== 'model' && f.t !== 'flow' && f.t !== 'info' && f.t !== 'motifs') nm.push(f); }); });
       var f = FM[b.fk];
       h += '<div class="av-field"><label class="av-l" for="avf_bulk_fk">Réglage</label><select id="avf_bulk_fk" data-avt="bulk" data-avk="fk">' + nm.map(function (x) { return '<option value="' + x.k + '"' + (x.k === b.fk ? ' selected' : '') + '>' + esc(x.l) + '</option>'; }).join('') + '</select></div><div class="av-field"><div class="av-top"><label class="av-l" for="avf_bulk_val">Nouvelle valeur</label>' + (f.t === 'range' ? '<b id="avlab_bulk_val">' + f.fmt(b.val) + '</b>' : '') + '</div>' + ctl(Object.assign({}, f, { k: 'val' }), b.val, 'bulk') + '</div>';
     }
@@ -693,6 +733,7 @@
       if (FM[k] && FM[k].num && v !== '') v = parseFloat(v);
       AV.ed.cfg[k] = v;
     } else if (t === 'flow') AV.ed.cfg.flow[parseInt(k, 10)][el.dataset.avp] = v;
+    else if (t === 'motif') { var mo = AV.ed.cfg.transfer_motifs[parseInt(k, 10)]; if (mo) mo[el.dataset.avp] = v; }
     else if (t === 'custom') AV.ed.custom[k] = v;
     else if (t === 'ed') { AV.ed[k] = v; if (k === 'bid') AV.ed.menu = undefined; }
     else if (t === 'nm') { AV.nm = AV.nm || {}; AV.nm[k] = v; }
@@ -801,6 +842,23 @@
   A.sec = function (el) { AV.openSec[el.dataset.id] = !AV.openSec[el.dataset.id]; rendre(); };
   A.adv = function (el) { AV.showAdv = el.checked; rendre(); };
   A.reset = function (el) { var k = el.dataset.id; AV.ed.cfg[k] = clone(mkProfil(AV.ed.profil)[k]); rendre(); };
+  // Motifs de transfert : ajouter, supprimer, rétablir un motif proposé par défaut
+  A.addmotif = function () {
+    var l = AV.ed.cfg.transfer_motifs = AV.ed.cfg.transfer_motifs || [];
+    l.push({ id: 'perso_' + Date.now(), l: '', on: true, perso: true, txt: '' });
+    rendre();
+  };
+  A.delmotif = function (el) {
+    var i = parseInt(el.dataset.id, 10), l = AV.ed.cfg.transfer_motifs || [];
+    if (l[i] && l[i].perso) l.splice(i, 1);
+    rendre();
+  };
+  A.resetmotif = function (el) {
+    var i = parseInt(el.dataset.id, 10), m = (AV.ed.cfg.transfer_motifs || [])[i];
+    var b = m && MOTIFS0.filter(function (x) { return x.id === m.id; })[0];
+    if (b) { m.on = b.on; m.txt = b.txt; }
+    rendre();
+  };
   A.diff = function () { AV.ed.showDiff = !AV.ed.showDiff; rendre(); };
   A.etape = function (el) {
     var n = parseInt(el.dataset.id, 10); if (!(n >= 1 && n <= 6)) return;
@@ -853,6 +911,7 @@
   };
   function verifOptions(c) {
     if (c.tool_transfer && !String(c.transfer_num || '').trim()) return 'Renseigne le numéro de transfert, ou désactive le transfert vers un humain.';
+    if (c.tool_transfer && (c.transfer_motifs || []).some(function (m) { return m.perso && m.on && (!String(m.l || '').trim() || !String(m.txt || '').trim()); })) return 'Un motif de transfert ajouté à la main est incomplet : renseigne son nom et son texte, ou supprime-le.';
     if (c.tool_sms && !/^[A-Za-z0-9 ]{1,11}$/.test(String(c.sms_sender || '').trim())) return 'Renseigne un nom d\'expéditeur de SMS valide (11 caractères maximum, lettres et chiffres), ou désactive le SMS.';
     return '';
   }
@@ -990,6 +1049,7 @@
       var bar = $('avbar'); if (bar && AV.ed) bar.innerHTML = barre();
     } else if (el.type === 'text' || el.tagName === 'TEXTAREA') {
       poser(el);
+      if (el.dataset.avt === 'motif') majApercuMotifs();
       var bar2 = $('avbar'); if (bar2 && AV.ed) bar2.innerHTML = barre();
     }
   });
@@ -1015,13 +1075,13 @@
       });
       return;
     }
-    if (t === 'nm' || t === 'custom' || el.type === 'text' || el.type === 'password' || el.tagName === 'TEXTAREA') { poser(el); var b = $('avbar'); if (b && AV.ed) b.innerHTML = barre(); return; }
+    if (t === 'nm' || t === 'custom' || el.type === 'text' || el.type === 'password' || el.tagName === 'TEXTAREA') { poser(el); if (t === 'motif') majApercuMotifs(); var b = $('avbar'); if (b && AV.ed) b.innerHTML = barre(); return; }
     poser(el);
     if (t === 'ed' && el.dataset.avk === 'bid') { A.recompter(); }
     rendre();
   });
 
-  window.AgentVocal = { version: '3.3', etat: AV };
+  window.AgentVocal = { version: '3.4', etat: AV };
 })();
 
 /* =====================================================================
