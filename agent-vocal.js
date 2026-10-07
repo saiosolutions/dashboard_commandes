@@ -159,6 +159,13 @@
   var usd = function (n, d) { return Number(n).toFixed(d == null ? 4 : d).replace('.', ',') + ' $'; };
   var badge = function (t, k) { return '<span class="av-badge ' + (k || '') + '">' + esc(t) + '</span>'; };
   var mkProfil = function (p) { return clone(Object.assign({}, BASE, PROFILS[p].o)); };
+  // Étiquette de profil : seulement si les modèles de l'agent sont exactement ceux du profil (sinon rien, pas de faux « Premium »)
+  var badgeProfil = function (cle, cfg) {
+    if (!PROFILS[cle] || !cfg) return '';
+    var base = mkProfil(cle);
+    var identique = CLES_MODELES.every(function (k) { return eq(cfg[k], base[k]); });
+    return identique ? badge(PROFILS[cle].nom) : '';
+  };
   var pairs = function (o) { return Array.isArray(o) ? o : [o, o]; };
 
   /* ---------- État ---------- */
@@ -292,6 +299,9 @@
     var err = res.map(function (r) { return r.error; }).find(Boolean);
     if (err) throw err;
     AV.models = res[0].data || []; AV.configs = res[1].data || []; AV.prompts = res[2].data || []; AV.ops = res[3].data || [];
+    // Le prompt par défaut des nouveaux agents est celui marqué « defaut » en base (il peut donc être renommé)
+    var pDefaut = AV.prompts.find(function (p) { return p.defaut === true; });
+    if (pDefaut) BASE.prompt_modele = pDefaut.nom;
   }
   async function chargerEtRendre() {
     var body = $('avb-' + AV.section);
@@ -351,9 +361,9 @@
       var r = resolu(c), st = statutAgent(c), cout = coutDe(r);
       var prof = PROFILS[c.profil] ? mkProfil(c.profil) : null;
       var nperso = prof ? Object.keys(prof).filter(function (k) { return !eq(r[k], prof[k]); }).length : 0;
-      h += '<div class="av-card av-row" style="align-items:flex-start"><input type="checkbox" data-avact="sel" data-id="' + b.id + '"' + (AV.sel[b.id] ? ' checked' : '') + ' style="margin-top:4px;width:18px;height:18px" aria-label="Sélectionner ' + esc(b.nom) + '"><div class="av-grow"><div class="av-title">' + esc(b.nom) + ' ' + badge(PROFILS[c.profil] ? PROFILS[c.profil].nom : c.profil) + badge('v' + c.version) + badge(c.actif ? 'En service' : 'Hors service', c.actif ? 'ok' : '') + badge(st[0], st[1]) + '</div>' +
+      h += '<div class="av-card av-row" style="align-items:flex-start"><input type="checkbox" data-avact="sel" data-id="' + b.id + '"' + (AV.sel[b.id] ? ' checked' : '') + ' style="margin-top:4px;width:18px;height:18px" aria-label="Sélectionner ' + esc(b.nom) + '"><div class="av-grow"><div class="av-title">' + esc(b.nom) + ' ' + badgeProfil(c.profil, r) + badge('v' + c.version) + badge(c.actif ? 'En service' : 'Hors service', c.actif ? 'ok' : '') + badge(st[0], st[1]) + '</div>' +
         '<div class="av-sub">' + esc(lieu) + '</div><div class="av-sub">' + esc(mname(r.stt_model)) + ' · ' + esc(mname(r.llm_model)) + ' · ' + esc(mname(r.tts_model)) + '</div>' +
-        '<div class="av-sub"><b>' + usd(cout.total) + '</b> / min' + (cout.incomplet ? ' (coût incomplet)' : '') + (nperso ? ' · ' + nperso + ' réglage(s) personnalisé(s)' : '') + '</div></div>' +
+        '<div class="av-sub"><b>' + usd(cout.total) + '</b> / min' + (cout.incomplet ? ' (coût incomplet)' : '') + (nperso ? ' · ' + nperso + ' réglage(s) modifié(s) par rapport au profil de départ ' + PROFILS[c.profil].nom : '') + '</div></div>' +
         '<div class="av-row"><button class="btn btn-secondary btn-sm" data-avact="editer" data-id="' + b.id + '">✏️ Modifier</button><button class="btn btn-secondary btn-sm" data-avact="service" data-id="' + b.id + '">' + (c.actif ? 'Retirer du service' : 'Mettre en service') + '</button></div></div>';
     });
     if (!liste.length) h += '<div class="no-data">Aucun restaurant pour ce filtre.</div>';
@@ -467,7 +477,7 @@
   function vueEditeur() {
     var e = AV.ed, prof = mkProfil(e.profil), h = '';
     if (e.mode === 'edit') {
-      h += '<button class="av-reset" data-avact="quitter">‹ Agents vocaux</button><div class="av-row av-between"><h2 style="font-size:19px;margin:6px 0">' + esc(e.name) + '</h2><span class="av-row">' + badge(PROFILS[e.profil] ? PROFILS[e.profil].nom : e.profil) + badge('v' + e.version) + '</span></div><div class="av-sub">Chaque enregistrement crée une nouvelle version, restaurable. Application dès l\'appel suivant.</div>';
+      h += '<button class="av-reset" data-avact="quitter">‹ Agents vocaux</button><div class="av-row av-between"><h2 style="font-size:19px;margin:6px 0">' + esc(e.name) + '</h2><span class="av-row">' + badgeProfil(e.profil, e.cfg) + badge('v' + e.version) + '</span></div><div class="av-sub">Chaque enregistrement crée une nouvelle version, restaurable. Application dès l\'appel suivant.</div>';
       h += advToggle() + sections(e.cfg, prof);
       if (e.showDiff) h += '<div class="av-card"><b>Modifications en attente</b>' + changements().map(function (c) { return '<div class="av-kv"><span>' + esc(FM[c.k] ? FM[c.k].l : c.k) + '</span><span>' + esc(fmtVal(c.k, c.from)) + ' → <b>' + esc(fmtVal(c.k, c.to)) + '</b></span></div>'; }).join('') + '</div>';
       h += '<div class="av-bar" id="avbar">' + barre() + '</div>';
@@ -501,7 +511,7 @@
       var p2 = promptDe(e.cfg.prompt_modele);
       var chk = function (ok, t) { return '<div class="av-kv"><span>' + t + '</span>' + badge(ok ? 'OK' : 'À faire', ok ? 'ok' : 'warn') + '</div>'; };
       var m2 = e.menu || {};
-      h += '<div class="av-card"><b>' + esc(nomBiz(e.bid)) + '</b> ' + badge(PROFILS[e.profil].nom) + '<div class="av-sub" style="margin:4px 0 8px">' + esc(mname(e.cfg.stt_model)) + ' · ' + esc(mname(e.cfg.llm_model)) + ' · ' + esc(mname(e.cfg.tts_model)) + '</div><div class="av-kv"><span>Coût par minute</span><b>' + usd(c2.total) + '</b></div><div class="av-kv"><span>Appel de 3 minutes</span><b>≈ ' + usd(c2.total * 3, 3) + '</b></div><div class="av-kv"><span>Réglages personnalisés</span><b>' + nc + '</b></div></div>' +
+      h += '<div class="av-card"><b>' + esc(nomBiz(e.bid)) + '</b> ' + badgeProfil(e.profil, e.cfg) + '<div class="av-sub" style="margin:4px 0 8px">' + esc(mname(e.cfg.stt_model)) + ' · ' + esc(mname(e.cfg.llm_model)) + ' · ' + esc(mname(e.cfg.tts_model)) + '</div><div class="av-kv"><span>Coût par minute</span><b>' + usd(c2.total) + '</b></div><div class="av-kv"><span>Appel de 3 minutes</span><b>≈ ' + usd(c2.total * 3, 3) + '</b></div><div class="av-kv"><span>Réglages personnalisés</span><b>' + nc + '</b></div></div>' +
         '<div class="av-card"><b>Avant la mise en service</b>' + chk(!!e.bid, 'Restaurant choisi') + chk((m2.produits || 0) > 0, 'Menu présent (produits)') + chk(!!(e.cfg.numero_twilio || '').trim(), 'Numéro Twilio renseigné') + chk(!!(p2 && p2.contenu && p2.contenu.trim()), 'Prompt non vide') + chk(primaires(e.cfg).every(function (id) { return sante(id) !== 'indisponible'; }), 'Modèles disponibles') + (e.cfg.tool_transfer ? chk(!!String(e.cfg.transfer_num || '').trim(), 'Numéro de transfert renseigné') : '') + (e.cfg.tool_sms ? chk(/^[A-Za-z0-9 ]{1,11}$/.test(String(e.cfg.sms_sender || '').trim()), 'Nom d\'expéditeur du SMS valide') : '') +
         '<label class="av-check"><input type="checkbox" data-avt="ed" data-avk="testOk"' + (e.testOk ? ' checked' : '') + '> Appel de test réussi (à cocher toi-même après avoir appelé le numéro)</label><div class="av-help">L\'agent est créé <b>hors service</b> ; tu le mets en service depuis la liste une fois le test réussi.</div></div>' + nav(5, 0) + '<div class="av-row" style="margin-top:8px"><button class="btn btn-primary" data-avact="create">✅ Créer l\'agent (hors service)</button></div>';
     }
@@ -629,11 +639,16 @@
   }
 
   /* ---------- Prompts ---------- */
+  var estDefaut = function (p) { return p.defaut === true || (!('defaut' in p) && p.nom === BASE.prompt_modele); };
+  var nbAgentsPrompt = function (p) { return AV.configs.filter(function (c) { return resolu(c).prompt_modele === p.nom; }).length; };
   function vuePrompts() {
-    var h = '<div class="options-help">📝 Les prompts sont partagés : modifier un prompt ici change immédiatement tous les agents qui l\'utilisent. Le nom d\'un prompt ne se change pas après création (les agents s\'y réfèrent par son nom).</div><div class="sel-toolbar"><button class="btn btn-primary" data-avact="newprompt">➕ Nouveau prompt</button></div>';
+    var h = '<div class="options-help">📝 Les prompts sont partagés : modifier un prompt ici change immédiatement tous les agents qui l\'utilisent. Le nom peut être changé en modifiant le prompt : les agents concernés suivent automatiquement. Un prompt utilisé par un agent, ou le prompt par défaut, ne peut pas être supprimé.</div><div class="sel-toolbar"><button class="btn btn-primary" data-avact="newprompt">➕ Nouveau prompt</button></div>';
     AV.prompts.forEach(function (p) {
-      var n = AV.configs.filter(function (c) { return resolu(c).prompt_modele === p.nom; }).length;
-      h += '<div class="av-card"><div class="av-row av-between"><div class="av-title">' + esc(p.nom) + ' ' + badge('v' + p.version) + '</div><span class="av-row"><button class="btn btn-secondary btn-sm" data-avact="editprompt" data-id="' + p.id + '">✏️ Modifier</button><button class="btn btn-secondary btn-sm" data-avact="dupprompt" data-id="' + p.id + '">Dupliquer</button></span></div><div class="av-sub">' + esc(p.description || '') + '</div><div class="av-chips">' + (p.contenu && p.contenu.trim() ? badge(p.contenu.length + ' caractères', 'ok') : badge('Vide : à compléter', 'bad')) + '<span class="av-chip">utilisé par ' + n + ' agent(s)</span></div></div>';
+      var n = nbAgentsPrompt(p), defaut = estDefaut(p);
+      var suppr = (n === 0 && !defaut)
+        ? '<button class="btn btn-secondary btn-sm" data-avact="delprompt" data-id="' + p.id + '" style="color:#c0392b;">Supprimer</button>'
+        : '<span class="av-sub" style="max-width:150px;">' + (defaut ? 'Prompt par défaut : non supprimable' : 'Utilisé : non supprimable') + '</span>';
+      h += '<div class="av-card"><div class="av-row av-between"><div class="av-title">' + esc(p.nom) + ' ' + badge('v' + p.version) + (defaut ? ' ' + badge('Par défaut', 'ok') : '') + '</div><span class="av-row"><button class="btn btn-secondary btn-sm" data-avact="editprompt" data-id="' + p.id + '">✏️ Modifier</button><button class="btn btn-secondary btn-sm" data-avact="dupprompt" data-id="' + p.id + '">Dupliquer</button>' + suppr + '</span></div><div class="av-sub">' + esc(p.description || '') + '</div><div class="av-chips">' + (p.contenu && p.contenu.trim() ? badge(p.contenu.length + ' caractères', 'ok') : badge('Vide : à compléter', 'bad')) + '<span class="av-chip">utilisé par ' + n + ' agent(s)</span></div></div>';
     });
     if (!AV.prompts.length) h += '<div class="no-data">Aucun prompt.</div>';
     return h;
@@ -641,7 +656,7 @@
   function modalPrompt(p) {
     var neuf = !p;
     var m = $('modal-edit');
-    m.innerHTML = '<div class="modal-content av-root" onclick="event.stopPropagation()" style="max-width:760px"><div class="modal-header"><h2>' + (neuf ? '➕ Nouveau prompt' : '✏️ Modifier le prompt') + '</h2><button class="btn-close" onclick="closeModal(\'modal-edit\')">×</button></div><div class="modal-body"><div class="form-group"><label>Nom *</label><input type="text" id="avp-nom" value="' + esc(p ? p.nom : '') + '"' + (neuf ? '' : ' disabled') + '></div><div class="form-group"><label>Description</label><input type="text" id="avp-desc" value="' + esc(p ? (p.description || '') : '') + '"></div><div class="form-group"><label>Contenu du prompt</label><textarea id="avp-contenu" style="min-height:340px;font-family:monospace;font-size:13px">' + esc(p ? p.contenu : '') + '</textarea></div><div class="form-actions"><button class="btn btn-secondary" onclick="closeModal(\'modal-edit\')">Annuler</button><button class="btn btn-primary" data-avact="saveprompt" data-id="' + (p ? p.id : '') + '">💾 Enregistrer</button></div></div></div>';
+    m.innerHTML = '<div class="modal-content av-root" onclick="event.stopPropagation()" style="max-width:760px"><div class="modal-header"><h2>' + (neuf ? '➕ Nouveau prompt' : '✏️ Modifier le prompt') + '</h2><button class="btn-close" onclick="closeModal(\'modal-edit\')">×</button></div><div class="modal-body"><div class="form-group"><label>Nom *</label><input type="text" id="avp-nom" value="' + esc(p ? p.nom : '') + '">' + (neuf ? '' : '<div class="av-sub">Si tu changes le nom, les agents qui utilisent ce prompt sont mis à jour automatiquement.</div>') + '</div><div class="form-group"><label>Description</label><input type="text" id="avp-desc" value="' + esc(p ? (p.description || '') : '') + '"></div><div class="form-group"><label>Contenu du prompt</label><textarea id="avp-contenu" style="min-height:340px;font-family:monospace;font-size:13px">' + esc(p ? p.contenu : '') + '</textarea></div><div class="form-actions"><button class="btn btn-secondary" onclick="closeModal(\'modal-edit\')">Annuler</button><button class="btn btn-primary" data-avact="saveprompt" data-id="' + (p ? p.id : '') + '">💾 Enregistrer</button></div></div></div>';
     m.classList.add('show');
     m.onclick = function () { closeModal('modal-edit'); };
   }
@@ -899,6 +914,23 @@
       await charger(); rendre();
     });
   };
+  // Quand un prompt est renommé : les agents (et leur historique de versions) qui y font référence suivent le nouveau nom
+  async function migrerNomPrompt(ancien, nouveau) {
+    var maintenant = new Date().toISOString();
+    var concernes = AV.configs.filter(function (c) { return resolu(c).prompt_modele === ancien; });
+    for (var i = 0; i < concernes.length; i++) {
+      var c = concernes[i];
+      var u = await supabaseClient.from('agent_config').update({ reglages: Object.assign({}, c.reglages || {}, { prompt_modele: nouveau }), maj_le: maintenant }).eq('business_id', c.business_id);
+      if (u.error) throw u.error;
+    }
+    var hist = await supabaseClient.from('agent_config_versions').select('business_id, version, reglages');
+    if (hist.error) return;
+    var anciennes = (hist.data || []).filter(function (v) { return v.reglages && v.reglages.prompt_modele === ancien; });
+    for (var j = 0; j < anciennes.length; j++) {
+      var v = anciennes[j];
+      await supabaseClient.from('agent_config_versions').update({ reglages: Object.assign({}, v.reglages, { prompt_modele: nouveau }) }).eq('business_id', v.business_id).eq('version', v.version);
+    }
+  }
   A.saveprompt = function (el) {
     return run(async function () {
       var id = el.dataset.id, nom = $('avp-nom').value.trim(), desc = $('avp-desc').value.trim(), contenu = $('avp-contenu').value;
@@ -908,11 +940,33 @@
         if (ins.error) throw ins.error;
       } else {
         var p = AV.prompts.find(function (x) { return x.id === id; });
-        var up = await supabaseClient.from('agent_prompts').update({ description: desc || null, contenu: contenu, version: (p ? p.version : 1) + 1, maj_le: new Date().toISOString() }).eq('id', id);
+        var ancienNom = p ? p.nom : null;
+        var renomme = !!p && nom !== ancienNom;
+        if (renomme && AV.prompts.some(function (x) { return x.id !== id && x.nom === nom; })) { alert('Un prompt porte déjà ce nom.'); return; }
+        if (renomme && !('defaut' in p) && p.nom === BASE.prompt_modele) { alert('Pour renommer le prompt par défaut, exécute d\'abord le script menage_backoffice.sql dans Supabase (SQL Editor).'); return; }
+        var champs = { description: desc || null, contenu: contenu, version: (p ? p.version : 1) + 1, maj_le: new Date().toISOString() };
+        if (renomme) champs.nom = nom;
+        var up = await supabaseClient.from('agent_prompts').update(champs).eq('id', id);
         if (up.error) throw up.error;
+        if (renomme) await migrerNomPrompt(ancienNom, nom);
       }
-      closeModal('modal-edit'); await charger(); rendre();
+      closeModal('modal-edit'); await charger(); rendre(); majPastilles();
       alert('✅ Prompt enregistré');
+    });
+  };
+  A.delprompt = function (el) {
+    return run(async function () {
+      await charger();
+      var p = AV.prompts.find(function (x) { return x.id === el.dataset.id; });
+      if (!p) { rendre(); return; }
+      var n = nbAgentsPrompt(p);
+      if (n > 0) { alert('Ce prompt est utilisé par ' + n + ' agent(s) : suppression impossible.'); rendre(); return; }
+      if (estDefaut(p)) { alert('C\'est le prompt par défaut des nouveaux agents : suppression impossible.'); return; }
+      if (!confirm('Supprimer le prompt « ' + p.nom + ' » ? Cette action est définitive.')) return;
+      var r = await supabaseClient.from('agent_prompts').delete().eq('id', p.id).select();
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) { alert('Suppression refusée par la base. Exécute le script menage_backoffice.sql dans Supabase (SQL Editor), puis réessaie.'); return; }
+      await charger(); rendre(); majPastilles();
     });
   };
 
@@ -1029,7 +1083,7 @@
 
   function moyenne(tab) { return tab.length ? tab.reduce(function (s, x) { return s + x; }, 0) / tab.length : null; }
 
-  function comparatif(lignes) {
+  function comparatif(lignes, cartesTech) {
     function groupe(cle, titre) {
       var g = {};
       lignes.forEach(function (l) { var m = obj(l.modeles)[cle]; if (m) { (g[m] = g[m] || []).push(l); } });
@@ -1046,12 +1100,12 @@
       }).join('');
       return '<div style="margin-top:10px;font-weight:700;font-size:13px;">' + esc(titre) + '</div><table style="border-collapse:collapse;font-size:13px;width:100%;">' + th + rows + '</table>';
     }
-    return '<details style="width:100%;margin-top:4px;"><summary style="cursor:pointer;font-size:13px;color:#1f5f8b;">Comparer les modèles utilisés (cerveau, voix, écoute)</summary>' +
+    return '<details style="width:100%;margin-top:4px;"><summary style="cursor:pointer;font-size:13px;color:#1f5f8b;">Comparer les modèles utilisés (cerveau, voix, écoute)</summary>' + (cartesTech || '') +
       groupe('llm', 'Cerveau') + groupe('tts', 'Voix') + groupe('stt', 'Écoute') +
       '<div style="font-size:11px;color:#999;margin-top:6px;">Pour une comparaison juste : changer un seul réglage à la fois, avec au moins 3 appels de même type par réglage.</div></details>';
   }
 
-  function bandeau(lignes) {
+  function bandeau(lignes, durees) {
     var recap = document.getElementById('logs-recap');
     var conteneur = document.getElementById('logs-content');
     var cible = recap || conteneur;
@@ -1063,18 +1117,26 @@
     var cer = lignes.map(function (l) { var m = obj(l.latences).cerveau_premier_mot; return m ? Number(m.moyenne) : null; }).filter(function (x) { return x > 0; });
     var voi = lignes.map(function (l) { var m = obj(l.latences).voix_premier_son; return m ? Number(m.moyenne) : null; }).filter(function (x) { return x > 0; });
     var dem = lignes.map(function (l) { var d = obj(l.demarrage); return d.total_avant_accueil_s != null ? Number(d.total_avant_accueil_s) : null; }).filter(function (x) { return x > 0; });
+    // Coût moyen par minute = coût total des appels / minutes totales (seuls les appels dont on connaît le coût et la durée comptent)
+    var totalCout = 0, totalSec = 0;
+    lignes.forEach(function (l) {
+      var c = Number(obj(l.cout).total_usd), s = durees ? Number(durees[l.conversation_id]) : 0;
+      if (c > 0 && s > 0) { totalCout += c; totalSec += s; }
+    });
+    var parMinute = totalSec > 0 ? totalCout / (totalSec / 60) : null;
+    var carte = function (titre, valeur) {
+      return '<div class="recap-card"><div class="recap-label">' + esc(titre) + '</div><div class="recap-value" style="font-size:18px;">' + esc(valeur) + '</div></div>';
+    };
     var cartes = [
       ['Appels LiveKit affichés', String(lignes.length)],
       ['Coût moyen par appel', fu(moyenne(couts), 3)],
+      ['Coût moyen par minute', fu(parMinute, 3)],
       ['Réponse (fin de parole → voix)', fs(moyenne(rep))],
-      ['Premier mot du cerveau', fs(moyenne(cer))],
-      ['Premier son de la voix', fs(moyenne(voi))],
       ['Démarrage avant accueil', fs(moyenne(dem))]
     ];
+    var cartesTech = '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;">' + carte('Premier mot du cerveau', fs(moyenne(cer))) + carte('Premier son de la voix', fs(moyenne(voi))) + '</div>';
     var html = '<div style="font-size:12px;color:var(--muted,#6b7480);width:100%;">Moyennes sur les appels LiveKit affichés ci-dessous (estimation de coût d\'après les prix du catalogue)</div>' +
-      cartes.map(function (c) {
-        return '<div class="recap-card"><div class="recap-label">' + esc(c[0]) + '</div><div class="recap-value" style="font-size:18px;">' + esc(c[1]) + '</div></div>';
-      }).join('') + comparatif(lignes);
+      cartes.map(function (c) { return carte(c[0], c[1]); }).join('') + comparatif(lignes, cartesTech);
     if (!el) {
       el = document.createElement('div');
       el.id = 'av-journal-resume';
@@ -1094,6 +1156,13 @@
       if (!conteneur || !evts.length) { bandeau([]); return; }
       var ids = evts.filter(estLiveKit).map(function (e) { return e.call_id; });
       await charger(ids);
+      var durees = {};
+      evts.filter(estLiveKit).forEach(function (e) {
+        var d = e.details || {};
+        if (typeof d === 'string') { try { d = JSON.parse(d); } catch (x) { d = {}; } }
+        var s = Number(e.duree_appel || d.duree_appel);
+        if (s > 0) durees[e.call_id] = s;
+      });
       var parId = {};
       evts.forEach(function (e) { parId[String(e.id)] = e; });
       conteneur.querySelectorAll('.row-item').forEach(function (row) {
@@ -1108,7 +1177,7 @@
           if (rep && sub) sub.insertAdjacentHTML('beforeend', ' • ⚡ ' + fs(rep.moyenne));
         }
       });
-      bandeau(ids.map(function (id) { return cache[id]; }).filter(Boolean));
+      bandeau(ids.map(function (id) { return cache[id]; }).filter(Boolean), durees);
     } catch (e) {
       console.warn('[agent-vocal] Journal : décoration impossible', e);
     } finally {
@@ -1270,11 +1339,11 @@
 
 /* =====================================================================
    Module « Commandes et indépendance d'ElevenLabs » (Agent V2)
-   SANS modifier l'existant : les fonctions openCommandeDetail,
-   chargerAppelsSansCommande et afficherResultatKb sont remplacées ou
-   enveloppées ici ; rien n'est supprimé dans index.html.
-     - Commandes : bloc « Détail des prix » (prix de base, choix payants,
-       suppléments, frais de livraison, contrôle du total) ;
+   Les fonctions openCommandeDetail, chargerAppelsSansCommande et
+   afficherResultatKb sont enveloppées ou remplacées ici.
+     - Commandes : le détail des prix (prix de base, choix payants,
+       suppléments, frais de livraison, contrôle du total) s'affiche dans
+       chaque article de la fiche commande ;
      - Commandes : le bandeau « commande non créée » signale aussi les
        paniers laissés sans validation ;
      - ElevenLabs : boutons de publication retirés (le menu n'est plus
@@ -1343,25 +1412,27 @@
     return '<div style="display:flex;justify-content:space-between;gap:12px;padding:1px 0;' + (fort ? 'font-weight:700;' : '') + (couleur ? 'color:' + couleur + ';' : '') + '"><span>' + a + '</span><span style="white-space:nowrap;">' + b + '</span></div>';
   }
 
-  function htmlDetailPrix(d, cmd) {
-    var h = '<div class="av-detail-prix" style="margin-bottom:16px;"><strong>💶 Détail des prix</strong>' +
-      '<div style="font-size:12px;color:#888;margin:2px 0 8px;">Prix ' + esc(LIB_MODE[cmd.type_livraison] || '') + '. Un choix est payant s\'il est hors du quota inclus ou proposé en supplément.</div>';
-    d.lignes.forEach(function (l) {
-      h += '<div style="background:#f8f9fa;padding:10px 12px;border-radius:8px;margin-bottom:6px;font-size:14px;">';
-      h += rangee('<strong>' + l.qte + ' ×</strong> ' + esc(l.nom), eur(l.enregistre), true);
-      h += rangee('<span style="color:#666;">Prix de base' + (l.qte > 1 ? ' (' + l.qte + ' × ' + eur(l.base) + ')' : '') + '</span>', eur(l.base * l.qte));
-      l.payants.forEach(function (c) {
-        h += rangee('<span style="color:#666;">+ ' + esc(String(c.nom_choix).toLowerCase()) + ' <span style="font-size:11px;">(' + (c.origine_choix === 'supplement' ? 'supplément' : 'choix payant') + ')</span></span>', '+ ' + eur(c.prix_choix));
-      });
-      if (l.inclus.length) h += '<div style="font-size:12px;color:#888;margin-top:3px;">Inclus : ' + esc(l.inclus.map(function (x) { return String(x).toLowerCase(); }).join(', ')) + '</div>';
-      if (Math.abs(l.ecart) > 0.009) {
-        h += '<div style="font-size:12px;color:#c0392b;margin-top:3px;">⚠️ Écart : calculé ' + eur(l.calcule) + ', enregistré ' + eur(l.enregistre) + ' (à vérifier)</div>';
-      }
-      h += '</div>';
+  // Détail d'une ligne, affiché sous le nom de l'article : prix de base, choix payants, contrôle du prix enregistré
+  function htmlPrixLigne(l) {
+    var h = rangee('Prix de base' + (l.qte > 1 ? ' (' + l.qte + ' × ' + eur(l.base) + ')' : ''), eur(l.base * l.qte));
+    l.payants.forEach(function (c) {
+      h += rangee('+ ' + esc(String(c.nom_choix).toLowerCase()) + ' <span style="font-size:11px;">(' + (c.origine_choix === 'supplement' ? 'supplément' : 'choix payant') + ')</span>', '+ ' + eur(c.prix_choix));
     });
-    if (d.frais > 0) h += rangee('Frais de livraison', eur(d.frais));
-    h += '</div>';
+    if (Math.abs(l.ecart) > 0.009) {
+      h += '<div style="font-size:12px;color:#c0392b;margin-top:3px;">⚠️ Écart : calculé ' + eur(l.calcule) + ', enregistré ' + eur(l.enregistre) + ' (à vérifier)</div>';
+    }
     return h;
+  }
+
+  function remplirPrixCommande(modal, d, cmd) {
+    d.lignes.forEach(function (l, i) {
+      var zone = modal.querySelector('.prix-ligne[data-ligne="' + i + '"]');
+      if (zone) zone.innerHTML = htmlPrixLigne(l);
+    });
+    var frais = modal.querySelector('#prix-frais');
+    if (frais && d.frais > 0) frais.innerHTML = '<div style="margin-bottom:10px;font-size:14px;">' + rangee('Frais de livraison', eur(d.frais)) + '</div>';
+    var note = modal.querySelector('#prix-note');
+    if (note) note.textContent = 'Prix ' + (LIB_MODE[cmd.type_livraison] || '') + '. Un choix est payant s\'il est hors du quota inclus ou proposé en supplément.';
   }
 
   var detailOrigine = window.openCommandeDetail;
@@ -1375,13 +1446,8 @@
         if (!modal) return;
         modal.setAttribute('data-saios-cmd', String(id));
         var d = await calculerDetailPrix(cmd);
-        if (!d || modal.getAttribute('data-saios-cmd') !== String(id) || modal.querySelector('.av-detail-prix')) return;
-        var corps = modal.querySelector('.modal-body');
-        if (!corps) return;
-        var blocs = Array.prototype.slice.call(corps.children);
-        var articles = blocs.filter(function (x) { return x.textContent.trim().indexOf('📦 Articles') === 0; })[0];
-        var html = htmlDetailPrix(d, cmd);
-        if (articles) articles.insertAdjacentHTML('afterend', html); else corps.insertAdjacentHTML('beforeend', html);
+        if (!d || modal.getAttribute('data-saios-cmd') !== String(id)) return;
+        remplirPrixCommande(modal, d, cmd);
       } catch (e) {
         console.warn('[agent-vocal] détail des prix indisponible', e && e.message);
       }
