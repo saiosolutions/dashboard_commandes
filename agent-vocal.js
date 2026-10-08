@@ -21,12 +21,13 @@
     av_prompts: 'Prompts de l\'agent',
     av_historique: 'Modifications groupées'
   };
-  // Coûts fixes par minute d'appel (grille LiveKit et Twilio France du 30/09/2026) — à mettre à jour si les tarifs changent
-  var FIXES = { agent: 0.01, pont: 0.004, twilio: 0.01 };
+  // Coûts fixes par minute d'appel (grille LiveKit du 30/09/2026 ; Twilio = Elastic SIP Trunking, origination numéro local France, 0,006 $/min confirmé dans la console le 08/10/2026) — à mettre à jour si les tarifs changent
+  var FIXES = { agent: 0.01, pont: 0.004, twilio: 0.006 };
   var FIXES_SUM = FIXES.agent + FIXES.pont + FIXES.twilio;
-  // Options payantes (grilles Twilio France du 30/09/2026) — à mettre à jour si les tarifs changent
+  // Options payantes (grilles Twilio France) — à mettre à jour si les tarifs changent
   var SMS_SEGMENT = 0.0798;                 // dollars par SMS (segment) envoyé vers la France
-  var TRANSFERT = { fixe: 0.0187, mobile: 0.0404, entrant: 0.01 }; // dollars par minute de conversation transférée
+  // Transfert vers un humain (Elastic SIP Trunking, appel sortant depuis l'Europe, grille Twilio d'août 2026) : dollars par minute de conversation transférée
+  var TRANSFERT = { fixe: 0.0147, mobile: 0.0364, entrant: 0.006 };
   var STATUTS = {
     recommande: ['Recommandé', 'info'], teste_ok: ['Testé OK', 'ok'], non_teste: ['Non testé', 'warn'],
     a_eviter: ['À éviter', 'bad'], retire: ['Retiré', 'bad']
@@ -92,7 +93,7 @@
     ] },
     { id: 'tools', title: 'Outils', fields: [
       { k: 'tool_val', t: 'toggle', l: 'Panier et calcul des prix', locked: 1, h: 'Verrouillé : le panier est rempli par les outils ajouter, modifier, retirer et valider. Les prix sont calculés par les fonctions Supabase, jamais par le LLM.' },
-      { k: 'tool_transfer', t: 'toggle', l: 'Transfert vers un humain', h: 'Pas d\'abonnement : on paie seulement les minutes de la conversation transférée (≈ 0,03 $/min vers un fixe, ≈ 0,05 $/min vers un mobile, estimation Twilio + entrant).' },
+      { k: 'tool_transfer', t: 'toggle', l: 'Transfert vers un humain', h: 'Pas d\'abonnement : on paie seulement les minutes de la conversation transférée (≈ 0,02 $/min vers un fixe, ≈ 0,04 $/min vers un mobile : appel sortant + appel entrant qui reste ouvert, estimation Twilio).' },
       { k: 'transfer_num', t: 'text', l: 'Numéro vers lequel transférer', ph: '+33…', h: 'Obligatoire si le transfert est activé.' },
       { k: 'transfer_mode', t: 'select', l: 'Type de transfert', o: OPT.transfer, h: 'Direct : simple et le moins cher. Avec annonce : pas encore géré, le transfert reste direct en attendant.' },
       { k: 'transfer_phrase', t: 'text', l: 'Phrase avant le transfert', ph: 'Je vous passe un collaborateur…' },
@@ -1284,7 +1285,7 @@
       secoursHtml +
       bloc('Démarrage', ligne('Connexion', fs(d.connexion_s)) + ligne('preCallWebhook', fs(d.precall_s)) + ligne('Démarrage de la session', fs(d.session_s)) + ligne('Total avant l\'accueil', fs(d.total_avant_accueil_s), true)) +
       bloc('Latence', ligne('Réponse (fin de parole → voix)', stat(l, 'reponse')) + ligne('Premier mot du cerveau', stat(l, 'cerveau_premier_mot')) + ligne('Premier son de la voix', stat(l, 'voix_premier_son')) + ligne('Attente de fin de parole', stat(l, 'fin_de_parole')) + detailTours) +
-      bloc('Coût estimé', ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus' + (t.entree_cache ? ', dont ' + t.entree_cache + ' en cache' : ', aucun en cache') + ', ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) + ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) + ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + ligne('Total', fu(c.total_usd), true) +
+      bloc('Coût estimé', ligne('Écoute', fu(c.ecoute)) + ligne('Cerveau (' + (t.entree || 0) + ' tokens lus' + (t.entree_cache ? ', dont ' + t.entree_cache + ' en cache' : ', aucun en cache') + ', ' + (t.sortie || 0) + ' écrits)', fu(c.cerveau)) + ligne('Voix (' + (c.voix_caracteres || 0) + ' caractères)', fu(c.voix)) + ligne('Analyse de fin d\'appel', fu(c.analyse)) + ligne('LiveKit (agent)', fu(c.livekit_agent)) + ligne('Pont Twilio-LiveKit', fu(c.pont)) + ligne('Twilio', fu(c.twilio)) + (c.transfert && c.transfert.effectue ? ligne('Transfert vers un humain (' + (c.transfert.type === 'fixe' ? 'fixe' : c.transfert.type === 'mobile' ? 'mobile' : 'numéro non reconnu') + ', minimum 1 min)', fu(c.transfert_usd)) : '') + ligne('Total', fu(c.total_usd), true) +
         '<div style="font-size:11px;color:#999;margin-top:4px;">' + esc(c.note || '') + (c.inconnus && c.inconnus.length ? ' Prix inconnu pour : ' + esc(c.inconnus.join(', ')) + '.' : '') + '</div>') +
       bloc('Résultat de la commande', ligne('Statut', res.statut || '—') + ligne('Numéro de commande', res.numero_commande || 'aucune commande créée') + anomalies) +
       '</div>';
