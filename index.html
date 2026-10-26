@@ -5174,14 +5174,23 @@
     }
     function nomsVariablesPerso() { return messagesPerso.map(p => p.nom.trim()).filter(Boolean); }
 
+    function rendrePhraseApercu(ligne, val) {
+      return ligne.replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/g, (m, k) => (k in val ? val[k] : ''))
+        .replace(/\s{2,}/g, ' ').replace(/\s+([,.])/g, '$1').replace(/(,\s*)+([.!?])/g, '$2').replace(/[\s,]+$/, '').trim();
+    }
+    // Aperçu : une phrase d'accueil = un cas ; une fin d'appel avec commande = deux cas (pour aujourd'hui, ou un autre jour)
     function apercuPhrase(def, texte) {
       const lignes = String(texte || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      if (!lignes.length) return '';
-      const val = {};
-      Object.keys(VARIABLES_MESSAGES).forEach(k => { val[k] = VARIABLES_MESSAGES[k].ex === null ? messagesNomResto : VARIABLES_MESSAGES[k].ex; });
-      messagesPerso.forEach(p => { if (p.nom.trim()) val[p.nom.trim()] = p.valeur; });
-      const rendu = lignes[0].replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/g, (m, k) => (k in val ? val[k] : '')).replace(/\s{2,}/g, ' ').replace(/\s+([,.])/g, '$1').replace(/(,\s*)+([.!?])/g, '$2').trim();
-      return rendu + (lignes.length > 1 ? `  (+ ${lignes.length - 1} autre${lignes.length > 2 ? 's' : ''} variante${lignes.length > 2 ? 's' : ''})` : '');
+      if (!lignes.length) return [];
+      const base = {};
+      Object.keys(VARIABLES_MESSAGES).forEach(k => { base[k] = VARIABLES_MESSAGES[k].ex === null ? messagesNomResto : VARIABLES_MESSAGES[k].ex; });
+      messagesPerso.forEach(p => { if (p.nom.trim()) base[p.nom.trim()] = p.valeur; });
+      const cas = !def.fin ? [['', base]]
+        : def.cle === 'fin_commande'
+          ? [['commande pour aujourd\'hui', { ...base, salut: 'À tout à l\'heure', souhait: '' }], ['commande pour un autre jour', { ...base, salut: 'À bientôt', souhait: 'bonne soirée' }]]
+          : [['', { ...base, salut: 'À bientôt', souhait: 'bonne soirée' }]];
+      const suffixe = lignes.length > 1 ? `  (+ ${lignes.length - 1} autre${lignes.length > 2 ? 's' : ''} variante${lignes.length > 2 ? 's' : ''})` : '';
+      return cas.map(([lib, val], i) => (lib ? `Aperçu (${lib}) : ` : 'Aperçu : ') + rendrePhraseApercu(lignes[0], val) + (i === cas.length - 1 ? suffixe : ''));
     }
 
     function majMessage(cle) {
@@ -5198,7 +5207,7 @@
       document.getElementById('msg-alerte-' + cle).innerHTML = inconnues.length
         ? `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:6px;">Variable inconnue ou indisponible ici : ${inconnues.map(n => '<strong>{{' + escHtml(n) + '}}</strong>').join(', ')}. Elle sera ignorée à l'appel (jamais lue à voix haute).</div>` : '';
       const ap = apercuPhrase(def, texte);
-      document.getElementById('msg-apercu-' + cle).textContent = ap ? 'Aperçu : ' + ap : (def.fin ? 'Vide : la phrase intégrée est utilisée.' : '');
+      document.getElementById('msg-apercu-' + cle).innerHTML = ap.length ? ap.map(l => escHtml(l)).join('<br>') : (def.fin ? 'Vide : la phrase intégrée est utilisée.' : '');
     }
     function majTousMessages() { MESSAGES_DEF.forEach(d => majMessage(d.cle)); }
 
