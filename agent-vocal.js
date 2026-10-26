@@ -105,10 +105,13 @@
       { k: 'sms_modes', t: 'multi', l: 'SMS envoyé pour', o: ['a_emporter', 'livraison'], h: 'Limiter à la livraison réduit le coût.' }
     ] },
     { id: 'tel', title: 'Téléphonie', fields: [
-      { k: 'numero_twilio', t: 'text', col: 1, l: 'Numéro Twilio de l\'agent', ph: '+33…', h: 'L\'achat du numéro reste manuel dans Twilio.' },
-      { k: 'numero_public', t: 'text', col: 1, l: 'Numéro public du restaurant', ph: '+33…', h: 'Renvoyé par le restaurant vers le numéro Twilio.' },
+      { k: 'numero_twilio', t: 'text', col: 1, l: 'Numéro Twilio de l\'agent', ph: '+33…', h: 'L\'achat du numéro reste manuel dans Twilio. Identique à la fiche du restaurant.' },
+      { k: 'numero_public', t: 'text', col: 1, l: 'Numéro public du restaurant', ph: '+33…', h: 'Renvoyé par le restaurant vers le numéro Twilio. Identique à la fiche du restaurant.' },
       { k: 'maxdur', t: 'range', l: 'Durée maximale d\'appel', min: 3, max: 20, step: 1, fmt: function (v) { return v + ' min'; } },
       { k: 'sil_hang', t: 'range', l: 'Raccrocher après un silence de', min: 5, max: 60, step: 5, fmt: function (v) { return v + ' s'; } },
+      { k: 'msg_duree_max', t: 'area', l: 'Phrase à la durée maximale d\'appel', h: 'Dite avant de raccrocher quand la durée maximale est atteinte.' },
+      { k: 'msg_relance', t: 'area', l: 'Phrase de relance en cas de silence', h: 'Dite quand le client ne dit plus rien.' },
+      { k: 'msg_raccroche', t: 'area', l: 'Phrase avant de raccrocher faute de réponse', h: 'Dite avant de raccrocher si le client ne répond pas à la relance.' },
       { k: 'consent', t: 'toggle', l: 'Message de consentement à l\'enregistrement', h: 'Recommandé si l\'enregistrement est activé (règles exactes à valider).' }
     ] },
     { id: 'obs', title: 'Suivi et RGPD', fields: [
@@ -150,7 +153,9 @@
     flow: FLOW0, tool_val: true,
     tool_transfer: false, transfer_num: '', transfer_mode: 'cold', transfer_phrase: 'Je vous passe un collaborateur, ne quittez pas.', transfer_open_only: true, transfer_motifs: MOTIFS0,
     tool_sms: false, sms_sender: '', sms_tpl: '{{nom_restaurant}} : commande {{numero_commande}} confirmee, total {{total}}, prete a {{heure}}.', sms_modes: ['livraison'],
-    maxdur: 10, sil_hang: 20, consent: false,
+    maxdur: 10, sil_hang: 20,
+    msg_duree_max: 'Je dois malheureusement vous laisser. Merci de votre appel, au revoir.', msg_relance: 'Êtes-vous toujours là ?', msg_raccroche: 'Je n\'entends plus rien, je vais raccrocher. Au revoir.',
+    consent: false,
     metrics: true, record: false, retention: 30, mask: true
   };
   var PROFILS = {
@@ -314,11 +319,13 @@
       q.from('catalogue_modeles').select('*').order('nom', { ascending: true }),
       q.from('agent_config').select('*'),
       q.from('agent_prompts').select('*').order('nom', { ascending: true }),
-      q.from('operations_groupees').select('*').order('cree_le', { ascending: false }).limit(50)
+      q.from('operations_groupees').select('*').order('cree_le', { ascending: false }).limit(50),
+      q.from('business').select('id, numero_tel, telephone_public')
     ]);
     var err = res.map(function (r) { return r.error; }).find(Boolean);
     if (err) throw err;
     AV.models = res[0].data || []; AV.configs = res[1].data || []; AV.prompts = res[2].data || []; AV.ops = res[3].data || [];
+    AV.bizNum = {}; (res[4].data || []).forEach(function (b) { AV.bizNum[b.id] = b; });
     // Le prompt par défaut des nouveaux agents est celui marqué « defaut » en base (il peut donc être renommé)
     var pDefaut = AV.prompts.find(function (p) { return p.defaut === true; });
     if (pDefaut) BASE.prompt_modele = pDefaut.nom;
@@ -485,8 +492,9 @@
   /* ---------- Éditeur (création et modification) ---------- */
   function aplatir(row) {
     var c = resolu(row);
-    c.numero_twilio = row.numero_twilio || '';
-    c.numero_public = row.numero_public || '';
+    var bn = (AV.bizNum || {})[row.business_id] || {};
+    c.numero_twilio = bn.numero_tel || row.numero_twilio || '';
+    c.numero_public = bn.telephone_public || row.numero_public || '';
     return c;
   }
   function changements() {
@@ -903,13 +911,22 @@
       if (!e.bid) { alert('Choisis un restaurant.'); return; }
       var pb = verifOptions(e.cfg); if (pb) { alert('⚠️ ' + pb); return; }
       var reglages = clone(e.cfg); delete reglages.numero_twilio; delete reglages.numero_public;
-      var ins = await supabaseClient.from('agent_config').insert({ business_id: e.bid, moteur: 'livekit', profil: e.profil, version: 1, reglages: reglages, numero_twilio: (e.cfg.numero_twilio || '').trim() || null, numero_public: (e.cfg.numero_public || '').trim() || null, actif: false }).select().single();
+      var rnum = await ecrireNumerosBiz(e.bid, e.cfg, null); if (!rnum.ok) { alert('⚠️ ' + rnum.raison); return; }
+      var ins = await supabaseClient.from('agent_config').insert({ business_id: e.bid, moteur: 'livekit', profil: e.profil, version: 1, reglages: reglages, numero_twilio: null, numero_public: null, actif: false }).select().single();
       if (ins.error) throw ins.error;
       await supabaseClient.from('agent_config_versions').insert({ business_id: e.bid, version: 1, profil: e.profil, reglages: reglages, motif: 'Création' });
       AV.ed = null; await charger(); rendre();
       alert('✅ Agent créé (hors service). Après ton test d\'appel, mets-le en service depuis la liste.');
     });
   };
+  async function ecrireNumerosBiz(bid, cfg, ancien) {
+    if (typeof saiosAttribuerNumeroAgent !== 'function') return { ok: true };
+    var nouveauAgent = (cfg.numero_twilio || '').trim(), nouveauPublic = (cfg.numero_public || '').trim();
+    if (ancien && nouveauAgent === (ancien.numero_twilio || '').trim() && nouveauPublic === (ancien.numero_public || '').trim()) return { ok: true };
+    var r1 = await saiosAttribuerNumeroAgent(bid, nouveauAgent);
+    if (!r1.ok) return r1.annule ? { ok: false, raison: 'Déplacement du numéro annulé : rien n\'a été enregistré.' } : r1;
+    return await saiosEnregistrerNumeroPublic(bid, nouveauPublic);
+  }
   function verifOptions(c) {
     if (c.tool_transfer && !String(c.transfer_num || '').trim()) return 'Renseigne le numéro de transfert, ou désactive le transfert vers un humain.';
     if (c.tool_transfer && (c.transfer_motifs || []).some(function (m) { return m.perso && m.on && (!String(m.l || '').trim() || !String(m.txt || '').trim()); })) return 'Un motif de transfert ajouté à la main est incomplet : renseigne son nom et son texte, ou supprime-le.';
@@ -924,7 +941,8 @@
       if (motif === null) return;
       var reglages = clone(e.cfg); delete reglages.numero_twilio; delete reglages.numero_public;
       var v2 = e.version + 1;
-      var r = await supabaseClient.from('agent_config').update({ reglages: reglages, numero_twilio: (e.cfg.numero_twilio || '').trim() || null, numero_public: (e.cfg.numero_public || '').trim() || null, version: v2, maj_le: new Date().toISOString() }).eq('id', e.row.id).eq('version', e.version).select();
+      var rnum = await ecrireNumerosBiz(e.bid, e.cfg, e.orig); if (!rnum.ok) { alert('⚠️ ' + rnum.raison); return; }
+      var r = await supabaseClient.from('agent_config').update({ reglages: reglages, numero_twilio: null, numero_public: null, version: v2, maj_le: new Date().toISOString() }).eq('id', e.row.id).eq('version', e.version).select();
       if (r.error) throw r.error;
       if (!r.data || !r.data.length) { alert('⚠️ Cet agent a été modifié entre-temps (autre écran ou modification groupée). Rien n\'a été enregistré : recharge la page et refais tes changements.'); return; }
       var v = await supabaseClient.from('agent_config_versions').insert({ business_id: e.bid, version: v2, profil: e.profil, reglages: reglages, motif: motif || (n.length + ' modification(s)') });

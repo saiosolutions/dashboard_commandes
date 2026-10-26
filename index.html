@@ -711,6 +711,9 @@
     <div id="tab-parametrages" class="tab-content">
       <div class="container param-layout">
         <aside class="param-nav" id="param-nav" aria-label="Sections des paramétrages">
+          <div class="nav-groupe"><div class="nav-groupe-titre">Restaurant</div>
+            <button type="button" class="nav-item" data-section="fiche" onclick="allerSection('fiche')"><span class="nav-pastille" id="pastille-fiche"></span><span class="nav-lib">Fiche du restaurant</span><span class="nav-compte" id="compte-fiche"></span></button>
+          </div>
           <div class="nav-groupe"><div class="nav-groupe-titre">Catalogue</div>
             <button type="button" class="nav-item" data-section="familles" onclick="allerSection('familles')"><span class="nav-pastille" id="pastille-familles"></span><span class="nav-lib">Familles</span><span class="nav-compte" id="compte-familles"></span></button>
             <button type="button" class="nav-item" data-section="produits" onclick="allerSection('produits')"><span class="nav-pastille" id="pastille-produits"></span><span class="nav-lib">Produits</span><span class="nav-compte" id="compte-produits"></span></button>
@@ -721,13 +724,14 @@
             <button type="button" class="nav-item" data-section="modes" onclick="allerSection('modes')"><span class="nav-pastille" id="pastille-modes"></span><span class="nav-lib">Modes de commande</span><span class="nav-compte" id="compte-modes"></span></button>
             <button type="button" class="nav-item" data-section="zones" onclick="allerSection('zones')"><span class="nav-pastille" id="pastille-zones"></span><span class="nav-lib">Zones de livraison</span><span class="nav-compte" id="compte-zones"></span></button>
             <button type="button" class="nav-item" data-section="horaires" onclick="allerSection('horaires')"><span class="nav-pastille" id="pastille-horaires"></span><span class="nav-lib">Horaires</span><span class="nav-compte" id="compte-horaires"></span></button>
-            <button type="button" class="nav-item" data-section="messages" onclick="allerSection('messages')"><span class="nav-pastille" id="pastille-messages"></span><span class="nav-lib">Messages d'accueil</span><span class="nav-compte" id="compte-messages"></span></button>
+            <button type="button" class="nav-item" data-section="messages" onclick="allerSection('messages')"><span class="nav-pastille" id="pastille-messages"></span><span class="nav-lib">Messages d'accueil et de fin</span><span class="nav-compte" id="compte-messages"></span></button>
           </div>
           <div class="nav-groupe"><div class="nav-groupe-titre">Agent</div>
             <button type="button" class="nav-item" data-section="agent" onclick="allerSection('agent')"><span class="nav-pastille" id="pastille-agent"></span><span class="nav-lib">Règles et textes de l'agent</span><span class="nav-compte" id="compte-agent"></span></button>
           </div>
           <div class="nav-groupe"><div class="nav-groupe-titre">Import</div>
-            <button type="button" class="nav-item" data-section="import" onclick="allerSection('import')"><span class="nav-pastille" id="pastille-import"></span><span class="nav-lib">Import produits (CSV)</span><span class="nav-compte" id="compte-import"></span></button>
+            <button type="button" class="nav-item" data-section="import" onclick="allerSection('import')"><span class="nav-pastille" id="pastille-import"></span><span class="nav-lib">Importer la carte</span><span class="nav-compte" id="compte-import"></span></button>
+            <button type="button" class="nav-item" data-section="cles" onclick="allerSection('cles')"><span class="nav-pastille" id="pastille-cles"></span><span class="nav-lib">Clés d'IA</span><span class="nav-compte" id="compte-cles"></span></button>
             <button type="button" class="nav-item" data-section="api" onclick="allerSection('api')"><span class="nav-pastille" id="pastille-api"></span><span class="nav-lib">Connexion API</span><span class="nav-compte" id="compte-api"></span></button>
           </div>
         </aside>
@@ -737,12 +741,14 @@
             <select id="param-section" style="display:none;" onchange="switchParamSection(this.value)">
               <option value="familles">Familles de produits</option>
               <option value="produits">Produits</option>
-              <option value="import">📥 Import produits (CSV)</option>
+              <option value="fiche">Fiche du restaurant</option>
+              <option value="import">📥 Importer la carte</option>
+              <option value="cles">Clés d'IA</option>
               <option value="attributs">Attributs</option>
               <option value="options">Options produits</option>
               <option value="zones">Zones de livraison</option>
               <option value="horaires">Horaires</option>
-              <option value="messages">Messages d'accueil</option>
+              <option value="messages">Messages d'accueil et de fin</option>
               <option value="agent">Agent IA</option>
             </select>
             <button class="btn btn-primary" id="btn-add-param" onclick="openAddModal()">➕ Ajouter</button>
@@ -773,23 +779,17 @@
           <div id="produits-table"></div>
         </div>
 
-        <!-- 🆕 SECTION IMPORT PRODUITS (CSV) -->
+        <!-- SECTION IMPORTER LA CARTE (remplace l'ancien import CSV) -->
         <div id="param-import" class="param-section" style="display:none;">
           <div class="options-help">
-            📥 Importe un fichier CSV export de caisse (format avec taille : id_produit;nom_produit;desc_produit;prix;prix_emport;prix_surplace;id_famille;famille_nom;taille — sans en-tête).
-            Chaque taille d'un même plat sera créée comme une fiche produit séparée (ex : REGINA JUNIOR, REGINA SENIOR, REGINA FAMILIALE).
-            <strong>Rien n'est écrit en base tant que tu n'as pas cliqué sur « Valider l'import ».</strong>
+            📥 <strong>Importer la carte</strong> : création ou mise à jour de la carte depuis des photos, des PDF, un site internet ou une saisie manuelle.
+            <strong>Rien n'est écrit tant que « Appliquer » n'a pas été cliqué</strong>, et chaque import peut être annulé.
           </div>
-          <div id="import-upload-zone" style="background:white;border-radius:10px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.06);margin-bottom:16px;">
-            <div class="form-group">
-              <label>Choisir le fichier CSV</label>
-              <input type="file" id="import-csv-file" accept=".csv" onchange="handleImportFile(event)">
-            </div>
-          </div>
-          <div id="import-result"></div>
+          <div id="import-contenu"><div class="loading">Chargement...</div></div>
         </div>
 
-        <!-- 🆕 SECTION OPTIONS PRODUITS -->
+        
+<!-- 🆕 SECTION OPTIONS PRODUITS -->
         <div id="param-options" class="param-section" style="display:none;">
           <div class="options-help">
             💡 Ici tu définis, pour chaque produit composable, les <strong>groupes d'options</strong>
@@ -861,6 +861,22 @@
             (« Ce serait à emporter ou en livraison ? ») s'adapte automatiquement.
           </div>
           <div id="modes-contenu"><div class="loading">Chargement...</div></div>
+        </div>
+
+        <!-- SECTION FICHE DU RESTAURANT -->
+        <div id="param-fiche" class="param-section" style="display:none;">
+          <div class="options-help">
+            🏠 <strong>Fiche du restaurant</strong> : identité, adresse, numéros de téléphone et statut de test. Les numéros sont aussi visibles dans Agents vocaux › Téléphonie.
+          </div>
+          <div id="fiche-contenu"><div class="loading">Chargement...</div></div>
+        </div>
+
+        <!-- SECTION CLÉS D'IA -->
+        <div id="param-cles" class="param-section" style="display:none;">
+          <div class="options-help">
+            🔑 Clés des services d'IA qui lisent les flyers, les photos et les sites pour <strong>Importer la carte</strong>. Elles sont enregistrées en lieu sûr, valables pour tous les restaurants, et jamais réaffichées.
+          </div>
+          <div id="cles-contenu"><div class="loading">Chargement...</div></div>
         </div>
 
         <!-- SECTION CONNEXION API DU FOURNISSEUR -->
@@ -1108,7 +1124,7 @@
       try {
         const { data, error } = await supabaseClient
           .from('business')
-          .select('id, nom, type, ville, code_postal, id_externe')
+          .select('id, nom, type, ville, code_postal, id_externe, est_test')
           .eq('actif', true)
           .order('nom', { ascending: true });
         if (error) throw error;
@@ -1132,7 +1148,7 @@
       if (!sel) return;
       sel.innerHTML = businessesList.map(b => {
         const lieu = [b.ville, b.code_postal ? `(${b.code_postal})` : ''].filter(Boolean).join(' ');
-        const label = lieu ? `${b.nom} — ${lieu}` : b.nom;
+        const label = (b.est_test ? '[TEST] ' : '') + (lieu ? `${b.nom} — ${lieu}` : b.nom);
         return `<option value="${b.id}" ${b.id === BUSINESS_ID ? 'selected' : ''}>${label}</option>`;
       }).join('');
     }
@@ -1144,7 +1160,7 @@
       if (!el) return;
       if (!b) { el.textContent = 'Restaurant'; return; }
       const lieu = [b.ville, b.code_postal ? `(${b.code_postal})` : ''].filter(Boolean).join(' ');
-      el.textContent = lieu ? `${b.nom} — ${lieu}` : b.nom;
+      el.textContent = (b.est_test ? '[TEST] ' : '') + (lieu ? `${b.nom} — ${lieu}` : b.nom);
     }
 
     // Appelé quand on choisit un autre restaurant dans le menu déroulant
@@ -1179,13 +1195,14 @@
                 ${types.map(t => `<option value="${t}">${t}</option>`).join('')}
               </select>
             </div>
-            <div class="form-group"><label>Téléphone</label><input type="tel" name="numero_tel"></div>
+            <div class="form-group"><label>Numéro de l'agent (Twilio)</label><input type="tel" name="numero_tel" placeholder="+33…"></div>
             <div class="form-group"><label>Email</label><input type="email" name="email"></div>
             <div class="form-group"><label>Numéro + Rue</label><input type="text" name="adresse_rue" placeholder="Ex : 12 Rue de la Paix"></div>
             <div style="display:flex; gap:12px;">
               <div class="form-group" style="flex:1;"><label>Code postal</label><input type="text" name="code_postal"></div>
               <div class="form-group" style="flex:2;"><label>Ville</label><input type="text" name="ville"></div>
             </div>
+            <div class="form-group"><label style="display:flex;gap:8px;align-items:center;font-weight:400;"><input type="checkbox" name="est_test" style="width:auto;"> Restaurant de test (supprimable depuis sa fiche)</label></div>
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
               <button type="submit" class="btn btn-primary">💾 Créer le restaurant</button>
@@ -1206,7 +1223,8 @@
           .insert({
             nom: f.get('nom'),
             type: f.get('type'),
-            numero_tel: f.get('numero_tel') || null,
+            est_test: f.get('est_test') === 'on',
+            messages_accueil: { ...PHRASES_TYPES },
             email: f.get('email') || null,
             adresse_rue: f.get('adresse_rue') || null,
             code_postal: f.get('code_postal') || null,
@@ -1215,6 +1233,11 @@
           .select('id, nom, type')
           .single();
         if (error) throw error;
+        const telCree = String(f.get('numero_tel') || '').trim();
+        if (telCree) {
+          const rt = await saiosAttribuerNumeroAgent(data.id, telCree);
+          if (!rt.ok && !rt.annule) alert('Restaurant créé, mais le numéro n\'a pas été enregistré : ' + rt.raison);
+        }
         alert('✅ Restaurant créé : ' + data.nom);
         closeModal('modal-edit');
         // Bascule automatiquement le dashboard sur le nouveau restaurant
@@ -1564,7 +1587,7 @@
       // Masquer le bouton "Ajouter" sur Messages et Agent (ils ont leurs propres boutons)
       const btnAdd = document.getElementById('btn-add-param');
       if (btnAdd) {
-        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires' || section === 'import' || section === 'api' || section === 'modes') ? 'none' : '';
+        btnAdd.style.display = (section === 'messages' || section === 'agent' || section === 'horaires' || section === 'import' || section === 'api' || section === 'modes' || section === 'fiche' || section === 'cles') ? 'none' : '';
       }
       // Afficher les boutons de génération uniquement sur la section Agent IA
       const btnGenMenu = document.getElementById('btn-gen-kbmenu');
@@ -1581,7 +1604,9 @@
 
     async function loadParamData() {
       if (currentParamSection === 'produits') await loadProduits();
-      else if (currentParamSection === 'import') resetImportUI();   // 🆕
+      else if (currentParamSection === 'import') { if (typeof chargerImportCarte === 'function') await chargerImportCarte(); }
+      else if (currentParamSection === 'fiche') await chargerFiche();
+      else if (currentParamSection === 'cles') await chargerClesIa();
       else if (currentParamSection === 'options') await loadProduitOptions();   // 🆕
       else if (currentParamSection === 'attributs') await loadAttributs();
       else if (currentParamSection === 'zones') await loadZones();
@@ -2649,6 +2674,9 @@
         poserPastille('horaires', null, etat(hor), hor ? '' : 'à compléter');
         poserPastille('agent', reg, etat(reg));
         poserPastille('import', null, '', '');
+        const bCourant = businessesList.find(x => x.id === bid) || {};
+        poserPastille('fiche', null, bCourant.est_test ? 'warn' : '', bCourant.est_test ? 'TEST' : '');
+        actualiserPastilleCles();
         poserPastille('api', null, businessCourantRelie() ? 'ok' : '', businessCourantRelie() ? 'reliée' : 'non reliée');
         const m = (biz && biz.data && biz.data.messages_accueil) || {};
         const complet = ['ouvert_connu', 'ouvert_inconnu', 'ferme_connu', 'ferme_inconnu'].every(k => String(m[k] || '').trim() !== '');
@@ -4733,299 +4761,1129 @@
     }
 
     // ========================================
-    // MESSAGES D'ACCUEIL
+    // NUMÉROS DE TÉLÉPHONE : numéro de l'agent (business.numero_tel) et numéro public du restaurant (business.telephone_public)
+    // Partagé par la fiche du restaurant ET par Agents vocaux › Téléphonie : mêmes colonnes, donc toujours identiques.
+    // Un numéro ne peut servir qu'à un seul restaurant actif : s'il est déjà pris, on propose de le déplacer.
     // ========================================
+    function saiosNumeroInternational(brut) {
+      const n = String(brut || '').replace(/[\s.\-()]/g, '');
+      if (!n) return '';
+      if (n.startsWith('+')) return n;
+      if (n.startsWith('0033')) return '+' + n.slice(2);
+      if (n.startsWith('0') && !n.startsWith('00')) return '+33' + n.slice(1);
+      return n;
+    }
+    function saiosNumeroValide(n) { return /^\+\d{8,15}$/.test(n); }
+    function saiosNumeroLocal(n) { return n.startsWith('+33') ? '0' + n.slice(3) : n; }
+
+    async function saiosRetirerNumeroAgent(bid) {
+      const { error } = await supabaseClient.from('business').update({ numero_tel: null }).eq('id', bid);
+      return error ? { ok: false, raison: error.message } : { ok: true, numero: '' };
+    }
+
+    async function saiosAttribuerNumeroAgent(bid, brut) {
+      const n = saiosNumeroInternational(brut);
+      if (!n) return await saiosRetirerNumeroAgent(bid);
+      if (!saiosNumeroValide(n)) return { ok: false, raison: 'Numéro de l\'agent invalide : saisir un numéro au format +33…' };
+      const variantes = [n, saiosNumeroLocal(n)];
+      const { data: autres, error } = await supabaseClient.from('business').select('id, nom, ville')
+        .eq('actif', true).neq('id', bid).in('numero_tel', variantes);
+      if (error) return { ok: false, raison: error.message };
+      if (autres && autres.length) {
+        const nomA = [autres[0].nom, autres[0].ville].filter(Boolean).join(' ');
+        const msgDeplacer = `Ce numéro est actuellement attribué à « ${nomA} ».\n\nLe déplacer ici ? ${nomA} n'aura plus de numéro d'agent.`;
+        if (!confirm(msgDeplacer)) {
+          return { ok: false, raison: 'Déplacement annulé.', annule: true };
+        }
+        const { error: e1 } = await supabaseClient.from('business').update({ numero_tel: null }).in('id', autres.map(x => x.id));
+        if (e1) return { ok: false, raison: e1.message };
+      }
+      // Ancien emplacement du numéro (configuration de l'agent) : on le vide pour qu'il ne prenne pas le dessus
+      await supabaseClient.from('agent_config').update({ numero_twilio: null }).in('numero_twilio', variantes);
+      const { error: e2 } = await supabaseClient.from('business').update({ numero_tel: n }).eq('id', bid);
+      if (e2) return { ok: false, raison: e2.message };
+      return { ok: true, numero: n, deplace: !!(autres && autres.length) };
+    }
+
+    async function saiosEnregistrerNumeroPublic(bid, brut) {
+      const n = saiosNumeroInternational(brut);
+      if (n && !saiosNumeroValide(n)) return { ok: false, raison: 'Numéro public invalide : saisir un numéro au format +33…' };
+      const { error } = await supabaseClient.from('business').update({ telephone_public: n || null }).eq('id', bid);
+      return error ? { ok: false, raison: error.message } : { ok: true, numero: n };
+    }
+
+    // ========================================
+    // FICHE DU RESTAURANT : identité, adresse, numéros, restaurant de test, suppression d'un restaurant de test
+    // ========================================
+    async function chargerFiche() {
+      const zone = document.getElementById('fiche-contenu');
+      zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
+      try {
+        const { data: b, error } = await supabaseClient.from('business')
+          .select('id, nom, type, email, adresse_rue, code_postal, ville, numero_tel, telephone_public, est_test, type_params')
+          .eq('id', BUSINESS_ID).single();
+        if (error) throw error;
+        const tp = b.type_params || {};
+        const types = ['fast_food', 'pizzeria', 'restaurant'];
+        if (b.type && !types.includes(b.type)) types.push(b.type);
+        const carte = 'background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:16px;';
+        zone.innerHTML = `
+          <div style="${carte}">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+              ${b.est_test ? '<span class="badge badge-warning">TEST</span>' : '<span class="badge badge-success">Restaurant client</span>'}
+            </div>
+            <h3 style="margin:0 0 12px;font-size:16px;">Identité et adresse</h3>
+            <form onsubmit="enregistrerFiche(event)">
+              <div class="form-group"><label>Nom *</label><input type="text" id="fiche-nom" value="${escHtml(b.nom)}" required></div>
+              <div class="form-group"><label>Type *</label>
+                <select id="fiche-type">${types.map(t => `<option value="${escHtml(t)}" ${t === b.type ? 'selected' : ''}>${escHtml(t)}</option>`).join('')}</select></div>
+              <div class="form-group"><label>E-mail</label><input type="email" id="fiche-email" value="${escHtml(b.email || '')}"></div>
+              <div class="form-group"><label>Site internet de la carte</label>
+                <input type="text" id="fiche-site" value="${escHtml(tp.site_carte || '')}" placeholder="https://www.exemple.fr">
+                <small style="color:var(--muted);font-size:12px;">Sert à « Importer la carte » depuis le site.</small></div>
+              <div class="form-group"><label>Numéro et rue</label><input type="text" id="fiche-rue" value="${escHtml(b.adresse_rue || '')}" placeholder="12 rue de la Paix"></div>
+              <div style="display:flex;gap:12px;">
+                <div class="form-group" style="flex:1;"><label>Code postal</label><input type="text" id="fiche-cp" value="${escHtml(b.code_postal || '')}"></div>
+                <div class="form-group" style="flex:2;"><label>Ville</label><input type="text" id="fiche-ville" value="${escHtml(b.ville || '')}"></div>
+              </div>
+              <div class="form-actions" style="justify-content:flex-start;"><button type="submit" class="btn btn-primary">💾 Enregistrer la fiche</button></div>
+            </form>
+          </div>
+
+          <div style="${carte}">
+            <h3 style="margin:0 0 12px;font-size:16px;">Téléphonie</h3>
+            <div class="form-group"><label>Numéro de l'agent (Twilio)</label>
+              <input type="text" id="fiche-num-agent" value="${escHtml(b.numero_tel || '')}" placeholder="+33…">
+              <small style="color:var(--muted);font-size:12px;">C'est ce numéro qui décroche l'agent. Un numéro ne sert qu'à un restaurant : s'il est déjà pris, le déplacement est proposé.</small></div>
+            <div class="form-group"><label>Numéro public du restaurant</label>
+              <input type="text" id="fiche-num-public" value="${escHtml(b.telephone_public || '')}" placeholder="+33…">
+              <small style="color:var(--muted);font-size:12px;">Renvoyé par le restaurant vers le numéro de l'agent.</small></div>
+            <div class="form-actions" style="justify-content:flex-start;flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary" onclick="enregistrerNumerosFiche()">💾 Enregistrer les numéros</button>
+              <button type="button" class="btn btn-secondary" onclick="retirerNumeroAgentFiche()" ${b.numero_tel ? '' : 'disabled'}>Retirer le numéro de l'agent</button>
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:8px;">Les deux numéros sont aussi visibles dans Agents vocaux › Téléphonie : ce sont les mêmes données.</div>
+          </div>
+
+          <div style="${carte}">
+            <h3 style="margin:0 0 8px;font-size:16px;">Restaurant de test</h3>
+            <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+              <input type="checkbox" id="fiche-est-test" ${b.est_test ? 'checked' : ''} onchange="basculerRestaurantTest(this.checked)" style="margin-top:4px;">
+              <span>Ce restaurant sert à des essais.<br><small style="color:var(--muted);font-size:12px;">Une pastille TEST s'affiche dans le menu des restaurants. Seul un restaurant de test peut être supprimé depuis cet écran. Décocher le fait redevenir un restaurant client.</small></span>
+            </label>
+            ${b.est_test ? `
+              <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border,#e6e8ec);">
+                <div style="font-weight:700;margin-bottom:6px;color:var(--err);">Supprimer ce restaurant de test</div>
+                <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">La suppression est définitive : produits, commandes, appels, clients et réglages de ce restaurant disparaissent.</div>
+                <button type="button" class="btn btn-danger" onclick="ouvrirSuppressionRestaurant()">🗑️ Supprimer ce restaurant…</button>
+                <div id="fiche-suppression"></div>
+              </div>` : ''}
+          </div>`;
+      } catch (err) {
+        zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    async function enregistrerFiche(e) {
+      e.preventDefault();
+      const nom = document.getElementById('fiche-nom').value.trim();
+      if (!nom) { alert('Le nom est obligatoire.'); return; }
+      const site = document.getElementById('fiche-site').value.trim();
+      if (site && !/^https?:\/\//i.test(site)) { alert('L\'adresse du site doit commencer par http:// ou https://'); return; }
+      try {
+        const { data: cour, error: e0 } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+        if (e0) throw e0;
+        const tp = { ...((cour && cour.type_params) || {}) };
+        if (site) tp.site_carte = site; else delete tp.site_carte;
+        const { error } = await supabaseClient.from('business').update({
+          nom, type: document.getElementById('fiche-type').value,
+          email: document.getElementById('fiche-email').value.trim() || null,
+          adresse_rue: document.getElementById('fiche-rue').value.trim() || null,
+          code_postal: document.getElementById('fiche-cp').value.trim() || null,
+          ville: document.getElementById('fiche-ville').value.trim() || null,
+          type_params: tp
+        }).eq('id', BUSINESS_ID);
+        if (error) throw error;
+        await loadBusinessList();
+        alert('✅ Fiche enregistrée');
+        chargerFiche();
+      } catch (err) {
+        alert('❌ Erreur : ' + err.message);
+      }
+    }
+
+    async function enregistrerNumerosFiche() {
+      const r1 = await saiosAttribuerNumeroAgent(BUSINESS_ID, document.getElementById('fiche-num-agent').value);
+      if (!r1.ok) { if (!r1.annule) alert('❌ ' + r1.raison); chargerFiche(); return; }
+      const r2 = await saiosEnregistrerNumeroPublic(BUSINESS_ID, document.getElementById('fiche-num-public').value);
+      if (!r2.ok) { alert('❌ ' + r2.raison); chargerFiche(); return; }
+      alert(r1.deplace ? '✅ Numéros enregistrés : le numéro de l\'agent a été déplacé ici.' : '✅ Numéros enregistrés');
+      chargerFiche();
+    }
+
+    async function retirerNumeroAgentFiche() {
+      if (!confirm('Retirer le numéro de l\'agent de ce restaurant ? L\'agent ne décrochera plus pour ce restaurant.')) return;
+      const r = await saiosRetirerNumeroAgent(BUSINESS_ID);
+      if (!r.ok) { alert('❌ ' + r.raison); return; }
+      chargerFiche();
+    }
+
+    async function basculerRestaurantTest(valeur) {
+      const b = businessesList.find(x => x.id === BUSINESS_ID);
+      const nom = b ? b.nom : 'ce restaurant';
+      const msg = valeur
+        ? `Marquer « ${nom} » comme restaurant de test ? Il pourra alors être supprimé depuis la fiche.`
+        : `Faire de « ${nom} » un restaurant client ? Il ne pourra plus être supprimé depuis la fiche.`;
+      if (!confirm(msg)) { chargerFiche(); return; }
+      const { error } = await supabaseClient.from('business').update({ est_test: valeur }).eq('id', BUSINESS_ID);
+      if (error) { alert('❌ ' + error.message); chargerFiche(); return; }
+      await loadBusinessList();
+      chargerFiche();
+    }
+
+    // Suppression : les chiffres du restaurant s'affichent, puis le nom doit être retapé
+    async function ouvrirSuppressionRestaurant() {
+      const zone = document.getElementById('fiche-suppression');
+      zone.innerHTML = '<div class="loading">🔄 Comptage…</div>';
+      const compter = async (table) => {
+        const { count, error } = await supabaseClient.from(table).select('id', { count: 'exact', head: true }).eq('business_id', BUSINESS_ID);
+        return error ? '?' : String(count || 0);
+      };
+      const [prod, cmd, evt, cli] = await Promise.all([compter('produits'), compter('commandes'), compter('evenements'), compter('client')]);
+      const b = businessesList.find(x => x.id === BUSINESS_ID);
+      zone.innerHTML = `
+        <div style="margin-top:12px;padding:14px;border-radius:10px;background:var(--err-bg,#fdecea);">
+          <div style="font-weight:700;margin-bottom:6px;">Seront supprimés définitivement :</div>
+          <div style="font-size:14px;line-height:1.7;">${prod} produit(s) · ${cmd} commande(s) · ${evt} appel(s) ou événement(s) · ${cli} client(s)</div>
+          <div class="form-group" style="margin-top:12px;"><label>Pour confirmer, retaper le nom exact : <strong>${escHtml(b ? b.nom : '')}</strong></label>
+            <input type="text" id="fiche-confirm-nom" autocomplete="off"></div>
+          <div class="form-actions" style="justify-content:flex-start;">
+            <button type="button" class="btn btn-danger" onclick="supprimerRestaurantTest()">Supprimer définitivement</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('fiche-suppression').innerHTML=''">Annuler</button>
+          </div>
+        </div>`;
+    }
+
+    async function supprimerRestaurantTest() {
+      try {
+        const { data: b, error } = await supabaseClient.from('business').select('id, nom, est_test').eq('id', BUSINESS_ID).single();
+        if (error) throw error;
+        if (!b.est_test) { alert('Ce restaurant n\'est pas un restaurant de test : suppression refusée.'); return; }
+        const saisi = document.getElementById('fiche-confirm-nom').value.trim();
+        if (saisi !== b.nom) { alert('Le nom saisi ne correspond pas exactement.'); return; }
+        const { error: errSup } = await supabaseClient.rpc('supprimer_restaurant_test', { p_business_id: BUSINESS_ID });
+        if (errSup) {
+          const absente = errSup.code === 'PGRST202' || errSup.code === '42883' || /could not find the function/i.test(errSup.message || '');
+          throw new Error(absente ? 'La fonction de suppression n\'est pas encore installée dans la base.' : errSup.message);
+        }
+        alert('✅ Restaurant de test supprimé : ' + b.nom);
+        BUSINESS_ID = null;
+        await loadBusinessList();
+        if (businessesList.length > 0) await onChangeBusiness(businessesList[0].id);
+      } catch (err) {
+        alert('❌ ' + err.message);
+      }
+    }
+
+    // ========================================
+    // CLÉS D'IA (Gemini, Claude) : servent à lire les cartes dans « Importer la carte »
+    // Les clés passent par la fonction cles-ia : elles ne sont jamais lues ni réaffichées par cette page.
+    // ========================================
+    const FOURNISSEURS_IA = [
+      { id: 'gemini', nom: 'Gemini (Google)', aide: 'Clé créée dans Google AI Studio.' },
+      { id: 'claude', nom: 'Claude (Anthropic)', aide: 'Clé créée dans la console Anthropic, avec du crédit.' },
+      { id: 'openai', nom: 'OpenAI (ChatGPT)', aide: 'Clé créée sur la plateforme OpenAI, avec du crédit.' }
+    ];
+    const MODELES_IMPORT = [
+      { v: 'gemini|gemini-flash-latest', label: 'Gemini Flash (dernière version) : environ 0,06 $ pour 150 produits' },
+      { v: 'claude|claude-haiku-5-5', label: 'Claude Haiku 5.5 : environ 0,01 $ pour 150 produits' },
+      { v: 'claude|claude-sonnet-5-5', label: 'Claude Sonnet 5.5 : environ 0,17 $ pour 150 produits' },
+      { v: 'openai|gpt-5-mini', label: 'OpenAI GPT-5 mini : coût non estimé, identifiant à vérifier' }
+    ];
+    let clesIaEtat = null;   // dernier état connu : { gemini: {enregistree, cle_fin}, claude: {...} }
+
+    async function appelClesIa(body) {
+      const { data, error } = await supabaseClient.functions.invoke('cles-ia', { body });
+      if (error) {
+        let detail = error.message;
+        try { const corps = await error.context.json(); if (corps && corps.erreur) detail = corps.erreur; } catch (_) {}
+        throw new Error(detail);
+      }
+      if (data && data.ok === false) throw new Error(data.erreur || 'Erreur inconnue');
+      return data;
+    }
+
+    async function modeleImportChoisi() {
+      try {
+        const { data } = await supabaseClient.from('reglages_globaux').select('valeur').eq('cle', 'modele_import').maybeSingle();
+        const v = data && data.valeur;
+        if (v && v.fournisseur && v.modele) return { fournisseur: v.fournisseur, modele: v.modele };
+      } catch (_) { /* repli ci-dessous */ }
+      return { fournisseur: 'gemini', modele: 'gemini-flash-latest' };
+    }
+
+    async function chargerClesIa() {
+      const zone = document.getElementById('cles-contenu');
+      zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
+      try {
+        const [d, choisi] = await Promise.all([appelClesIa({ action: 'lire' }), modeleImportChoisi()]);
+        clesIaEtat = d.cles;
+        const carte = 'background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:16px;';
+        const cartes = FOURNISSEURS_IA.map(f => {
+          const e = d.cles[f.id] || {};
+          return `
+          <div style="${carte}">
+            <h3 style="margin:0 0 8px;font-size:16px;">${f.nom}</h3>
+            <div style="margin-bottom:10px;">${e.enregistree
+              ? `<span class="badge badge-success">Clé enregistrée${e.cle_fin ? ' (se termine par ' + escHtml(e.cle_fin) + ')' : ''}</span>`
+              : '<span class="badge badge-warning">Aucune clé enregistrée</span>'}</div>
+            <div class="form-group"><label>Clé API ${e.enregistree ? '' : '*'}</label>
+              <input type="password" id="cle-${f.id}" autocomplete="new-password" value="" placeholder="${e.enregistree ? 'Laisser vide pour conserver la clé actuelle' : 'Collez la clé fournie'}">
+              <small style="color:var(--muted);font-size:12px;">${f.aide} Enregistrée en lieu sûr, jamais réaffichée.</small></div>
+            <div class="form-actions" style="justify-content:flex-start;flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary" onclick="enregistrerCleIa('${f.id}')">💾 Enregistrer</button>
+              <button type="button" class="btn btn-secondary" onclick="testerCleIa('${f.id}')" ${e.enregistree ? '' : 'disabled'}>🔎 Tester la clé</button>
+              <button type="button" class="btn btn-secondary" onclick="supprimerCleIa('${f.id}')" ${e.enregistree ? '' : 'disabled'}>Supprimer la clé</button>
+            </div>
+            <div id="cle-msg-${f.id}" style="margin-top:10px;font-size:14px;"></div>
+          </div>`;
+        }).join('');
+        const courant = choisi.fournisseur + '|' + choisi.modele;
+        const manque = !(d.cles[choisi.fournisseur] && d.cles[choisi.fournisseur].enregistree);
+        zone.innerHTML = cartes + `
+          <div style="${carte}">
+            <h3 style="margin:0 0 8px;font-size:16px;">Modèle utilisé pour lire les cartes</h3>
+            <div class="form-group"><label>Modèle</label>
+              <select id="modele-import" onchange="changerModeleImport(this.value)">
+                ${MODELES_IMPORT.map(m => `<option value="${m.v}" ${m.v === courant ? 'selected' : ''}>${escHtml(m.label)}</option>`).join('')}
+                ${MODELES_IMPORT.some(m => m.v === courant) ? '' : `<option value="${escHtml(courant)}" selected>Autre : ${escHtml(choisi.modele)}</option>`}
+              </select>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <select id="modele-libre-f" style="flex:1;min-width:140px;">${FOURNISSEURS_IA.map(f => `<option value="${f.id}" ${f.id === choisi.fournisseur ? 'selected' : ''}>${escHtml(f.nom)}</option>`).join('')}</select>
+                <input type="text" id="modele-libre-m" placeholder="Identifiant exact du modèle (autre modèle)" style="flex:3;min-width:200px;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="changerModeleLibre()">Utiliser</button>
+              </div>
+              <small style="color:var(--muted);font-size:12px;">Estimations d'octobre 2026. Le modèle se change à tout moment, sans toucher aux clés.</small></div>
+            <div id="modele-msg">${manque ? '<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);">Importer la carte est indisponible : aucune clé enregistrée pour ce modèle.</div>' : ''}</div>
+          </div>`;
+        majPastilleCles(d.cles);
+      } catch (err) {
+        zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    function messageCleIa(id, ok, texte) {
+      const z = document.getElementById('cle-msg-' + id);
+      if (z) z.innerHTML = texte ? `<span style="color:${ok ? 'var(--ok)' : 'var(--err)'};font-weight:600;">${ok ? '✅' : '❌'} ${escHtml(texte)}</span>` : '';
+    }
+
+    async function enregistrerCleIa(id) {
+      const champ = document.getElementById('cle-' + id);
+      const cle = champ.value.trim();
+      const deja = clesIaEtat && clesIaEtat[id] && clesIaEtat[id].enregistree;
+      if (!cle && !deja) { messageCleIa(id, false, 'Coller la clé fournie.'); return; }
+      if (!cle) { messageCleIa(id, true, 'Aucun changement à enregistrer.'); return; }
+      try {
+        await appelClesIa({ action: 'enregistrer', fournisseur: id, cle });
+        champ.value = '';
+        await chargerClesIa();
+        messageCleIa(id, true, 'Clé enregistrée. Elle ne sera plus affichée.');
+      } catch (err) { messageCleIa(id, false, err.message); }
+    }
+
+    async function testerCleIa(id) {
+      messageCleIa(id, true, 'Test en cours…');
+      try {
+        const d = await appelClesIa({ action: 'tester', fournisseur: id });
+        messageCleIa(id, d.valide, d.detail);
+      } catch (err) { messageCleIa(id, false, err.message); }
+    }
+
+    async function supprimerCleIa(id) {
+      const f = FOURNISSEURS_IA.find(x => x.id === id);
+      if (!confirm(`Supprimer la clé ${f.nom} ? Les imports avec ce modèle seront indisponibles.`)) return;
+      try {
+        await appelClesIa({ action: 'supprimer', fournisseur: id });
+        await chargerClesIa();
+        messageCleIa(id, true, 'Clé supprimée.');
+      } catch (err) { messageCleIa(id, false, err.message); }
+    }
+
+    async function changerModeleImport(valeur) {
+      const [fournisseur, modele] = valeur.split('|');
+      const { error } = await supabaseClient.from('reglages_globaux').upsert({ cle: 'modele_import', valeur: { fournisseur, modele }, maj_le: new Date().toISOString() });
+      if (error) { alert('❌ ' + error.message); return; }
+      chargerClesIa();
+    }
+
+    async function changerModeleLibre() {
+      const f = document.getElementById('modele-libre-f').value, m = document.getElementById('modele-libre-m').value.trim();
+      if (!/^[a-zA-Z0-9._:\-]{3,80}$/.test(m)) { alert('Identifiant de modèle invalide : lettres, chiffres, points, tirets.'); return; }
+      await changerModeleImport(f + '|' + m);
+    }
+
+    function majPastilleCles(cles) {
+      const n = FOURNISSEURS_IA.filter(f => cles && cles[f.id] && cles[f.id].enregistree).length;
+      poserPastille('cles', n, n > 0 ? 'ok' : 'warn', n > 0 ? n + ' sur ' + FOURNISSEURS_IA.length : 'à compléter');
+    }
+    async function actualiserPastilleCles() {
+      try { const d = await appelClesIa({ action: 'lire' }); clesIaEtat = d.cles; majPastilleCles(d.cles); } catch (_) { /* pastille facultative */ }
+    }
+
+    // ========================================
+    // MESSAGES D'ACCUEIL ET DE FIN
+    // 4 accueils (dits au décrochage) + 2 fins (dites avant le raccrochage). Une ligne = une variante, tirée au hasard.
+    // Enregistrés dans business.messages_accueil (clés ouvert_connu, ouvert_inconnu, ferme_connu, ferme_inconnu, fin_commande, fin_sans_commande).
+    // « Mes variables » : business.type_params.variables_perso (utilisables dans les messages et dans le prompt).
+    // ========================================
+    const PHRASES_TYPES = {
+      ouvert_connu: '{{salutation}} {{nom_client}}, ravi de vous retrouver chez {{nom_restaurant}} ! {{question_mode}}',
+      ouvert_inconnu: '{{salutation}} {{nom_restaurant}}, je vous écoute ! {{question_mode}}',
+      ferme_connu: '{{salutation}} {{nom_client}} ! {{nom_restaurant}} est actuellement fermé mais je peux prendre votre commande pour plus tard. {{question_mode}}',
+      ferme_inconnu: '{{salutation}} ! {{nom_restaurant}} est actuellement fermé, mais je peux prendre votre commande pour plus tard. {{question_mode}}',
+      fin_commande: 'Merci pour votre commande. {{salut}}, {{souhait}}.',
+      fin_sans_commande: 'Merci de votre appel. {{salut}}, {{souhait}}.'
+    };
+    const MESSAGES_DEF = [
+      { cle: 'ouvert_connu', fin: false, titre: '✅ Ouvert — client connu' },
+      { cle: 'ouvert_inconnu', fin: false, titre: '✅ Ouvert — client inconnu' },
+      { cle: 'ferme_connu', fin: false, titre: '🌙 Fermé — client connu' },
+      { cle: 'ferme_inconnu', fin: false, titre: '🌙 Fermé — client inconnu' },
+      { cle: 'fin_commande', fin: true, titre: '👋 Fin d\'appel — commande validée' },
+      { cle: 'fin_sans_commande', fin: true, titre: '👋 Fin d\'appel — sans commande' }
+    ];
+    const VARIABLES_MESSAGES = {
+      nom_client: { fin: 'les deux', desc: 'Nom du client (vide si inconnu). Dans une fin d\'appel : nom donné pendant l\'appel.', ex: 'Anouck' },
+      nom_restaurant: { fin: 'les deux', desc: 'Nom du restaurant, avec la ville.', ex: null },
+      question_mode: { fin: 'accueil', desc: 'Question des modes de commande (section « Modes de commande »).', ex: 'Ce serait à emporter ou en livraison ?' },
+      salutation: { fin: 'accueil', desc: 'Bonjour de 5h00 à 17h59, Bonsoir de 18h00 à 4h59.', ex: 'Bonjour' },
+      salut: { fin: 'fin', desc: '« À tout à l\'heure » si la commande est pour aujourd\'hui, sinon « À bientôt ».', ex: 'À tout à l\'heure' },
+      souhait: { fin: 'fin', desc: '« bonne journée » ou « bonne soirée » selon l\'heure ; vide après « À tout à l\'heure ».', ex: '' }
+    };
+    let messagesPerso = [];          // [{ nom, valeur }] en cours d'édition
+    let messagesNomResto = '';
+
+    function variablesPourMessage(def) {
+      return Object.keys(VARIABLES_MESSAGES).filter(k => { const f = VARIABLES_MESSAGES[k].fin; return f === 'les deux' || (def.fin ? f === 'fin' : f === 'accueil'); });
+    }
+    function normPhrase(t) { return String(t || '').replace(/\s+/g, ' ').trim(); }
+    function etatPhrase(cle, texte) {
+      const t = normPhrase(texte);
+      if (!t) return 'vide';
+      return t === normPhrase(PHRASES_TYPES[cle]) ? 'type' : 'perso';
+    }
+    function nomsVariablesPerso() { return messagesPerso.map(p => p.nom.trim()).filter(Boolean); }
+
+    function apercuPhrase(def, texte) {
+      const lignes = String(texte || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (!lignes.length) return '';
+      const val = {};
+      Object.keys(VARIABLES_MESSAGES).forEach(k => { val[k] = VARIABLES_MESSAGES[k].ex === null ? messagesNomResto : VARIABLES_MESSAGES[k].ex; });
+      messagesPerso.forEach(p => { if (p.nom.trim()) val[p.nom.trim()] = p.valeur; });
+      const rendu = lignes[0].replace(/\{\{\s*([a-z_0-9]+)\s*\}\}/g, (m, k) => (k in val ? val[k] : '')).replace(/\s{2,}/g, ' ').replace(/\s+([,.])/g, '$1').replace(/(,\s*)+([.!?])/g, '$2').trim();
+      return rendu + (lignes.length > 1 ? `  (+ ${lignes.length - 1} autre${lignes.length > 2 ? 's' : ''} variante${lignes.length > 2 ? 's' : ''})` : '');
+    }
+
+    function majMessage(cle) {
+      const def = MESSAGES_DEF.find(d => d.cle === cle);
+      const ta = document.getElementById('msg-' + cle);
+      const texte = ta.value;
+      const etat = etatPhrase(cle, texte);
+      const badge = document.getElementById('msg-badge-' + cle);
+      badge.className = 'badge ' + (etat === 'type' ? 'badge-info' : etat === 'perso' ? 'badge-warning' : 'badge-danger');
+      badge.textContent = etat === 'type' ? 'Phrase type' : etat === 'perso' ? 'Personnalisé' : (def.fin ? 'Phrase intégrée' : 'Vide');
+      document.getElementById('msg-reset-' + cle).style.display = etat === 'type' ? 'none' : '';
+      const connues = new Set([...variablesPourMessage(def), ...nomsVariablesPerso()]);
+      const inconnues = [...new Set((texte.match(/\{\{\s*[^{}\s]*\s*\}\}/g) || []).map(m => m.replace(/[{}\s]/g, '')).filter(n => !connues.has(n)))];
+      document.getElementById('msg-alerte-' + cle).innerHTML = inconnues.length
+        ? `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:6px;">Variable inconnue ou indisponible ici : ${inconnues.map(n => '<strong>{{' + escHtml(n) + '}}</strong>').join(', ')}. Elle sera ignorée à l'appel (jamais lue à voix haute).</div>` : '';
+      const ap = apercuPhrase(def, texte);
+      document.getElementById('msg-apercu-' + cle).textContent = ap ? 'Aperçu : ' + ap : (def.fin ? 'Vide : la phrase intégrée est utilisée.' : '');
+    }
+    function majTousMessages() { MESSAGES_DEF.forEach(d => majMessage(d.cle)); }
+
+    function insererVariableMessage(cle, nom) {
+      const ta = document.getElementById('msg-' + cle);
+      const debut = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+      const fin = ta.selectionEnd == null ? debut : ta.selectionEnd;
+      const ins = '{{' + nom + '}}';
+      ta.value = ta.value.slice(0, debut) + ins + ta.value.slice(fin);
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = debut + ins.length;
+      majMessage(cle);
+    }
+    function retablirMessage(cle) {
+      document.getElementById('msg-' + cle).value = PHRASES_TYPES[cle];
+      majMessage(cle);
+    }
+
+    function dessinerVariablesPerso() {
+      const z = document.getElementById('msg-perso');
+      if (!z) return;
+      z.innerHTML = (messagesPerso.length ? messagesPerso.map((p, i) => `
+        <div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;">
+          <input type="text" value="${escHtml(p.nom)}" placeholder="nom_de_variable" style="flex:1;min-width:140px;" oninput="messagesPerso[${i}].nom=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'');this.value=messagesPerso[${i}].nom;majTousMessages();">
+          <input type="text" value="${escHtml(p.valeur)}" placeholder="Texte lu à la place de la variable" style="flex:3;min-width:200px;" oninput="messagesPerso[${i}].valeur=this.value;majTousMessages();">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="messagesPerso.splice(${i},1);dessinerVariablesPerso();majTousMessages();">Retirer</button>
+        </div>`).join('') : '<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">Aucune variable personnelle.</div>')
+        + '<button type="button" class="btn btn-secondary btn-sm" onclick="messagesPerso.push({nom:\'\',valeur:\'\'});dessinerVariablesPerso();">➕ Ajouter une variable</button>';
+      const chips = document.querySelectorAll('.msg-chips-perso');
+      chips.forEach(c => { const cle = c.dataset.cle; c.innerHTML = nomsVariablesPerso().map(n => `<button type="button" class="btn btn-secondary btn-sm" onclick="insererVariableMessage('${cle}','${n}')">{{${escHtml(n)}}}</button>`).join(' '); });
+    }
+
     async function loadMessagesAccueil() {
       const container = document.getElementById('messages-content');
       container.innerHTML = '<div class="loading">🔄 Chargement...</div>';
       try {
-        const { data, error } = await supabaseClient
-          .from('business')
-          .select('messages_accueil')
-          .eq('id', BUSINESS_ID)
-          .single();
+        const { data, error } = await supabaseClient.from('business').select('nom, ville, messages_accueil, type_params').eq('id', BUSINESS_ID).single();
         if (error) throw error;
         const m = data.messages_accueil || {};
-        const esc = (txt) => (txt || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const vp = (data.type_params && data.type_params.variables_perso) || {};
+        messagesPerso = Object.keys(vp).map(k => ({ nom: k, valeur: String(vp[k]) }));
+        messagesNomResto = [data.nom, data.ville].filter(Boolean).join(' ');
+        const carte = 'background:white;border-radius:12px;padding:20px 22px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:820px;margin-bottom:16px;';
+        const bloc = (def) => `
+          <div style="${carte}">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+              <strong>${def.titre}</strong>
+              <span style="display:flex;gap:8px;align-items:center;">
+                <span class="badge" id="msg-badge-${def.cle}"></span>
+                <button type="button" class="btn btn-secondary btn-sm" id="msg-reset-${def.cle}" onclick="retablirMessage('${def.cle}')">Rétablir la phrase type</button>
+              </span>
+            </div>
+            <textarea id="msg-${def.cle}" style="width:100%;min-height:90px;" oninput="majMessage('${def.cle}')">${escHtml(m[def.cle] || '')}</textarea>
+            <div style="font-size:12px;color:var(--muted);margin:4px 0 6px;">Une ligne = une variante : une ligne est tirée au hasard à chaque appel.</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">
+              ${variablesPourMessage(def).map(n => `<button type="button" class="btn btn-secondary btn-sm" title="${escHtml(VARIABLES_MESSAGES[n].desc)}" onclick="insererVariableMessage('${def.cle}','${n}')">{{${n}}}</button>`).join('')}
+              <span class="msg-chips-perso" data-cle="${def.cle}" style="display:contents;"></span>
+            </div>
+            <div id="msg-alerte-${def.cle}"></div>
+            <div id="msg-apercu-${def.cle}" style="font-size:13px;color:var(--muted);margin-top:6px;"></div>
+          </div>`;
         container.innerHTML = `
-          <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 800px;">
-            <p style="color: #666; font-size: 14px; margin-bottom: 20px;">
-              💡 Ces phrases sont dites par l'assistant vocal dès le décrochage.
-              Utilisez <strong>{{nom_client}}</strong> pour insérer le nom du client, et <strong>{{question_mode}}</strong> pour la question des modes de commande (générée d'après la section « Modes de commande »).
+          <div style="${carte}">
+            <p style="color:#666;font-size:14px;margin:0;">
+              💡 Les accueils sont dits dès le décrochage ; les fins d'appel sont dites avant le raccrochage. Cliquer sur une variable l'insère dans la phrase.
             </p>
-            <div class="form-group">
-              <label>✅ Ouvert — Client connu</label>
-              <textarea id="msg-ouvert_connu" style="min-height: 70px;">${esc(m.ouvert_connu)}</textarea>
-            </div>
-            <div class="form-group">
-              <label>✅ Ouvert — Client inconnu</label>
-              <textarea id="msg-ouvert_inconnu" style="min-height: 70px;">${esc(m.ouvert_inconnu)}</textarea>
-            </div>
-            <div class="form-group">
-              <label>🌙 Fermé — Client connu</label>
-              <textarea id="msg-ferme_connu" style="min-height: 70px;">${esc(m.ferme_connu)}</textarea>
-            </div>
-            <div class="form-group">
-              <label>🌙 Fermé — Client inconnu</label>
-              <textarea id="msg-ferme_inconnu" style="min-height: 70px;">${esc(m.ferme_inconnu)}</textarea>
-            </div>
-            <div class="form-actions">
-              <button class="btn btn-primary" onclick="saveMessagesAccueil()">💾 Enregistrer</button>
-            </div>
+            <details style="margin-top:10px;"><summary style="cursor:pointer;font-weight:600;">Lexique des variables</summary>
+              <div style="font-size:13px;line-height:1.7;margin-top:8px;">
+                ${Object.keys(VARIABLES_MESSAGES).map(n => `<div><strong>{{${n}}}</strong> : ${escHtml(VARIABLES_MESSAGES[n].desc)} <em>(${VARIABLES_MESSAGES[n].fin === 'les deux' ? 'accueil et fin' : VARIABLES_MESSAGES[n].fin === 'fin' ? 'fin d\'appel' : 'accueil'})</em></div>`).join('')}
+                <div><strong>Mes variables</strong> : variables propres à ce restaurant, utilisables dans les messages et dans le prompt de l'agent.</div>
+              </div></details>
           </div>
-        `;
+          <h3 style="margin:18px 0 8px;font-size:15px;">Accueil</h3>
+          ${MESSAGES_DEF.filter(d => !d.fin).map(bloc).join('')}
+          <h3 style="margin:18px 0 8px;font-size:15px;">Fin d'appel</h3>
+          ${MESSAGES_DEF.filter(d => d.fin).map(bloc).join('')}
+          <div style="${carte}">
+            <strong>Mes variables</strong>
+            <div style="font-size:13px;color:var(--muted);margin:4px 0 10px;">Exemple : <code>offre</code> = « Aujourd'hui, une pizza achetée, une offerte. » s'écrit {{offre}} dans un message ou dans le prompt. Lettres minuscules, chiffres et _ seulement.</div>
+            <div id="msg-perso"></div>
+          </div>
+          <div class="form-actions" style="max-width:820px;"><button class="btn btn-primary" onclick="saveMessagesAccueil()">💾 Enregistrer</button></div>`;
+        dessinerVariablesPerso();
+        majTousMessages();
       } catch (error) {
-        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
+        container.innerHTML = `<div class="no-data">❌ Erreur: ${escHtml(error.message)}</div>`;
       }
     }
 
     async function saveMessagesAccueil() {
-      const messages = {
-        ouvert_connu:   document.getElementById('msg-ouvert_connu').value.trim(),
-        ouvert_inconnu: document.getElementById('msg-ouvert_inconnu').value.trim(),
-        ferme_connu:    document.getElementById('msg-ferme_connu').value.trim(),
-        ferme_inconnu:  document.getElementById('msg-ferme_inconnu').value.trim()
-      };
+      // Variables personnelles : noms valides, uniques, non réservés
+      const perso = {};
+      for (const p of messagesPerso) {
+        const nom = p.nom.trim();
+        if (!nom && !p.valeur.trim()) continue;
+        if (!/^[a-z0-9_]+$/.test(nom)) { alert('Une variable personnelle a un nom invalide : lettres minuscules, chiffres et _ seulement.'); return; }
+        if (Object.prototype.hasOwnProperty.call(VARIABLES_MESSAGES, nom) || ['kb_menu', 'kb_menu_compact', 'kb_zones', 'message_accueil', 'jour_actuel', 'heure_actuelle', 'client_connu', 'est_ouvert', 'business_id'].includes(nom)) { alert('« ' + nom + ' » est un nom réservé : choisir un autre nom.'); return; }
+        if (Object.prototype.hasOwnProperty.call(perso, nom)) { alert('La variable « ' + nom + ' » existe en double.'); return; }
+        perso[nom] = p.valeur;
+      }
+      const alertes = MESSAGES_DEF.filter(d => document.getElementById('msg-alerte-' + d.cle).innerHTML.trim() !== '');
+      if (alertes.length && !confirm('Certaines phrases contiennent des variables inconnues (elles seront ignorées à l\'appel). Enregistrer quand même ?')) return;
       try {
-        const { error } = await supabaseClient
-          .from('business')
-          .update({ messages_accueil: messages })
-          .eq('id', BUSINESS_ID);
+        const { data, error: e0 } = await supabaseClient.from('business').select('messages_accueil, type_params').eq('id', BUSINESS_ID).single();
+        if (e0) throw e0;
+        const messages = { ...(data.messages_accueil || {}) };
+        MESSAGES_DEF.forEach(d => {
+          const v = document.getElementById('msg-' + d.cle).value.trim();
+          if (v || !d.fin) messages[d.cle] = v; else delete messages[d.cle];   // une fin vide = phrase intégrée
+        });
+        const tp = { ...(data.type_params || {}) };
+        if (Object.keys(perso).length) tp.variables_perso = perso; else delete tp.variables_perso;
+        const { error } = await supabaseClient.from('business').update({ messages_accueil: messages, type_params: tp }).eq('id', BUSINESS_ID);
         if (error) throw error;
-        alert('✅ Messages d\'accueil enregistrés');
+        majPastillesParam();
+        alert('✅ Messages enregistrés');
       } catch (error) {
         alert('❌ Erreur: ' + error.message);
       }
     }
 
     // ========================================
-    // 🆕 IMPORT PRODUITS PAR FICHIER CSV
+    // IMPORTER LA CARTE : photos / PDF / site internet / saisie manuelle -> tableau de validation -> écriture -> annulation
+    // La lecture est faite par la fonction extraire-carte (lecture seule). Toute l'écriture a lieu ici, après validation.
+    // Les options sont écrites au format des restaurants API (listes de choix avec prix par choix).
     // ========================================
-    let importGroupes = [];      // produits groupés par id_produit, avant validation
-    let importFamillesExistantes = [];  // familles déjà en base pour ce business
+    const IMP = { mode: 'creation', nbExistants: 0, src: 'photos', couv: 'partielle', fichiers: [], url: '', carte: null, plan: null, etape: 1, stop: false,
+                  modele: null, cles: null, historique: [], message: '', progression: { fait: 0, total: 0, texte: '' }, existants: [], familles: [], attributs: [] };
+    const IMP_TAILLE_LOT = 4;
 
-    // Réinitialise la zone d'import quand on revient sur l'onglet
-    function resetImportUI() {
-      document.getElementById('import-csv-file').value = '';
-      document.getElementById('import-result').innerHTML = '';
-      importGroupes = [];
-    }
+    function impNorm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim(); }
+    function impPrix(n) { return Number(n || 0).toFixed(2).replace('.', ',') + ' €'; }
+    function impNomComplet(p) { return [p.nom, p.formule, p.taille].filter(Boolean).join(' '); }
+    function impCleLigne(famille, nomComplet) { return impNorm(famille) + '|' + impNorm(nomComplet); }
 
-    // Parseur CSV simple : gère ; ou , comme séparateur, et les champs entre guillemets
-    function parseCsvLine(line, delimiter) {
-      const result = [];
-      let cur = '';
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (c === '"') {
-          inQuotes = !inQuotes;
-        } else if (c === delimiter && !inQuotes) {
-          result.push(cur.trim());
-          cur = '';
-        } else {
-          cur += c;
-        }
-      }
-      result.push(cur.trim());
-      return result;
-    }
-
-    function parseCsvText(text) {
-      const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
-      if (lines.length === 0) return [];
-      // Détecte le séparateur : ; ou ,
-      const delimiter = (lines[0].split(';').length >= lines[0].split(',').length) ? ';' : ',';
-      let rows = lines.map(l => parseCsvLine(l, delimiter));
-      // Détecte un éventuel en-tête : si la colonne prix (index 3) n'est pas un nombre sur la 1ère ligne
-      const premierPrix = parseFloat((rows[0][3] || '').replace(',', '.'));
-      if (isNaN(premierPrix)) {
-        rows = rows.slice(1); // on retire la ligne d'en-tête
-      }
-      return rows;
-    }
-
-    // Lecture du fichier choisi par l'utilisateur
-    function handleImportFile(e) {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async (evt) => {
-        try {
-          const rows = parseCsvText(evt.target.result);
-          if (rows.length === 0) {
-            document.getElementById('import-result').innerHTML = '<div class="no-data">Fichier vide ou illisible.</div>';
-            return;
-          }
-          // Format attendu (9 colonnes, sans en-tête) :
-          // 0:id_produit 1:nom_produit 2:desc_produit 3:prix 4:prix_emport 5:prix_surplace 6:id_famille 7:famille_nom 8:taille
-          const parsed = rows.map(cols => ({
-            id_produit: cols[0] || '',
-            nom_produit: (cols[1] || '').trim(),
-            desc_produit: (cols[2] || '').trim(),
-            prix: parseFloat((cols[3] || '0').replace(',', '.')) || 0,
-            famille_nom: (cols[7] || '').trim().toUpperCase(),
-            taille: (cols[8] || '').trim().toUpperCase()
-          })).filter(p => p.nom_produit);
-
-          if (parsed.length === 0) {
-            document.getElementById('import-result').innerHTML = '<div class="no-data">Aucune ligne exploitable trouvée. Vérifie le format du fichier.</div>';
-            return;
-          }
-
-          importGroupes = parsed;
-          await renderImportValidation();
-        } catch (err) {
-          document.getElementById('import-result').innerHTML = `<div class="no-data">❌ Erreur de lecture : ${err.message}</div>`;
-        }
-      };
-      reader.readAsText(file, 'UTF-8');
-    }
-
-    // Construit l'écran de validation (éditable) avant écriture en base
-    async function renderImportValidation() {
-      const container = document.getElementById('import-result');
-      container.innerHTML = '<div class="loading">🔄 Vérification des familles existantes...</div>';
-
-      // Charger les familles déjà en base pour CE restaurant
-      const { data: fams, error } = await supabaseClient
-        .from('produit_familles')
-        .select('id, nom')
-        .eq('business_id', BUSINESS_ID);
+    async function appelExtraire(body) {
+      const { data, error } = await supabaseClient.functions.invoke('extraire-carte', { body: { ...body, fournisseur: IMP.modele.fournisseur, modele: IMP.modele.modele } });
       if (error) {
-        container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
-        return;
+        let detail = error.message, code = '';
+        try { const c = await error.context.json(); if (c && c.erreur) { detail = c.erreur; code = c.code || ''; } } catch (_) {}
+        const e = new Error(detail); e.code = code; throw e;
       }
-      importFamillesExistantes = fams || [];
-      const nomsExistants = importFamillesExistantes.map(f => f.nom.toUpperCase());
-
-      // Familles présentes dans le CSV mais absentes de la base
-      const famillesCsv = [...new Set(importGroupes.map(p => p.famille_nom).filter(Boolean))];
-      const famillesNouvelles = famillesCsv.filter(f => !nomsExistants.includes(f));
-
-      let html = '';
-
-      if (famillesNouvelles.length > 0) {
-        html += `
-          <div style="background:#fff8ec;border:1px solid #f0e2c4;border-left:4px solid #d9a441;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
-            <strong>⚠️ Nouvelles familles détectées dans le fichier :</strong>
-            <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
-              ${famillesNouvelles.map(f => `
-                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
-                  <input type="checkbox" class="import-famille-check" data-famille="${f}" checked>
-                  Créer la famille « ${f} »
-                </label>
-              `).join('')}
-            </div>
-            <div style="font-size:12.5px;color:#7a5c1a;margin-top:8px;">Décoche une famille si tu ne veux PAS importer les produits qui lui sont rattachés.</div>
-          </div>
-        `;
-      }
-
-      // Table de prévisualisation, éditable ligne par ligne
-      html += `
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr><th>Inclure</th><th>Nom (généré)</th><th>Famille</th><th>Prix (€)</th><th>Description</th></tr>
-            </thead>
-            <tbody>
-              ${importGroupes.map((p, i) => {
-                const nomGenere = p.taille ? `${p.nom_produit.toUpperCase()} ${p.taille}` : p.nom_produit.toUpperCase();
-                return `
-                  <tr>
-                    <td><input type="checkbox" class="import-row-check" data-index="${i}" checked></td>
-                    <td><input type="text" class="import-nom" data-index="${i}" value="${nomGenere.replace(/"/g, '&quot;')}" style="width:180px;"></td>
-                    <td><input type="text" class="import-famille" data-index="${i}" value="${p.famille_nom.replace(/"/g, '&quot;')}" style="width:120px;"></td>
-                    <td><input type="number" step="0.01" class="import-prix" data-index="${i}" value="${p.prix}" style="width:80px;"></td>
-                    <td style="max-width:260px;font-size:12.5px;color:var(--muted);">${p.desc_produit || '-'}</td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div style="margin-top:16px;font-size:13px;color:var(--muted);">${importGroupes.length} ligne(s) détectée(s) dans le fichier.</div>
-        <div class="form-actions" style="justify-content:flex-start;margin-top:16px;">
-          <button class="btn btn-primary" onclick="confirmImportProduits()">💾 Valider l'import</button>
-        </div>
-      `;
-
-      container.innerHTML = html;
+      if (data && data.ok === false) { const e = new Error(data.erreur || 'Erreur inconnue'); e.code = data.code || ''; throw e; }
+      return data;
     }
 
-    // Écrit réellement en base : crée les familles manquantes puis les produits
-    async function confirmImportProduits() {
-      if (!confirm('Tu vas écrire ces produits dans la base du restaurant actuellement sélectionné. Confirmer ?')) return;
+    // ---------- Fusion des lots lus ----------
+    function impCarteVide() { return { produits: [], groupes: [], supplements: [], promotions: [], rapport: { prix_vus: 0, produits_lus: 0, remarques: '' } }; }
+    function impFusionner(base, ajout) {
+      const cles = new Map(base.produits.map((p, i) => [impCleLigne(p.famille, impNomComplet(p)), i]));
+      (ajout.produits || []).forEach(p => {
+        const k = impCleLigne(p.famille, impNomComplet(p));
+        if (cles.has(k)) { const e = base.produits[cles.get(k)]; if (!(e.prix > 0) && p.prix > 0) { e.prix = p.prix; e.incertain = p.incertain; } }
+        else { cles.set(k, base.produits.length); base.produits.push(p); }
+      });
+      (ajout.groupes || []).forEach(g => {
+        const e = base.groupes.find(x => impNorm(x.famille) === impNorm(g.famille) && impNorm(x.nom_groupe) === impNorm(g.nom_groupe));
+        if (!e) base.groupes.push(g);
+        else g.choix.forEach(c => { if (!e.choix.some(x => impNorm(x) === impNorm(c))) e.choix.push(c); });
+      });
+      (ajout.supplements || []).forEach(s => {
+        const e = base.supplements.find(x => impNorm(x.famille) === impNorm(s.famille) && Number(x.prix) === Number(s.prix));
+        if (!e) base.supplements.push(s);
+        else s.choix.forEach(c => { if (!e.choix.some(x => impNorm(x) === impNorm(c))) e.choix.push(c); });
+      });
+      (ajout.promotions || []).forEach(t => { if (!base.promotions.some(x => impNorm(x) === impNorm(t))) base.promotions.push(t); });
+      const r = ajout.rapport || {};
+      base.rapport.prix_vus += Number(r.prix_vus) || 0;
+      base.rapport.produits_lus = base.produits.length;
+    }
 
-      // 1) Familles à créer (celles cochées)
-      const famillesACreer = Array.from(document.querySelectorAll('.import-famille-check:checked'))
-        .map(cb => cb.dataset.famille);
-      // Familles décochées = à exclure entièrement de l'import
-      const famillesExclues = Array.from(document.querySelectorAll('.import-famille-check:not(:checked)'))
-        .map(cb => cb.dataset.famille);
+    // ---------- Photos et PDF ----------
+    function impLireBase64(file) {
+      return new Promise((resolve, reject) => {
+        const lecteur = new FileReader();
+        lecteur.onload = () => resolve(String(lecteur.result).split(',')[1] || '');
+        lecteur.onerror = () => reject(new Error('Fichier illisible : ' + file.name));
+        lecteur.readAsDataURL(file);
+      });
+    }
+    function impCompresserImage(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image(), url = URL.createObjectURL(file);
+        img.onload = () => {
+          const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+          const c = document.createElement('canvas');
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          resolve({ nom: file.name, type: 'image/jpeg', donnees: c.toDataURL('image/jpeg', 0.85).split(',')[1] });
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible : ' + file.name)); };
+        img.src = url;
+      });
+    }
+    async function impAjouterFichiers(liste) {
+      const fichiers = Array.from(liste || []);
+      for (const f of fichiers) {
+        if (IMP.fichiers.length >= 30) { alert('30 fichiers au maximum par import.'); break; }
+        try {
+          if (f.type === 'application/pdf') {
+            if (f.size > 8 * 1024 * 1024) { alert(f.name + ' : PDF de plus de 8 Mo. Le découper ou réduire sa taille.'); continue; }
+            IMP.fichiers.push({ nom: f.name, type: 'application/pdf', donnees: await impLireBase64(f) });
+          } else if (/^image\//.test(f.type)) {
+            IMP.fichiers.push(await impCompresserImage(f));
+          } else { alert(f.name + ' : format non pris en charge (photos JPEG, PNG, WebP ou PDF).'); }
+        } catch (err) { alert('❌ ' + err.message); }
+      }
+      dessinerImport();
+    }
+    function impRetirerFichier(i) { IMP.fichiers.splice(i, 1); dessinerImport(); }
+    function impLots(fichiers) {
+      const lots = []; let lot = [], poids = 0;
+      fichiers.forEach(f => {
+        if (lot.length && (lot.length >= IMP_TAILLE_LOT || poids + f.donnees.length > 3500000)) { lots.push(lot); lot = []; poids = 0; }
+        lot.push(f); poids += f.donnees.length;
+      });
+      if (lot.length) lots.push(lot);
+      return lots;
+    }
 
-      const mapFamilleIdParNom = {};
-      importFamillesExistantes.forEach(f => { mapFamilleIdParNom[f.nom.toUpperCase()] = f.id; });
-
+    // ---------- Chargement de l'écran ----------
+    async function chargerImportCarte() {
+      const zone = document.getElementById('import-contenu');
+      zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
       try {
-        for (const nomFamille of famillesACreer) {
-          const { data, error } = await supabaseClient
-            .from('produit_familles')
-            .insert({ business_id: BUSINESS_ID, nom: nomFamille, position: 0, actif: true })
-            .select('id, nom')
-            .single();
-          if (error) throw error;
-          mapFamilleIdParNom[data.nom.toUpperCase()] = data.id;
-        }
-
-        // 2) Construire les lignes produits à insérer, à partir des champs édités dans le tableau
-        const lignesAInserer = [];
-        let ignorees = 0;
-        importGroupes.forEach((p, i) => {
-          const checkInclure = document.querySelector(`.import-row-check[data-index="${i}"]`);
-          if (!checkInclure || !checkInclure.checked) { ignorees++; return; }
-
-          const nomInput = document.querySelector(`.import-nom[data-index="${i}"]`).value.trim();
-          const familleInput = document.querySelector(`.import-famille[data-index="${i}"]`).value.trim().toUpperCase();
-          const prixInput = parseFloat(document.querySelector(`.import-prix[data-index="${i}"]`).value) || 0;
-
-          if (famillesExclues.includes(familleInput)) { ignorees++; return; }
-
-          const familleId = mapFamilleIdParNom[familleInput];
-          if (!familleId) { ignorees++; return; } // famille inconnue et non créée : on ignore par sécurité
-
-          lignesAInserer.push({
-            business_id: BUSINESS_ID,
-            nom: nomInput,
-            categorie: familleInput,
-            prix: prixInput,
-            taille: p.taille || null,
-            details: p.desc_produit || null,
-            type_produit: 'produit_standard',
-            famille_id: familleId,
-            position: 0,
-            actif: true
-          });
-        });
-
-        if (lignesAInserer.length === 0) {
-          alert('Aucune ligne à importer (tout a été exclu).');
+        if (typeof businessCourantRelie === 'function' && businessCourantRelie()) {
+          zone.innerHTML = '<div style="background:white;border-radius:12px;padding:22px 24px;max-width:760px;"><span class="badge badge-warning">Import désactivé</span><p style="margin-top:12px;">Ce restaurant est relié à une API fournisseur : sa carte vient du fournisseur et se met à jour par la synchronisation. L\'import créerait des doublons.</p></div>';
           return;
         }
-
-        const { error: insErr } = await supabaseClient.from('produits').insert(lignesAInserer);
-        if (insErr) throw insErr;
-
-        alert(`✅ Import terminé : ${lignesAInserer.length} produit(s) créé(s)` + (ignorees ? `, ${ignorees} ligne(s) ignorée(s)` : ''));
-        resetImportUI();
-        // Bascule sur l'onglet Produits pour voir le résultat
-        document.getElementById('param-section').value = 'produits';
-        switchParamSection('produits');
+        const [rc, rh, rb, modele] = await Promise.all([
+          supabaseClient.from('produits').select('id', { count: 'exact', head: true }).eq('business_id', BUSINESS_ID),
+          supabaseClient.from('imports_carte').select('id, cree_le, source, couverture, mode, resume, statut').eq('business_id', BUSINESS_ID).order('cree_le', { ascending: false }).limit(6),
+          supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single(),
+          modeleImportChoisi()
+        ]);
+        IMP.nbExistants = rc.count || 0;
+        IMP.mode = IMP.nbExistants > 0 ? 'mise_a_jour' : 'creation';
+        IMP.historique = rh.error ? [] : (rh.data || []);
+        IMP.historiqueManquant = !!rh.error;
+        IMP.url = ((rb.data && rb.data.type_params) || {}).site_carte || '';
+        IMP.modele = modele;
+        try { IMP.cles = (await appelClesIa({ action: 'lire' })).cles; } catch (_) { IMP.cles = null; }
+        IMP.etape = 1; IMP.fichiers = []; IMP.carte = null; IMP.plan = null; IMP.message = ''; IMP.stop = false;
+        dessinerImport();
       } catch (err) {
-        alert('❌ Erreur pendant l\'import: ' + err.message);
+        zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
       }
     }
+
+    function impCleManquante() {
+      if (IMP.src === 'manuel') return false;
+      return !(IMP.cles && IMP.modele && IMP.cles[IMP.modele.fournisseur] && IMP.cles[IMP.modele.fournisseur].enregistree);
+    }
+
+    function dessinerImport() {
+      const zone = document.getElementById('import-contenu');
+      if (!zone) return;
+      if (IMP.etape === 1) zone.innerHTML = impHtmlSource();
+      else if (IMP.etape === 2) zone.innerHTML = impHtmlProgression();
+      else if (IMP.etape === 3) zone.innerHTML = impHtmlValidation();
+      else zone.innerHTML = IMP.htmlResultat || '';
+      if (IMP.etape === 3) impMajBoutonAppliquer();
+    }
+
+    const IMP_CARTE_CSS = 'background:white;border-radius:12px;padding:20px 22px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:820px;margin-bottom:16px;';
+    function impSeg(nom, valeur, options) {
+      return `<div style="display:flex;gap:4px;background:#eceef1;padding:3px;border-radius:10px;">${options.map(o =>
+        `<button type="button" onclick="impChoisir('${nom}','${o[0]}')" style="flex:1;min-height:42px;border:0;border-radius:8px;font:inherit;cursor:pointer;background:${valeur === o[0] ? '#fff' : 'transparent'};font-weight:${valeur === o[0] ? '700' : '400'};box-shadow:${valeur === o[0] ? '0 0 0 1px #e6e8ec' : 'none'};">${o[1]}</button>`).join('')}</div>`;
+    }
+    function impChoisir(nom, v) {
+      if (nom === 'src') { IMP.src = v; IMP.couv = v === 'site' ? 'complete' : 'partielle'; }
+      else IMP.couv = v;
+      dessinerImport();
+    }
+
+    function impHtmlSource() {
+      const mode = IMP.mode === 'creation'
+        ? 'Mode : création. Le restaurant n\'a aucun produit : la carte est créée à partir de la source.'
+        : `Mode : mise à jour. Le restaurant a déjà ${IMP.nbExistants} produits : seuls les écarts avec la source sont proposés.`;
+      const manque = impCleManquante();
+      const n = IMP.fichiers.length;
+      const cout = IMP.src === 'photos' ? `Coût estimé de la lecture : environ ${(0.02 * Math.max(n, 1)).toFixed(2).replace('.', ',')} $ (selon le modèle d'IA retenu).` : IMP.src === 'site' ? 'Coût estimé de la lecture : de l\'ordre de 0,01 $ par page (selon le modèle d\'IA retenu).' : '';
+      const peutLire = IMP.src === 'manuel' || (!manque && (IMP.src === 'photos' ? n > 0 : /^https?:\/\//i.test(IMP.url.trim())));
+      return `
+        <div style="${IMP_CARTE_CSS}">
+          <h3 style="margin:0 0 4px;font-size:16px;">Importer la carte</h3>
+          <p style="font-size:13.5px;color:var(--muted);margin:0 0 12px;">${mode}</p>
+          ${IMP.message ? `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-bottom:12px;">${escHtml(IMP.message)}</div>` : ''}
+          <div style="font-weight:600;margin:8px 0 5px;">Source</div>
+          ${impSeg('src', IMP.src, [['photos', 'Photos ou PDF'], ['site', 'Site internet'], ['manuel', 'Saisie manuelle']])}
+          ${IMP.src === 'photos' ? `
+            <div style="font-weight:600;margin:14px 0 5px;">Fichiers</div>
+            ${IMP.fichiers.map((f, i) => `<div style="display:flex;justify-content:space-between;align-items:center;border:1px solid #e6e8ec;border-radius:8px;padding:6px 10px;margin-bottom:6px;"><span>${escHtml(f.nom)}</span><button type="button" class="btn btn-secondary btn-sm" onclick="impRetirerFichier(${i})">Retirer</button></div>`).join('') || '<div style="font-size:13px;color:var(--muted);">Aucun fichier.</div>'}
+            <div style="font-size:12.5px;color:var(--muted);margin:4px 0 8px;">${n} sur 30 fichiers. Lecture par lots ; les photos sont réduites avant l'envoi.</div>
+            <input type="file" id="imp-fichiers" accept="image/*,application/pdf" multiple style="display:none" onchange="impAjouterFichiers(this.files)">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('imp-fichiers').click()" ${n >= 30 ? 'disabled' : ''}>Ajouter des photos ou des PDF</button>` : ''}
+          ${IMP.src === 'site' ? `
+            <div class="form-group" style="margin-top:14px;"><label>Adresse du site</label>
+              <input type="text" id="imp-url" value="${escHtml(IMP.url)}" oninput="IMP.url=this.value" placeholder="https://www.exemple.fr">
+              <small style="color:var(--muted);font-size:12px;">Adresse mémorisée dans la fiche du restaurant. Les pages de la carte du même domaine sont lues en suivant le menu, sans limite de nombre. Les sites qui chargent leur menu par programme (certaines pages de commande en ligne) ne sont pas lisibles : importer des captures d'écran comme photos.</small></div>` : ''}
+          ${IMP.src === 'manuel' ? '<p style="font-size:13.5px;color:var(--muted);margin-top:12px;">Un tableau de validation vide s\'ouvre : produits, familles, groupes d\'options et suppléments s\'y ajoutent à la main, avec les mêmes règles d\'écriture et la même annulation.</p>' : ''}
+          ${IMP.src !== 'manuel' ? `
+            <div style="font-weight:600;margin:14px 0 5px;">Contenu de la source</div>
+            ${impSeg('couv', IMP.couv, [['complete', 'Carte complète'], ['partielle', 'Carte partielle']])}
+            <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${IMP.couv === 'complete' ? 'Les produits absents de la source sont proposés à la désactivation, dans les familles présentes dans la source.' : 'Aucun produit n\'est désactivé : la source est une partie de la carte (flyer de nouveautés, une seule famille).'}</div>` : ''}
+          ${manque ? '<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:12px;">Aucune clé d\'IA enregistrée pour le modèle choisi : voir « Clés d\'IA ».</div>' : ''}
+          <div class="form-actions" style="justify-content:flex-start;margin-top:14px;"><button type="button" class="btn btn-primary" onclick="impLancer()" ${peutLire ? '' : 'disabled'}>${IMP.src === 'manuel' ? 'Ouvrir le tableau' : 'Lire la carte'}</button></div>
+          ${cout ? `<div style="font-size:12.5px;color:var(--muted);margin-top:6px;">${cout}</div>` : ''}
+        </div>
+        ${impHtmlHistorique()}`;
+    }
+
+    function impHtmlProgression() {
+      const p = IMP.progression;
+      return `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:16px;">Lecture en cours</h3>
+        <div style="height:10px;background:#eceef1;border-radius:6px;overflow:hidden;margin:12px 0 6px;"><div style="height:100%;width:${p.total ? Math.round(p.fait / p.total * 100) : 0}%;background:var(--info);"></div></div>
+        <div style="font-size:14px;color:var(--muted);">${escHtml(p.texte)}</div>
+        <div class="form-actions" style="justify-content:flex-start;margin-top:12px;"><button type="button" class="btn btn-secondary" onclick="IMP.stop=true">Arrêter</button></div></div>`;
+    }
+
+    async function impLancer() {
+      IMP.message = '';
+      if (IMP.src === 'manuel') { IMP.carte = impCarteVide(); await impPreparer(); return; }
+      IMP.etape = 2; IMP.stop = false; IMP.carte = impCarteVide();
+      try {
+        if (IMP.src === 'photos') {
+          const lots = impLots(IMP.fichiers);
+          IMP.progression = { fait: 0, total: lots.length, texte: 'Lot 0 sur ' + lots.length };
+          dessinerImport();
+          for (let i = 0; i < lots.length; i++) {
+            if (IMP.stop) throw Object.assign(new Error('Lecture arrêtée.'), { code: 'stop' });
+            const d = await appelExtraire({ action: 'lire_fichiers', fichiers: lots[i] });
+            impFusionner(IMP.carte, d.carte);
+            IMP.progression = { fait: i + 1, total: lots.length, texte: `Lot ${i + 1} sur ${lots.length} · ${IMP.carte.produits.length} produits trouvés` };
+            dessinerImport();
+          }
+        } else {
+          IMP.progression = { fait: 0, total: 1, texte: 'Recherche des pages de la carte…' };
+          dessinerImport();
+          const d0 = await appelExtraire({ action: 'decouvrir_site', url: IMP.url.trim() });
+          const pages = d0.pages || [];
+          if (pages.length > 50 && !confirm(`${pages.length} pages ont été détectées. La lecture coûtera de l'ordre de ${(pages.length * 0.01).toFixed(2).replace('.', ',')} $. Continuer ?`))
+            throw Object.assign(new Error('Lecture annulée.'), { code: 'stop' });
+          const lots = []; for (let i = 0; i < pages.length; i += 3) lots.push(pages.slice(i, i + 3));
+          IMP.progression = { fait: 0, total: lots.length, texte: `0 page sur ${pages.length}` };
+          dessinerImport();
+          for (let i = 0; i < lots.length; i++) {
+            if (IMP.stop) throw Object.assign(new Error('Lecture arrêtée.'), { code: 'stop' });
+            const d = await appelExtraire({ action: 'lire_pages', urls: lots[i] });
+            impFusionner(IMP.carte, d.carte);
+            IMP.progression = { fait: i + 1, total: lots.length, texte: `${Math.min((i + 1) * 3, pages.length)} page(s) sur ${pages.length} · ${IMP.carte.produits.length} produits trouvés` };
+            dessinerImport();
+          }
+          if (IMP.carte.produits.length === 0) throw Object.assign(new Error('Site non lisible directement : importer des captures d\'écran du menu comme photos.'), { code: 'site_non_lisible' });
+        }
+        await impPreparer();
+      } catch (err) {
+        IMP.etape = 1; IMP.message = err.code === 'stop' ? '' : err.message; dessinerImport();
+      }
+    }
+
+    // ---------- Plan : ce qui sera créé, modifié, désactivé ----------
+    async function impPreparer() {
+      const [rp, rf, ra] = await Promise.all([
+        supabaseClient.from('produits').select('id, nom, categorie, taille, prix, prix_livraison, prix_emporter, prix_sur_place, details, actif, famille_id').eq('business_id', BUSINESS_ID),
+        supabaseClient.from('produit_familles').select('id, nom').eq('business_id', BUSINESS_ID),
+        supabaseClient.from('attributs').select('id, nom, categorie').eq('business_id', BUSINESS_ID)
+      ]);
+      if (rp.error || rf.error || ra.error) throw new Error((rp.error || rf.error || ra.error).message);
+      IMP.existants = rp.data || []; IMP.familles = rf.data || []; IMP.attributs = ra.data || [];
+      IMP.mode = IMP.existants.length > 0 ? 'mise_a_jour' : 'creation';
+      IMP.plan = impConstruirePlan(IMP.carte, IMP.existants, IMP.familles, IMP.couv, IMP.mode);
+      IMP.etape = 3; dessinerImport();
+    }
+
+    function impConstruirePlan(carte, existants, familles, couv, mode) {
+      const plan = { nouveaux: [], prix: [], desc: [], absents: [], groupes: [], supplements: [], promotions: carte.promotions || [], famillesNouvelles: [] };
+      const parCle = new Map(existants.map(e => [impCleLigne(e.categorie, e.nom), e]));
+      const famillesExistantes = new Set(familles.map(f => impNorm(f.nom)).concat(existants.map(e => impNorm(e.categorie))));
+      const vus = new Set(), famillesLues = new Set();
+      carte.produits.forEach(p => {
+        const nomComplet = impNomComplet(p), cle = impCleLigne(p.famille, nomComplet);
+        famillesLues.add(impNorm(p.famille));
+        const e = parCle.get(cle);
+        if (!e) { plan.nouveaux.push({ on: true, famille: p.famille, sous_categorie: p.sous_categorie || '', nom: nomComplet, nomBase: p.nom, taille: p.taille || null, formule: p.formule || null, prix: p.prix, description: p.description || '', deduit: !!p.prix_deduit, incertain: !!p.incertain }); return; }
+        vus.add(e.id);
+        if (!(p.prix > 0)) return;
+        const anciens = [e.prix, e.prix_livraison, e.prix_emporter, e.prix_sur_place].filter(x => x !== null && x !== undefined).map(Number);
+        if (anciens.some(x => Math.abs(x - p.prix) > 0.001)) plan.prix.push({ on: true, id: e.id, nom: e.nom, avant: { prix: e.prix, prix_livraison: e.prix_livraison, prix_emporter: e.prix_emporter, prix_sur_place: e.prix_sur_place }, apres: p.prix });
+        if (p.description && impNorm(p.description) !== impNorm(e.details || '')) plan.desc.push({ on: true, id: e.id, nom: e.nom, avant: e.details || '', apres: p.description });
+      });
+      if (couv === 'complete' && mode === 'mise_a_jour') {
+        existants.filter(e => e.actif !== false && famillesLues.has(impNorm(e.categorie)) && !vus.has(e.id)).forEach(e => plan.absents.push({ on: true, id: e.id, nom: e.nom, famille: e.categorie }));
+      }
+      plan.famillesNouvelles = [...new Set(plan.nouveaux.map(n => n.famille))].filter(f => !famillesExistantes.has(impNorm(f))).map(f => ({ on: true, nom: f }));
+      const nouvelles = new Set(plan.famillesNouvelles.map(f => impNorm(f.nom)));
+      plan.groupes = (carte.groupes || []).map(g => ({ ...g, on: !g.incertain, ecriture: nouvelles.has(impNorm(g.famille)) }));
+      plan.supplements = (carte.supplements || []).map(s => ({ ...s, on: true, ecriture: nouvelles.has(impNorm(s.famille)) }));
+      return plan;
+    }
+
+    // ---------- Tableau de validation ----------
+    function impCase(groupe, i, coche) { return `<input type="checkbox" style="width:22px;height:22px;margin-top:2px;" ${coche ? 'checked' : ''} onchange="impCocher('${groupe}',${i},this.checked)">`; }
+    function impBlocTitre(titre, groupe, tableau, aide) {
+      const n = tableau.filter(x => x.on).length;
+      return `<h3 style="margin:18px 0 6px;font-size:15px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;"><span>${titre} <span style="font-weight:400;color:var(--muted);font-size:12.5px;">(${n} sur ${tableau.length} cochés)</span></span>
+        <span><button type="button" class="btn btn-secondary btn-sm" onclick="impToutCocher('${groupe}',true)">Tout cocher</button> <button type="button" class="btn btn-secondary btn-sm" onclick="impToutCocher('${groupe}',false)">Tout décocher</button></span></h3>
+        ${aide ? `<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px;">${aide}</div>` : ''}`;
+    }
+    function impAvantPrix(a) {
+      const v = [a.prix, a.prix_livraison, a.prix_emporter, a.prix_sur_place].map(x => x === null || x === undefined ? null : Number(x));
+      const tous = v.filter(x => x !== null);
+      if (tous.length && tous.every(x => x === tous[0])) return impPrix(tous[0]);
+      return `livraison ${impPrix(a.prix_livraison)} / emporter ${impPrix(a.prix_emporter)} / sur place ${impPrix(a.prix_sur_place)}`;
+    }
+    function impLigneHtml(l, i) {
+      return `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #e6e8ec;">${impCase('nouveaux', i, l.on)}
+        <div><div style="font-size:12.5px;color:var(--muted);">${escHtml(l.famille)}${l.sous_categorie ? ' · ' + escHtml(l.sous_categorie) : ''}${l.deduit ? ' <span class="badge badge-warning">prix déduit du groupe : à vérifier</span>' : ''}${l.incertain ? ' <span class="badge badge-warning">À vérifier : prix illisible</span>' : ''}</div>
+          <div style="display:grid;grid-template-columns:1fr 110px;gap:8px;margin-top:4px;">
+            <input type="text" value="${escHtml(l.nom)}" aria-label="Nom" oninput="IMP.plan.nouveaux[${i}].nom=this.value">
+            <input type="text" value="${l.prix > 0 ? String(l.prix).replace('.', ',') : ''}" placeholder="Prix €" inputmode="decimal" aria-label="Prix" id="imp-prix-${i}" style="${l.on && !(l.prix > 0) ? 'border-color:var(--err);' : ''}" oninput="impPrixSaisi(${i},this.value)"></div>
+          ${l.description ? `<div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${escHtml(l.description)}</div>` : ''}</div></div>`;
+    }
+    function impHtmlValidation() {
+      const p = IMP.plan, r = IMP.carte.rapport;
+      const manuel = IMP.src === 'manuel';
+      let h = `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:16px;">Vérification avant écriture</h3>
+        <div class="groupe-note" style="background:var(--info-bg);color:var(--info);">${manuel ? 'Saisie manuelle.' : `${IMP.src === 'site' ? 'Site lu.' : IMP.fichiers.length + ' fichier(s) lu(s).'} ${r.prix_vus} prix vus, ${r.produits_lus} produits lus.`} Rien n'est écrit avant « Appliquer ».</div>`;
+      if (manuel) h += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('produit')">➕ Ajouter un produit</button><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('groupe')">➕ Ajouter un groupe d'options</button><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('supplement')">➕ Ajouter des suppléments</button></div>`;
+      if (IMP.mode === 'creation' || manuel) {
+        if (p.famillesNouvelles.length) h += impBlocTitre('Familles à créer', 'familles', p.famillesNouvelles) + p.famillesNouvelles.map((f, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:6px 0;">${impCase('familles', i, f.on)}<div><strong>${escHtml(f.nom)}</strong></div></div>`).join('');
+      }
+      if (p.nouveaux.length) h += impBlocTitre(IMP.mode === 'creation' ? 'Produits' : 'Nouveaux produits', 'nouveaux', p.nouveaux, IMP.mode === 'creation' ? '' : 'Nom différent d\'un produit existant : créé comme nouveau produit.') + p.nouveaux.map(impLigneHtml).join('');
+      if (p.prix.length) h += impBlocTitre('Prix modifiés', 'prix', p.prix, 'Un prix unique remplace les trois prix par mode ; les anciens prix sont affichés.') + p.prix.map((x, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #e6e8ec;">${impCase('prix', i, x.on)}<div><strong>${escHtml(x.nom)}</strong><div style="font-size:13px;color:var(--muted);"><s>${impAvantPrix(x.avant)}</s> → <strong style="color:#2b2f36;">${impPrix(x.apres)}</strong></div></div></div>`).join('');
+      if (p.desc.length) h += impBlocTitre('Descriptions modifiées', 'desc', p.desc, 'Cochées par défaut comme le reste : relire les textes lus sur une photo.') + p.desc.map((x, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #e6e8ec;">${impCase('desc', i, x.on)}<div><strong>${escHtml(x.nom)}</strong><div style="font-size:13px;color:var(--muted);"><s>${escHtml(x.avant || '(vide)')}</s><br><strong style="color:#2b2f36;">${escHtml(x.apres)}</strong></div></div></div>`).join('');
+      if (IMP.couv === 'complete' && IMP.mode === 'mise_a_jour' && !manuel) {
+        const nb = p.absents.filter(x => x.on).length;
+        if (p.absents.length) h += `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:14px;" id="imp-bandeau-absents">${nb} produit${nb > 1 ? 's seront désactivés' : ' sera désactivé'} (jamais supprimés) : à vérifier avant de continuer.</div>` + impBlocTitre('Produits absents de la source', 'absents', p.absents) + p.absents.map((x, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:6px 0;">${impCase('absents', i, x.on)}<div><strong>${escHtml(x.nom)}</strong><div style="font-size:12.5px;color:var(--muted);">${escHtml(x.famille)} : famille présente dans la source, désactivation proposée</div></div></div>`).join('');
+      } else if (IMP.mode === 'mise_a_jour' && !manuel) h += '<div class="groupe-note" style="background:var(--warn-bg,#fff3e0);color:var(--warn);margin-top:14px;">Source partielle : aucun produit n\'est désactivé.</div>';
+      if (p.groupes.length) h += impBlocTitre('Groupes d\'options détectés', 'groupes', p.groupes, 'Écrits seulement pour les familles créées par cet import ; sinon à créer à la main.') + p.groupes.map((g, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #e6e8ec;">${g.ecriture ? impCase('groupes', i, g.on) : '<span></span>'}<div><strong>${escHtml(g.famille)} · ${escHtml(g.nom_groupe)}</strong> ${g.incertain ? '<span class="badge badge-warning">à vérifier</span>' : ''}${g.ecriture ? '' : ' <span class="badge badge-warning">non écrit : famille existante</span>'}<div style="font-size:13px;color:var(--muted);">${escHtml(g.question || '')} ${g.min}–${g.max} choix · ${g.prix_choix > 0 ? impPrix(g.prix_choix) + ' par choix' : 'inclus'}<br>${escHtml(g.choix.join(', '))}</div></div></div>`).join('');
+      if (p.supplements.length) h += impBlocTitre('Suppléments détectés', 'supplements', p.supplements) + p.supplements.map((s, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #e6e8ec;">${s.ecriture ? impCase('supplements', i, s.on) : '<span></span>'}<div><strong>${escHtml(s.famille)} · ${impPrix(s.prix)} chacun</strong>${s.ecriture ? '' : ' <span class="badge badge-warning">non écrit : famille existante</span>'}<div style="font-size:13px;color:var(--muted);">${escHtml(s.choix.join(', '))}</div></div></div>`).join('');
+      if (p.promotions.length) h += `<h3 style="margin:18px 0 6px;font-size:15px;">Promotions à traiter <span style="font-weight:400;color:var(--muted);font-size:12.5px;">(non importées dans la carte)</span></h3>` + p.promotions.map(t => `<div style="padding:4px 0;font-size:14px;">${escHtml(t)}</div>`).join('') + '<div style="font-size:12.5px;color:var(--muted);">Enregistrées dans une liste en attente pour le futur module promotions, sans effet sur l\'agent.</div>';
+      if (!p.nouveaux.length && !p.prix.length && !p.desc.length && !p.absents.length && !manuel) h += '<div class="no-data" style="margin-top:12px;">Aucun écart avec la carte actuelle.</div>';
+      h += `<div id="imp-msg-appliquer"></div><div class="form-actions" style="justify-content:flex-start;margin-top:16px;flex-wrap:wrap;"><button type="button" class="btn btn-primary" id="imp-btn-appliquer" onclick="impAppliquer()">Appliquer</button><button type="button" class="btn btn-secondary" onclick="chargerImportCarte()">Recommencer</button></div></div>`;
+      return h;
+    }
+
+    function impCocher(groupe, i, v) {
+      const t = groupe === 'familles' ? IMP.plan.famillesNouvelles : IMP.plan[groupe];
+      t[i].on = v;
+      impRedessinerGarderPosition();
+    }
+    function impToutCocher(groupe, v) {
+      const t = groupe === 'familles' ? IMP.plan.famillesNouvelles : IMP.plan[groupe];
+      t.forEach(x => { if (groupe !== 'groupes' && groupe !== 'supplements') x.on = v; else if (x.ecriture) x.on = v; });
+      impRedessinerGarderPosition();
+    }
+    function impRedessinerGarderPosition() { const y = window.scrollY; dessinerImport(); window.scrollTo(0, y); }
+    function impPrixSaisi(i, v) {
+      const n = parseFloat(String(v).replace(',', '.'));
+      IMP.plan.nouveaux[i].prix = Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0;
+      const c = document.getElementById('imp-prix-' + i);
+      if (c) c.style.borderColor = IMP.plan.nouveaux[i].on && !(IMP.plan.nouveaux[i].prix > 0) ? 'var(--err)' : '';
+      impMajBoutonAppliquer();
+    }
+    function impMajBoutonAppliquer() {
+      const b = document.getElementById('imp-btn-appliquer');
+      if (!b || !IMP.plan) return;
+      const p = IMP.plan;
+      const sansPrix = p.nouveaux.filter(x => x.on && !(x.prix > 0)).length;
+      const total = p.nouveaux.filter(x => x.on).length + p.prix.filter(x => x.on).length + p.desc.filter(x => x.on).length
+        + (IMP.couv === 'complete' ? p.absents.filter(x => x.on).length : 0) + p.groupes.filter(x => x.on && x.ecriture).length + p.supplements.filter(x => x.on && x.ecriture).length;
+      b.disabled = sansPrix > 0 || total === 0;
+      b.textContent = `Appliquer (${total} modification${total > 1 ? 's' : ''})`;
+      const m = document.getElementById('imp-msg-appliquer');
+      if (m) m.innerHTML = sansPrix ? `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:10px;">${sansPrix} ligne cochée sans prix : renseigner le prix ou décocher la ligne.</div>` : '';
+      const ban = document.getElementById('imp-bandeau-absents');
+      if (ban) { const nb = p.absents.filter(x => x.on).length; ban.textContent = `${nb} produit${nb > 1 ? 's seront désactivés' : ' sera désactivé'} (jamais supprimés) : à vérifier avant de continuer.`; }
+    }
+
+    // ---------- Saisie manuelle : ajouts ----------
+    function impOuvrirAjout(type) {
+      const fam = IMP.carte.produits.map(p => p.famille).concat(IMP.familles.map(f => f.nom));
+      const options = [...new Set(fam)].map(f => `<option value="${escHtml(f)}">`).join('');
+      const champ = (id, lib, extra) => `<div class="form-group"><label>${lib}</label>${extra || `<input type="text" id="${id}">`}</div>`;
+      let corps = `<datalist id="imp-familles">${options}</datalist>` + champ('aj-famille', 'Famille *', '<input type="text" id="aj-famille" list="imp-familles" placeholder="PIZZAS">');
+      if (type === 'produit') corps += champ('aj-nom', 'Nom *') + champ('aj-taille', 'Taille (facultatif)') + champ('aj-prix', 'Prix € *', '<input type="text" id="aj-prix" inputmode="decimal">') + champ('aj-desc', 'Description (facultatif)') + champ('aj-sous', 'Sous-catégorie (facultatif)');
+      if (type === 'groupe') corps += champ('aj-nom', 'Nom du groupe * (ex. VIANDE, SAUCE)') + champ('aj-question', 'Question posée au client', '<input type="text" id="aj-question" placeholder="Quelles viandes ?">') + champ('aj-choix', 'Choix * (un par ligne)', '<textarea id="aj-choix" style="min-height:90px;"></textarea>') + champ('aj-min', 'Minimum de choix', '<input type="text" id="aj-min" value="0" inputmode="numeric">') + champ('aj-max', 'Maximum de choix', '<input type="text" id="aj-max" value="1" inputmode="numeric">') + champ('aj-prixc', 'Prix par choix € (0 = inclus)', '<input type="text" id="aj-prixc" value="0" inputmode="decimal">');
+      if (type === 'supplement') corps += champ('aj-choix', 'Suppléments * (un par ligne)', '<textarea id="aj-choix" style="min-height:90px;"></textarea>') + champ('aj-prix', 'Prix € de chaque supplément *', '<input type="text" id="aj-prix" inputmode="decimal">');
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()"><div class="modal-header"><h2>${type === 'produit' ? '➕ Ajouter un produit' : type === 'groupe' ? '➕ Ajouter un groupe d\'options' : '➕ Ajouter des suppléments'}</h2><button class="btn-close" onclick="closeModal('modal-edit')">×</button></div>
+        <form onsubmit="impValiderAjout(event,'${type}')">${corps}<div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button><button type="submit" class="btn btn-primary">Ajouter</button></div></form></div>`;
+      modal.classList.add('show'); modal.onclick = () => closeModal('modal-edit');
+    }
+    function impValiderAjout(e, type) {
+      e.preventDefault();
+      const v = id => (document.getElementById(id) ? document.getElementById(id).value.trim() : '');
+      const num = id => { const n = parseFloat(v(id).replace(',', '.')); return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN; };
+      const famille = v('aj-famille').toUpperCase();
+      if (!famille) { alert('La famille est obligatoire.'); return; }
+      if (type === 'produit') {
+        if (!v('aj-nom') || !(num('aj-prix') > 0)) { alert('Nom et prix sont obligatoires.'); return; }
+        IMP.carte.produits.push({ famille, sous_categorie: v('aj-sous'), nom: v('aj-nom').toUpperCase(), taille: v('aj-taille').toUpperCase() || null, formule: null, prix: num('aj-prix'), description: v('aj-desc'), prix_deduit: false, incertain: false });
+      } else {
+        const choix = v('aj-choix').split(/\r?\n/).map(x => x.trim().toUpperCase()).filter(Boolean);
+        if (!choix.length) { alert('Au moins un choix est obligatoire.'); return; }
+        if (type === 'groupe') {
+          if (!v('aj-nom')) { alert('Le nom du groupe est obligatoire.'); return; }
+          const mn = Math.max(0, Math.round(num('aj-min')) || 0), mx = Math.max(1, Math.round(num('aj-max')) || 1);
+          IMP.carte.groupes.push({ famille, nom_groupe: v('aj-nom').toUpperCase(), question: v('aj-question'), choix, prix_choix: num('aj-prixc') || 0, min: mn, max: Math.max(mn, mx), min_max_par_taille: {}, incertain: false });
+        } else {
+          if (!(num('aj-prix') >= 0)) { alert('Le prix est obligatoire.'); return; }
+          IMP.carte.supplements.push({ famille, choix, prix: num('aj-prix') });
+        }
+      }
+      closeModal('modal-edit');
+      IMP.plan = impConstruirePlan(IMP.carte, IMP.existants, IMP.familles, IMP.couv, IMP.mode);
+      dessinerImport();
+    }
+
+    // ---------- Écriture ----------
+    function impTranches(tableau, taille) { const t = []; for (let i = 0; i < tableau.length; i += taille) t.push(tableau.slice(i, i + taille)); return t; }
+    function impSlug(s) { return impNorm(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+    async function impAppliquer() {
+      const p = IMP.plan;
+      const nbNouveaux = p.nouveaux.filter(x => x.on).length, nbPrix = p.prix.filter(x => x.on).length, nbDesc = p.desc.filter(x => x.on).length;
+      const nbAbs = IMP.couv === 'complete' ? p.absents.filter(x => x.on).length : 0;
+      const msg = `Écrire dans la carte de ce restaurant ?\n\n• ${nbNouveaux} produit(s) créé(s)\n• ${nbPrix} prix modifié(s)\n• ${nbDesc} description(s) modifiée(s)\n• ${nbAbs} produit(s) désactivé(s)\n\nL'opération pourra être annulée.`;
+      if (!confirm(msg)) return;
+      const b = document.getElementById('imp-btn-appliquer'); if (b) { b.disabled = true; b.textContent = 'Écriture en cours…'; }
+      const log = { familles_creees: [], produits_crees: [], attributs_crees: [], options_creees: [], supplements_crees: [], prix_modifies: [], descriptions_modifiees: [], desactives: [] };
+      try {
+        const bid = BUSINESS_ID;
+        // 1) Familles
+        const idFamille = {}; IMP.familles.forEach(f => { idFamille[impNorm(f.nom)] = f.id; });
+        IMP.existants.forEach(e => { if (e.famille_id) idFamille[impNorm(e.categorie)] = idFamille[impNorm(e.categorie)] || e.famille_id; });
+        const aCreer = p.famillesNouvelles.filter(f => f.on).map((f, i) => ({ business_id: bid, nom: f.nom, position: IMP.familles.length + i, actif: true }));
+        if (aCreer.length) {
+          const { data, error } = await supabaseClient.from('produit_familles').insert(aCreer).select('id, nom');
+          if (error) throw error;
+          data.forEach(f => { idFamille[impNorm(f.nom)] = f.id; log.familles_creees.push(f.id); });
+        }
+        // 2) Nouveaux produits (un prix unique pour les trois modes)
+        const famillesExclues = new Set(p.famillesNouvelles.filter(f => !f.on).map(f => impNorm(f.nom)));
+        const lignes = p.nouveaux.filter(x => x.on && x.prix > 0 && !famillesExclues.has(impNorm(x.famille)));
+        const rows = lignes.map((x, i) => ({
+          business_id: bid, famille_id: idFamille[impNorm(x.famille)] || null, nom: x.nom, categorie: x.famille, prix: x.prix, prix_livraison: x.prix, prix_emporter: x.prix, prix_sur_place: x.prix,
+          taille: x.taille, details: x.description || null, type_produit: 'produit_standard', position: i,
+          metadata: { source: 'import', ...(x.sous_categorie ? { sous_categorie: x.sous_categorie } : {}), ...(x.formule ? { formule: x.formule } : {}), ...(x.deduit ? { prix_deduit: true } : {}) }, actif: true
+        }));
+        const crees = [];
+        for (const t of impTranches(rows, 100)) {
+          const { data, error } = await supabaseClient.from('produits').insert(t).select('id, nom, categorie, taille, famille_id');
+          if (error) throw error;
+          data.forEach(d => { crees.push(d); log.produits_crees.push(d.id); });
+        }
+        // 3) Options et suppléments des familles créées par cet import
+        const attributParNom = {}; IMP.attributs.forEach(a => { attributParNom[impNorm(a.nom)] = a.id; });
+        const idAttribut = async (nom, categorie, prix) => {
+          const k = impNorm(nom); if (attributParNom[k]) return attributParNom[k];
+          const { data, error } = await supabaseClient.from('attributs').insert({ business_id: bid, categorie, nom, prix_supplement: prix || 0, actif: true, position: 0 }).select('id').single();
+          if (error) throw error;
+          attributParNom[k] = data.id; log.attributs_crees.push(data.id); return data.id;
+        };
+        for (const g of p.groupes.filter(x => x.on && x.ecriture)) {
+          const produitsFamille = crees.filter(c => impNorm(c.categorie) === impNorm(g.famille));
+          for (const c of g.choix) await idAttribut(c, g.nom_groupe, g.prix_choix);
+          const optionsRows = produitsFamille.map((prod, i) => {
+            const mm = (prod.taille && g.min_max_par_taille && g.min_max_par_taille[String(prod.taille).toUpperCase()]) || [g.min, g.max];
+            const prixModes = { livraison: g.prix_choix, emporter: g.prix_choix, sur_place: g.prix_choix };
+            return { business_id: bid, produit_id: prod.id, categorie_attribut: g.nom_groupe, min: mm[0], max: Math.max(mm[0], mm[1], 1), obligatoire: mm[0] > 0, inclus_gratuit: g.prix_choix > 0 ? 0 : Math.max(mm[0], mm[1], 1), position: i, comportement: 'ajout', libelle: g.question || null,
+              donnees_fournisseur: { origine: 'import', nom_groupe: g.nom_groupe, ids: Object.fromEntries(g.choix.map(c => [c, 'import:' + impSlug(c)])), choix: g.choix.map(c => ({ nom: c, prix: prixModes })) } };
+          });
+          for (const t of impTranches(optionsRows, 100)) {
+            const { data, error } = await supabaseClient.from('produit_options').insert(t).select('id');
+            if (error) throw error;
+            data.forEach(d => log.options_creees.push(d.id));
+          }
+        }
+        for (const s of p.supplements.filter(x => x.on && x.ecriture)) {
+          const produitsFamille = crees.filter(c => impNorm(c.categorie) === impNorm(s.famille));
+          const tailles = [...new Set(produitsFamille.map(c => c.taille || null))];
+          const famId = idFamille[impNorm(s.famille)] || null;
+          const rowsS = [];
+          for (const c of s.choix) {
+            const aid = await idAttribut(c, 'SUPPLEMENT', s.prix);
+            tailles.forEach(t => rowsS.push({ business_id: bid, famille_id: famId, produit_id: null, taille: t, attribut_id: aid, prix_livraison: s.prix, prix_emporter: s.prix, prix_sur_place: s.prix }));
+          }
+          for (const t of impTranches(rowsS, 100)) {
+            const { data, error } = await supabaseClient.from('supplements_prix').insert(t).select('id');
+            if (error) throw error;
+            data.forEach(d => log.supplements_crees.push(d.id));
+          }
+        }
+        // 4) Prix, descriptions, désactivations (mise à jour)
+        for (const x of p.prix.filter(y => y.on)) {
+          const { error } = await supabaseClient.from('produits').update({ prix: x.apres, prix_livraison: x.apres, prix_emporter: x.apres, prix_sur_place: x.apres }).eq('id', x.id);
+          if (error) throw error;
+          log.prix_modifies.push({ id: x.id, avant: x.avant });
+        }
+        for (const x of p.desc.filter(y => y.on)) {
+          const { error } = await supabaseClient.from('produits').update({ details: x.apres }).eq('id', x.id);
+          if (error) throw error;
+          log.descriptions_modifiees.push({ id: x.id, avant: x.avant });
+        }
+        const aDesactiver = IMP.couv === 'complete' ? p.absents.filter(x => x.on).map(x => x.id) : [];
+        if (aDesactiver.length) {
+          const { error } = await supabaseClient.from('produits').update({ actif: false }).in('id', aDesactiver);
+          if (error) throw error;
+          log.desactives = aDesactiver;
+        }
+        // 5) Promotions en attente et adresse du site
+        const { data: cour } = await supabaseClient.from('business').select('type_params').eq('id', bid).single();
+        const tp = { ...((cour && cour.type_params) || {}) };
+        let tpChange = false;
+        if (p.promotions.length) {
+          const liste = Array.isArray(tp.promotions_a_traiter) ? tp.promotions_a_traiter : [];
+          p.promotions.forEach(t => { if (!liste.some(x => impNorm(x.texte) === impNorm(t))) { liste.push({ texte: t, source: IMP.src, date: new Date().toISOString().slice(0, 10) }); tpChange = true; } });
+          tp.promotions_a_traiter = liste;
+        }
+        if (IMP.src === 'site' && IMP.url.trim() && !tp.site_carte) { tp.site_carte = IMP.url.trim(); tpChange = true; }
+        if (tpChange) { const { error } = await supabaseClient.from('business').update({ type_params: tp }).eq('id', bid); if (error) throw error; }
+        // 6) Historique (permet d'annuler)
+        const resume = { produits_crees: log.produits_crees.length, prix_modifies: log.prix_modifies.length, descriptions_modifiees: log.descriptions_modifiees.length, desactives: log.desactives.length, options: log.options_creees.length, supplements: log.supplements_crees.length, familles: log.familles_creees.length };
+        const { error: eh } = await supabaseClient.from('imports_carte').insert({ business_id: bid, source: IMP.src, couverture: IMP.src === 'manuel' ? null : IMP.couv, mode: IMP.mode, resume, annulation: log });
+        if (eh) throw new Error('Historique non enregistré (' + eh.message + ') : l\'import a été annulé automatiquement.');
+        IMP.htmlResultat = `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:16px;">${IMP.mode === 'creation' ? 'Carte créée' : 'Mise à jour appliquée'}</h3>
+          <div class="groupe-note" style="background:var(--ok-bg,#e6f4ea);color:var(--ok);">${resume.produits_crees} produit(s) créé(s), ${resume.prix_modifies} prix modifié(s), ${resume.descriptions_modifiees} description(s) modifiée(s), ${resume.desactives} produit(s) désactivé(s)${resume.options ? `, ${resume.options} groupe(s) d'options` : ''}${resume.supplements ? `, ${resume.supplements} supplément(s)` : ''}. L'agent lit la nouvelle carte dès l'appel suivant (délai de 60 secondes au plus).</div>
+          <div class="form-actions" style="justify-content:flex-start;margin-top:14px;"><button type="button" class="btn btn-secondary" onclick="chargerImportCarte()">Voir l'historique et annuler</button><button type="button" class="btn btn-secondary" onclick="allerSection('produits')">Voir les produits</button></div></div>`;
+        IMP.etape = 4; dessinerImport(); majPastillesParam();
+      } catch (err) {
+        console.error('Import : erreur pendant l\'écriture', err);
+        try { await impDefaire(log); } catch (e2) { console.error('Retour arrière partiel', e2); }
+        alert('❌ Import interrompu : ' + (err.message || err) + '\n\nCe qui avait déjà été écrit a été annulé.');
+        dessinerImport();
+      }
+    }
+
+    // Défait ce qu'un import a écrit (utilisé pour l'annulation et en cas d'erreur)
+    async function impDefaire(log) {
+      const del = async (table, ids) => { for (const t of impTranches(ids || [], 100)) { if (!t.length) continue; const { error } = await supabaseClient.from(table).delete().in('id', t); if (error) throw new Error(table + ' : ' + error.message); } };
+      await del('supplements_prix', log.supplements_crees);
+      await del('produit_options', log.options_creees);
+      await del('produits', log.produits_crees);
+      await del('attributs', log.attributs_crees);
+      await del('produit_familles', log.familles_creees);
+      for (const x of (log.prix_modifies || [])) { const { error } = await supabaseClient.from('produits').update({ prix: x.avant.prix, prix_livraison: x.avant.prix_livraison, prix_emporter: x.avant.prix_emporter, prix_sur_place: x.avant.prix_sur_place }).eq('id', x.id); if (error) throw error; }
+      for (const x of (log.descriptions_modifiees || [])) { const { error } = await supabaseClient.from('produits').update({ details: x.avant || null }).eq('id', x.id); if (error) throw error; }
+      if ((log.desactives || []).length) { const { error } = await supabaseClient.from('produits').update({ actif: true }).in('id', log.desactives); if (error) throw error; }
+    }
+
+    async function impAnnuler(id) {
+      if (!confirm('Annuler cette mise à jour ?\n\nLes anciens prix et descriptions sont rétablis, les produits désactivés sont réactivés et les produits ajoutés sont retirés.')) return;
+      try {
+        const { data: ligne, error } = await supabaseClient.from('imports_carte').select('id, annulation, statut, cree_le').eq('id', id).single();
+        if (error) throw error;
+        if (ligne.statut !== 'applique') { alert('Cet import est déjà annulé.'); return; }
+        const { data: plusRecents } = await supabaseClient.from('imports_carte').select('id').eq('business_id', BUSINESS_ID).eq('statut', 'applique').gt('cree_le', ligne.cree_le);
+        if (plusRecents && plusRecents.length) { alert('Un import plus récent existe : l\'annuler d\'abord.'); return; }
+        await impDefaire(ligne.annulation || {});
+        const { error: e2 } = await supabaseClient.from('imports_carte').update({ statut: 'annule', annule_le: new Date().toISOString() }).eq('id', id);
+        if (e2) throw e2;
+        alert('✅ Mise à jour annulée.');
+        majPastillesParam();
+        chargerImportCarte();
+      } catch (err) {
+        alert('❌ Annulation impossible : ' + err.message);
+      }
+    }
+
+    function impHtmlHistorique() {
+      if (IMP.historiqueManquant) return `<div style="${IMP_CARTE_CSS}"><span class="badge badge-warning">Historique indisponible</span> <span style="font-size:13px;">Exécuter d'abord le script des ajouts à la base (ajouts_MAJ.sql).</span></div>`;
+      if (!IMP.historique.length) return '';
+      const premierApplique = IMP.historique.find(h => h.statut === 'applique');
+      return `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:15px;">Historique</h3>${IMP.historique.map(h => {
+        const r = h.resume || {};
+        const date = new Date(h.cree_le).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+        const detail = `${r.produits_crees || 0} créé(s), ${r.prix_modifies || 0} prix, ${r.desactives || 0} désactivé(s)`;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #e6e8ec;"><span>${date} · ${h.source === 'photos' ? 'Photos ou PDF' : h.source === 'site' ? 'Site internet' : 'Saisie manuelle'} · ${detail}</span>
+          ${h.statut === 'annule' ? '<span class="badge badge-warning">Annulé</span>' : (premierApplique && premierApplique.id === h.id ? `<button type="button" class="btn btn-danger btn-sm" onclick="impAnnuler('${h.id}')">Annuler cette mise à jour</button>` : '<span class="badge badge-success">Appliqué</span>')}</div>`;
+      }).join('')}</div>`;
+    }
+
 
     // ========================================
     // 🆕 SÉLECTION MULTIPLE + SUPPRESSION GROUPÉE
