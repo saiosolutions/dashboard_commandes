@@ -3323,11 +3323,14 @@
         const attributs = new Map();
         attrs.forEach(a => { const k = kbCle(a.nom); if (!attributs.has(k)) attributs.set(k, { nom: a.nom, categorie: a.categorie }); });
         const groupes = new Map();
+        // Restaurants saisis à la main : les choix d'un groupe sont les attributs de même étiquette
+        const parCategorie = new Map();
+        attrs.forEach(a => { const c = kbCle(a.categorie); if (!parCategorie.has(c)) parCategorie.set(c, new Set()); parCategorie.get(c).add(kbCle(a.nom)); });
         opts.forEach(o => {
           const ids = o.donnees_fournisseur && o.donnees_fournisseur.ids;
-          const cles = new Set(ids && typeof ids === 'object' ? Object.keys(ids).map(kbCle) : []);
+          const cles = new Set(ids && typeof ids === 'object' ? Object.keys(ids).map(kbCle) : (parCategorie.get(kbCle(o.categorie_attribut)) || []));
           if (!groupes.has(o.produit_id)) groupes.set(o.produit_id, []);
-          groupes.get(o.produit_id).push({ type: kb2Type(o), cat: kbCle(o.categorie_attribut), cles });
+          groupes.get(o.produit_id).push({ type: kb2Type(o), cat: kbCle(o.categorie_attribut), lib: o.categorie_attribut, cles });
         });
         if (bid === BUSINESS_ID) referentielCommandes = { attributs, groupes };
       } catch (err) {
@@ -3340,6 +3343,15 @@
       'VIANDE': '🥩 Viandes :', 'SAUCE': '🍯 Sauces :', 'BOISSON': '🥤 Boisson :', 'DESSERT': '🍰 Dessert :',
       'ACCOMPAGNEMENT': '🍽️ Accompagnement :', 'TEX MEX': '🍗 Tex mex :', 'FROMAGE': '🧀 Fromages :'
     };
+
+    // Étiquette d'un groupe de choix : celle du back-office (ex. « Choix des viandes », « Sauces gratuites »), avec une icône d'après son nom
+    function libelleGroupeChoix(g) {
+      if (LIBELLES_GROUPES_CHOIX[g.type]) return LIBELLES_GROUPES_CHOIX[g.type];
+      const n = kbCle(g.lib || g.type);
+      const icone = /VIANDE/.test(n) ? '🥩' : /SAUCE/.test(n) ? '🍯' : /BOISSON|SODA|JUS/.test(n) ? '🥤' : /DESSERT|GLACE/.test(n) ? '🍰' : /FROMAGE/.test(n) ? '🧀' : /ACCOMPAGNEMENT|FRITE/.test(n) ? '🍽️' : '📋';
+      const t = String(g.lib || g.type).toLowerCase();
+      return icone + ' ' + t.charAt(0).toUpperCase() + t.slice(1) + ' :';
+    }
 
     function htmlChoixArticle(item) {
       const a = item.attributs_choisis || {};
@@ -3362,8 +3374,8 @@
           const affiche = at ? at.nom : nom;
           const g = groupes.find(x => x.cles.has(k));
           if (g) {
-            if (!parType.has(g.type)) parType.set(g.type, []);
-            parType.get(g.type).push(affiche);
+            if (!parType.has(g.cat)) parType.set(g.cat, { g, noms: [] });
+            parType.get(g.cat).noms.push(affiche);
           } else if (at && groupes.some(x => x.cles.size > 0 && (x.cat === kbCle(at.categorie) || x.type === kbCle(at.categorie)))) {
             horsListe.push(affiche);   // même nature qu'un groupe du produit, mais absent de sa liste
           } else {
@@ -3371,7 +3383,7 @@
           }
           affiches.add(k);
         });
-        parType.forEach((noms, type) => { htmlSupp += ligne(LIBELLES_GROUPES_CHOIX[type] || ('📋 ' + type + ' :'), noms); });
+        parType.forEach(({ g, noms }) => { htmlSupp += ligne(libelleGroupeChoix(g), noms); });
         if (extras.length) htmlSupp += ligne('➕ Suppléments :', extras);
         if (horsListe.length) htmlSupp += ligne('⚠️ Hors liste du produit :', horsListe, 'color:var(--err);font-weight:600;');
       }
@@ -5492,7 +5504,7 @@
       const manque = impCleManquante();
       const n = IMP.fichiers.length;
       const cout = IMP.src === 'photos' ? `Coût estimé de la lecture : environ ${(0.02 * Math.max(n, 1)).toFixed(2).replace('.', ',')} $ (selon le modèle d'IA retenu).` : IMP.src === 'site' ? 'Coût estimé de la lecture : de l\'ordre de 0,01 $ par page (selon le modèle d\'IA retenu).' : '';
-      const peutLire = IMP.src === 'manuel' || (!manque && (IMP.src === 'photos' ? n > 0 : /^https?:\/\//i.test(IMP.url.trim())));
+      const peutLire = IMP.src === 'manuel' || (!manque && (IMP.src === 'photos' ? n > 0 : true));
       return `
         <div style="${IMP_CARTE_CSS}">
           <h3 style="margin:0 0 4px;font-size:16px;">Importer la carte</h3>
@@ -5523,6 +5535,12 @@
     }
 
     function impHtmlProgression() {
+      if (IMP.attente) {
+        const n = IMP.attente.length;
+        return `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:16px;">${n} pages trouvées</h3>
+          <p style="font-size:14px;color:var(--muted);">La lecture de ${n} pages coûtera de l'ordre de ${(n * 0.01).toFixed(2).replace('.', ',')} $ (selon le modèle d'IA retenu) et prendra quelques minutes. Les pages sans prix sont ignorées.</p>
+          <div class="form-actions" style="justify-content:flex-start;margin-top:12px;"><button type="button" class="btn btn-primary" onclick="impConfirmerPages()">Lire les ${n} pages</button><button type="button" class="btn btn-secondary" onclick="impAnnulerPages()">Annuler</button></div></div>`;
+      }
       const p = IMP.progression;
       return `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:16px;">Lecture en cours</h3>
         <div style="height:10px;background:#eceef1;border-radius:6px;overflow:hidden;margin:12px 0 6px;"><div style="height:100%;width:${p.total ? Math.round(p.fait / p.total * 100) : 0}%;background:var(--info);"></div></div>
@@ -5531,8 +5549,14 @@
     }
 
     async function impLancer() {
-      IMP.message = '';
+      IMP.message = ''; IMP.attente = null;
       if (IMP.src === 'manuel') { IMP.carte = impCarteVide(); await impPreparer(); return; }
+      if (IMP.src === 'site') {
+        let url = IMP.url.trim();
+        // « osezampizza.fr » ou « www.osezampizza.fr » : le https:// est ajouté
+        if (!/^https?:\/\//i.test(url) && /^[^\s\/]+\.[^\s]{2,}$/.test(url)) { url = 'https://' + url; IMP.url = url; }
+        if (!/^https?:\/\//i.test(url)) { IMP.message = 'Saisir l\'adresse du site, par exemple https://www.exemple.fr'; dessinerImport(); return; }
+      }
       IMP.etape = 2; IMP.stop = false; IMP.carte = impCarteVide();
       try {
         if (IMP.src === 'photos') {
@@ -5546,30 +5570,41 @@
             IMP.progression = { fait: i + 1, total: lots.length, texte: `Lot ${i + 1} sur ${lots.length} · ${IMP.carte.produits.length} produits trouvés` };
             dessinerImport();
           }
+          await impPreparer();
         } else {
           IMP.progression = { fait: 0, total: 1, texte: 'Recherche des pages de la carte…' };
           dessinerImport();
           const d0 = await appelExtraire({ action: 'decouvrir_site', url: IMP.url.trim() });
           const pages = d0.pages || [];
-          if (pages.length > 50 && !confirm(`${pages.length} pages ont été détectées. La lecture coûtera de l'ordre de ${(pages.length * 0.01).toFixed(2).replace('.', ',')} $. Continuer ?`))
-            throw Object.assign(new Error('Lecture annulée.'), { code: 'stop' });
-          const lots = []; for (let i = 0; i < pages.length; i += 3) lots.push(pages.slice(i, i + 3));
-          IMP.progression = { fait: 0, total: lots.length, texte: `0 page sur ${pages.length}` };
-          dessinerImport();
-          for (let i = 0; i < lots.length; i++) {
-            if (IMP.stop) throw Object.assign(new Error('Lecture arrêtée.'), { code: 'stop' });
-            const d = await appelExtraire({ action: 'lire_pages', urls: lots[i] });
-            impFusionner(IMP.carte, d.carte);
-            IMP.progression = { fait: i + 1, total: lots.length, texte: `${Math.min((i + 1) * 3, pages.length)} page(s) sur ${pages.length} · ${IMP.carte.produits.length} produits trouvés` };
-            dessinerImport();
-          }
-          if (IMP.carte.produits.length === 0) throw Object.assign(new Error('Site non lisible directement : importer des captures d\'écran du menu comme photos.'), { code: 'site_non_lisible' });
+          if (pages.length > 50) { IMP.attente = pages; dessinerImport(); return; }   // confirmation dans la page
+          await impLirePages(pages);
         }
+      } catch (err) {
+        IMP.etape = 1; IMP.message = err.code === 'stop' ? '' : err.message; dessinerImport();
+      }
+    }
+
+    async function impLirePages(pages) {
+      IMP.etape = 2; IMP.stop = false; IMP.carte = impCarteVide();
+      try {
+        const lots = []; for (let i = 0; i < pages.length; i += 3) lots.push(pages.slice(i, i + 3));
+        IMP.progression = { fait: 0, total: lots.length, texte: `0 page sur ${pages.length}` };
+        dessinerImport();
+        for (let i = 0; i < lots.length; i++) {
+          if (IMP.stop) throw Object.assign(new Error('Lecture arrêtée.'), { code: 'stop' });
+          const d = await appelExtraire({ action: 'lire_pages', urls: lots[i] });
+          impFusionner(IMP.carte, d.carte);
+          IMP.progression = { fait: i + 1, total: lots.length, texte: `${Math.min((i + 1) * 3, pages.length)} page(s) sur ${pages.length} · ${IMP.carte.produits.length} produits trouvés` };
+          dessinerImport();
+        }
+        if (IMP.carte.produits.length === 0) throw Object.assign(new Error('Aucun produit avec prix trouvé sur ce site : site non lisible directement ? Importer des captures d\'écran du menu comme photos.'), { code: 'site_non_lisible' });
         await impPreparer();
       } catch (err) {
         IMP.etape = 1; IMP.message = err.code === 'stop' ? '' : err.message; dessinerImport();
       }
     }
+    async function impConfirmerPages() { const pages = IMP.attente || []; IMP.attente = null; await impLirePages(pages); }
+    function impAnnulerPages() { IMP.attente = null; IMP.etape = 1; dessinerImport(); }
 
     // ---------- Plan : ce qui sera créé, modifié, désactivé ----------
     async function impPreparer() {
