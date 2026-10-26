@@ -822,10 +822,6 @@
           <div class="toolbar">
             <select id="filter-attr-categorie" onchange="loadAttributs()">
               <option value="">Toutes catégories</option>
-              <option value="VIANDE">Viandes</option>
-              <option value="FROMAGE">Fromages</option>
-              <option value="SAUCE">Sauces</option>
-              <option value="SAUCE_TASTY">Sauces Tasty</option>
             </select>
           </div>
           <div id="attributs-table"></div>
@@ -4083,7 +4079,12 @@
           .order('nom', { ascending: true });
         if (error) throw error;
         attributs = data || [];
-        const catFilter = document.getElementById('filter-attr-categorie').value;
+        const selCat = document.getElementById('filter-attr-categorie');
+        const catChoisie = selCat.value;
+        const catsResto = [...new Set(attributs.map(a => a.categorie).filter(Boolean))].sort();
+        selCat.innerHTML = '<option value="">Toutes catégories</option>' + catsResto.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+        selCat.value = catsResto.includes(catChoisie) ? catChoisie : '';
+        const catFilter = selCat.value;
         const filtered = catFilter ? attributs.filter(a => a.categorie === catFilter) : attributs;
         const html = `
           <div class="table-container">
@@ -6113,11 +6114,8 @@
     // déjà présentes en base (+ option pour en créer une nouvelle)
     function optionsCategoriesAttributs(selected) {
       // Catégories distinctes trouvées dans les attributs chargés
-      const cats = [...new Set((attributs || []).map(a => a.categorie).filter(Boolean))].sort();
-      // Garantir que les 4 catégories historiques sont toujours proposées
-      ['VIANDE', 'SAUCE', 'FROMAGE', 'SAUCE_TASTY'].forEach(c => {
-        if (!cats.includes(c)) cats.push(c);
-      });
+      const cats = (window.__catsAttributsResto ? [...window.__catsAttributsResto] : [...new Set((attributs || []).map(a => a.categorie).filter(Boolean))]);
+      if (selected && !cats.includes(selected)) cats.push(selected);
       cats.sort();
       let opts = cats.map(c =>
         `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
@@ -6169,7 +6167,15 @@
       return select ? select.value : '';
     }
 
+    async function rafraichirCategoriesAttributs() {
+      try {
+        const { data } = await supabaseClient.from('attributs').select('categorie').eq('business_id', BUSINESS_ID);
+        window.__catsAttributsResto = [...new Set((data || []).map(a => a.categorie).filter(Boolean))];
+      } catch (_) { window.__catsAttributsResto = null; }
+    }
+
     async function openAddAttribut() {
+      await rafraichirCategoriesAttributs();
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -6426,6 +6432,7 @@
     async function editAttribut(id) {
       const attribut = attributs.find(a => a.id === id);
       if (!attribut) return;
+      await rafraichirCategoriesAttributs();
       const modal = document.getElementById('modal-edit');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
