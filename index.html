@@ -909,7 +909,7 @@
       <div class="container">
         <div class="toolbar">
           <div class="toolbar-left">
-            <input type="text" id="search-clients" placeholder="Rechercher..." style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
+            <input type="text" id="search-clients" placeholder="Rechercher..." onkeyup="if(event.key==='Enter')loadClients()" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px;">
             <select id="filter-segment" onchange="loadClients()">
               <option value="">Tous segments</option>
               <option value="nouveau">Nouveau</option>
@@ -980,6 +980,7 @@
     let familles = [];
     // 🆕 Sélection multiple pour suppression groupée (Produits, Attributs, Zones, Familles)
     let bulkSelections = {
+      clients: new Set(),
       produits: new Set(),
       attributs: new Set(),
       zones: new Set(),
@@ -4228,6 +4229,8 @@
     // CLIENTS
     // ========================================
     async function loadClients() {
+      bulkSelections.clients.clear();     // la sélection ne survit jamais à un changement de liste : on ne supprime que ce qui est visible
+      clientsTotal = null;
       const container = document.getElementById('clients-table');
       container.innerHTML = '<div class="loading">Chargement...</div>';
       try {
@@ -4249,16 +4252,18 @@
           c.email?.toLowerCase().includes(search)
         );
         const html = `
+          <div id="clients-banniere"></div>
           <div class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Nom</th><th>Téléphone</th><th>Email</th><th>Commandes</th><th>Points</th><th>Segment</th><th>Actif</th><th>Actions</th>
+                  <th><input type="checkbox" class="bulk-select-all" data-type="clients" onclick="toggleBulkSelectAll('clients'); majBanniereClients()"></th><th>Nom</th><th>Téléphone</th><th>Email</th><th>Commandes</th><th>Points</th><th>Segment</th><th>Actif</th><th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 ${filtered.map(c => `
                   <tr>
+                    <td><input type="checkbox" class="bulk-check" data-type="clients" data-id="${c.id}" ${bulkSelections.clients.has(c.id) ? 'checked' : ''} onclick="toggleBulkSelect('clients', '${c.id}'); majBanniereClients()"></td>
                     <td><strong>${c.nom || 'N/A'}</strong></td>
                     <td>${c.telephone}</td>
                     <td>${c.email || '-'}</td>
@@ -4268,6 +4273,7 @@
                     <td><span class="badge ${c.actif ? 'badge-success' : 'badge-danger'}">${c.actif ? 'Oui' : 'Non'}</span></td>
                     <td>
                       <button class="btn btn-sm btn-secondary" onclick="editClient('${c.id}')">✏️</button>
+                      <button class="btn btn-sm btn-secondary" onclick="ouvrirSuppressionClients('${c.id}')" title="Supprimer ce client">🗑️</button>
                     </td>
                   </tr>
                 `).join('')}
@@ -4276,6 +4282,7 @@
           </div>
         `;
         container.innerHTML = html;
+        renderBulkBar('clients');
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ ${error.message}</div>`;
       }
@@ -5144,6 +5151,134 @@
     }
 
     // ========================================
+    // CLIENTS : sélection multiple, suppression (un, plusieurs ou tous), export CSV
+    // Réutilise la sélection groupée des produits (BULK_CONFIG, barre d'action en bas).
+    // Supprimer un client efface sa fiche seulement : ses commandes passées et le journal d'appels sont conservés.
+    // ========================================
+    let clientsTotal = null;     // nombre total de clients du restaurant (selon le segment) quand la liste affichée est plafonnée à 200
+
+    async function majBanniereClients() {
+      const z = document.getElementById('clients-banniere');
+      if (!z) return;
+      const cases = Array.from(document.querySelectorAll('input.bulk-check[data-type="clients"]'));
+      const cochees = cases.filter(c => c.checked).length;
+      const rechercheActive = !!document.getElementById('search-clients').value.trim();
+      const plafonne = clients.length >= 200 && !rechercheActive;
+      if (!plafonne || cases.length === 0 || cochees !== cases.length) { z.innerHTML = ''; return; }
+      if (clientsTotal === null) {
+        const segment = document.getElementById('filter-segment').value;
+        let q = supabaseClient.from('client').select('id', { count: 'exact', head: true }).eq('business_id', BUSINESS_ID);
+        if (segment) q = q.eq('segment', segment);
+        const { count } = await q;
+        clientsTotal = count || clients.length;
+      }
+      const n = bulkSelections.clients.size;
+      const style = 'background:var(--info-bg,#e7f1f8);color:var(--info,#2c6e9c);border-radius:8px;padding:9px 12px;margin-bottom:10px;font-size:14px;';
+      if (clientsTotal <= cases.length) { z.innerHTML = ''; return; }
+      z.innerHTML = n >= clientsTotal
+        ? `<div style="${style}">Les ${clientsTotal} clients du restaurant sont sélectionnés. <a href="#" onclick="annulerBulkSelection('clients');return false;" style="font-weight:700;">Tout désélectionner</a></div>`
+        : `<div style="${style}">${cases.length} clients affichés sélectionnés. <a href="#" onclick="selectionnerTousLesClients();return false;" style="font-weight:700;">Sélectionner les ${clientsTotal} clients du restaurant</a></div>`;
+    }
+
+    // Sélectionne TOUS les clients du restaurant (selon le segment choisi), même ceux qui ne sont pas affichés
+    async function selectionnerTousLesClients() {
+      const segment = document.getElementById('filter-segment').value;
+      const pas = 1000;
+      for (let debut = 0; ; debut += pas) {
+        let q = supabaseClient.from('client').select('id').eq('business_id', BUSINESS_ID).order('created_at', { ascending: false }).range(debut, debut + pas - 1);
+        if (segment) q = q.eq('segment', segment);
+        const { data, error } = await q;
+        if (error) { alert('❌ ' + error.message); return; }
+        (data || []).forEach(r => bulkSelections.clients.add(r.id));
+        if (!data || data.length < pas) break;
+      }
+      renderBulkBar('clients');
+      majBanniereClients();
+    }
+
+    function clientsCsvTexte(lignes) {
+      const col = [['nom', 'Nom'], ['telephone', 'Téléphone'], ['email', 'E-mail'], ['nombre_de_commandes', 'Commandes'], ['points', 'Points'], ['segment', 'Segment'], ['actif', 'Actif'], ['created_at', 'Créé le']];
+      const esc = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+      return '\ufeff' + [col.map(c => esc(c[1])).join(';')].concat(lignes.map(l => col.map(c => esc(c[0] === 'actif' ? (l.actif ? 'oui' : 'non') : l[c[0]])).join(';'))).join('\r\n');
+    }
+
+    // Télécharge la liste des clients (sélection en cours, ou liste donnée) au format CSV lisible par Excel
+    async function exporterClientsCsv(ids) {
+      const liste = ids && ids.length ? ids : Array.from(bulkSelections.clients);
+      if (liste.length === 0) { alert('Aucun client sélectionné.'); return; }
+      const lignes = [];
+      for (let i = 0; i < liste.length; i += 200) {
+        const { data, error } = await supabaseClient.from('client')
+          .select('nom, telephone, email, nombre_de_commandes, points, segment, actif, created_at').in('id', liste.slice(i, i + 200));
+        if (error) { alert('❌ Export impossible : ' + error.message); return; }
+        (data || []).forEach(l => lignes.push(l));
+      }
+      const blob = new Blob([clientsCsvTexte(lignes)], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'clients_' + new Date().toISOString().slice(0, 10) + '.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+
+    // Fenêtre de confirmation : un client (bouton 🗑️ de la ligne) ou la sélection en cours
+    async function ouvrirSuppressionClients(idUnique) {
+      const ids = idUnique ? [idUnique] : Array.from(bulkSelections.clients);
+      if (ids.length === 0) return;
+      window.__clientsASupprimer = ids;
+      const exemples = ids.slice(0, 5).map(id => clients.find(c => c.id === id)).filter(Boolean)
+        .map(c => `${escHtml(c.nom || 'N/A')} (${escHtml(c.telephone || '')})`);
+      const gros = ids.length > 10;
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()">
+          <div class="modal-header">
+            <h2>🗑️ Supprimer ${ids.length} client${ids.length > 1 ? 's' : ''} ?</h2>
+            <button class="btn-close" onclick="closeModal('modal-edit')">×</button>
+          </div>
+          <div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err,#c0392b);margin-bottom:12px;"><strong>Définitif.</strong> Les fiches ne pourront pas être récupérées${ids.length > 1 ? ' : télécharger d\'abord la liste si besoin' : ''}.</div>
+          ${exemples.length ? `<div style="font-size:14px;margin-bottom:10px;">${exemples.join('<br>')}${ids.length > exemples.length ? `<br><span style="color:var(--muted);">et ${ids.length - exemples.length} autre${ids.length - exemples.length > 1 ? 's' : ''}</span>` : ''}</div>` : ''}
+          <div style="font-size:13.5px;line-height:1.6;margin-bottom:12px;">
+            <strong>Supprimé :</strong> la fiche client (nom, téléphone, e-mail, adresse mémorisée, points).<br>
+            <strong>Conservé :</strong> les commandes déjà passées et le journal d'appels. Un numéro supprimé qui rappelle est recréé comme nouveau client.
+          </div>
+          ${gros ? `<div class="form-group"><label>Plus de 10 clients : retaper <strong>SUPPRIMER</strong> pour confirmer</label><input type="text" id="suppr-clients-confirm" autocomplete="off"></div>` : ''}
+          <div class="form-actions" style="justify-content:flex-start;flex-wrap:wrap;">
+            ${ids.length > 1 ? `<button type="button" class="btn btn-secondary" onclick="exporterClientsCsv(window.__clientsASupprimer)">⬇ Télécharger la liste (CSV)</button>` : ''}
+            <button type="button" class="btn btn-danger" id="suppr-clients-bouton" onclick="confirmerSuppressionClients()">Supprimer définitivement</button>
+            <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button>
+          </div>
+          <div id="suppr-clients-etat" style="margin-top:10px;font-size:13.5px;"></div>
+        </div>`;
+      modal.classList.add('show');
+      modal.onclick = () => closeModal('modal-edit');
+    }
+
+    async function confirmerSuppressionClients() {
+      const ids = window.__clientsASupprimer || [];
+      if (ids.length === 0) return;
+      if (ids.length > 10) {
+        const saisie = (document.getElementById('suppr-clients-confirm') || {}).value || '';
+        if (saisie.trim() !== 'SUPPRIMER') { alert('Retaper exactement SUPPRIMER pour confirmer.'); return; }
+      }
+      const bouton = document.getElementById('suppr-clients-bouton'), etat = document.getElementById('suppr-clients-etat');
+      if (bouton) bouton.disabled = true;
+      let supprimes = 0, erreurs = 0, dernierMessage = '';
+      for (let i = 0; i < ids.length; i += 100) {
+        const lot = ids.slice(i, i + 100);
+        if (etat) etat.textContent = `Suppression… ${Math.min(i + lot.length, ids.length)} sur ${ids.length}`;
+        const { data, error } = await supabaseClient.from('client').delete().eq('business_id', BUSINESS_ID).in('id', lot).select('id');
+        if (error) { erreurs += lot.length; dernierMessage = error.message; }
+        else { supprimes += (data || []).length; erreurs += lot.length - (data || []).length; }
+      }
+      bulkSelections.clients.clear();
+      clientsTotal = null;
+      closeModal('modal-edit');
+      alert(`✅ ${supprimes} client${supprimes > 1 ? 's' : ''} supprimé${supprimes > 1 ? 's' : ''}` + (erreurs ? `\n⚠️ ${erreurs} non supprimé${erreurs > 1 ? 's' : ''}${dernierMessage ? ' : ' + dernierMessage : ' : suppression refusée par la base (droits de suppression sur la table client ?)'}` : ''));
+      await loadClients();
+    }
+
+    // ========================================
     // MESSAGES D'ACCUEIL ET DE FIN
     // 4 accueils (dits au décrochage) + 2 fins (dites avant le raccrochage). Une ligne = une variante, tirée au hasard.
     // Enregistrés dans business.messages_accueil (clés ouvert_connu, ouvert_inconnu, ferme_connu, ferme_inconnu, fin_commande, fin_sans_commande).
@@ -5939,7 +6074,8 @@
       attributs: { table: 'attributs', reload: () => loadAttributs(), tbodySelector: '#attributs-table' },
       zones: { table: 'zones_service', reload: () => loadZones(), tbodySelector: '#zones-table' },
       familles: { table: 'produit_familles', reload: () => loadFamilles(), tbodySelector: '#familles-table' },
-      regles: { table: 'regles_categorie', reload: () => loadRegles(), tbodySelector: '#regles-content' }
+      regles: { table: 'regles_categorie', reload: () => loadRegles(), tbodySelector: '#regles-content' },
+      clients: { table: 'client', reload: () => loadClients(), tbodySelector: '#clients-table' }
     };
 
     function toggleBulkSelect(type, id) {
@@ -5983,9 +6119,10 @@
         <button class="btn-white" onclick="bulkSetType('standard')">📦 Passer en standard</button>
       ` : '';
       div.innerHTML = `
-        <span class="cnt">${n} élément(s) sélectionné(s)</span>
+        <span class="cnt">${n} ${type === 'clients' ? 'client(s)' : 'élément(s)'} sélectionné(s)</span>
         <span class="spacer"></span>
         ${boutonsType}
+        ${type === 'clients' ? '<button class="btn-white" onclick="exporterClientsCsv()">⬇ CSV</button>' : ''}
         <button class="btn-white" onclick="annulerBulkSelection('${type}')">Annuler</button>
         <button class="btn-del" onclick="bulkDelete('${type}')">🗑️ Supprimer la sélection</button>
       `;
@@ -5994,6 +6131,7 @@
 
     function annulerBulkSelection(type) {
       bulkSelections[type].clear();
+      if (type === 'clients') setTimeout(() => { if (typeof majBanniereClients === 'function') majBanniereClients(); }, 0);
       document.querySelectorAll(`input.bulk-check[data-type="${type}"]`).forEach(cb => { cb.checked = false; });
       const sa = document.querySelector(`input.bulk-select-all[data-type="${type}"]`);
       if (sa) sa.checked = false;
@@ -6001,6 +6139,7 @@
     }
 
     async function bulkDelete(type) {
+      if (type === 'clients') { await ouvrirSuppressionClients(); return; }
       const cfg = BULK_CONFIG[type];
       const ids = Array.from(bulkSelections[type]);
       if (ids.length === 0) return;
