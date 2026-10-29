@@ -823,6 +823,7 @@
             <select id="filter-attr-categorie" onchange="loadAttributs()">
               <option value="">Toutes catégories</option>
             </select>
+            <button type="button" class="btn btn-secondary" onclick="ouvrirAttributsDepuisFamille()">📋 Créer depuis une famille de produits</button>
           </div>
           <div id="attributs-table"></div>
         </div>
@@ -5279,6 +5280,66 @@
     }
 
     // ========================================
+    // ATTRIBUTS : créer d'un coup les attributs d'une famille de produits (ex. toutes les boissons, au nom exact des produits)
+    // Un attribut par produit, à 0 € par défaut, dans l'étiquette choisie. Relançable sans doublon.
+    // ========================================
+    let attrFamilleProduits = [], attrNomsExistants = new Set();
+    function attrNorm(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim(); }
+
+    async function ouvrirAttributsDepuisFamille() {
+      const [rp, ra] = await Promise.all([
+        supabaseClient.from('produits').select('id, nom, categorie, actif').eq('business_id', BUSINESS_ID).eq('actif', true).order('categorie').order('nom'),
+        supabaseClient.from('attributs').select('nom').eq('business_id', BUSINESS_ID)
+      ]);
+      if (rp.error) { alert('❌ ' + rp.error.message); return; }
+      attrFamilleProduits = rp.data || [];
+      attrNomsExistants = new Set((ra.data || []).map(a => attrNorm(a.nom)));
+      const familles = [...new Set(attrFamilleProduits.map(p => p.categorie).filter(Boolean))];
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `
+        <div class="modal-content" onclick="event.stopPropagation()" style="max-height:88vh;overflow:auto;">
+          <div class="modal-header"><h2>📋 Créer des attributs depuis une famille</h2><button class="btn-close" onclick="closeModal('modal-edit')">×</button></div>
+          <div class="groupe-note" style="background:var(--info-bg);color:var(--info);margin-bottom:12px;">Un attribut est créé par produit, avec le nom exact du produit. Utile pour les boissons comprises dans les menus. Un nom déjà présent est ignoré.</div>
+          ${familles.length ? `
+          <div class="form-group"><label>Famille de produits *</label><select id="attr-fam" onchange="attrFamilleChoisie()"><option value="">Choisir…</option>${familles.map(f => `<option value="${escHtml(f)}">${escHtml(f)} (${attrFamilleProduits.filter(p => p.categorie === f).length})</option>`).join('')}</select></div>
+          <div class="form-group"><label>Étiquette de la catégorie d'attributs *</label><input type="text" id="attr-etiquette" placeholder="BOISSONS"></div>
+          <div class="form-group"><label>Prix de chaque attribut (€)</label><input type="text" id="attr-prix" inputmode="decimal" value="0"></div>
+          <div class="form-group"><label>Produits</label><input type="text" id="attr-filtre" placeholder="Filtrer par texte, par ex. 33CL" oninput="attrFamilleFiltrer(this.value)">
+            <div style="margin:6px 0;display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary btn-sm" onclick="attrFamilleCocher(true)">Cocher les produits affichés</button><button type="button" class="btn btn-secondary btn-sm" onclick="attrFamilleCocher(false)">Décocher les produits affichés</button></div>
+            <div id="attr-fam-liste" style="max-height:260px;overflow:auto;border:1px solid #e6e8ec;border-radius:8px;padding:6px 10px;"><span style="color:var(--muted);">Choisir une famille.</span></div></div>
+          <div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button><button type="button" class="btn btn-primary" id="attr-creer" onclick="attrFamilleCreer()">Créer les attributs</button></div>`
+          : '<div class="no-data">Aucun produit actif : créer d\'abord les produits.</div>'}
+        </div>`;
+      modal.classList.add('show'); modal.onclick = () => closeModal('modal-edit');
+    }
+    function attrFamilleChoisie() {
+      const f = document.getElementById('attr-fam').value, liste = document.getElementById('attr-fam-liste');
+      const et = document.getElementById('attr-etiquette'); if (f && !et.value.trim()) et.value = f.toUpperCase();
+      document.getElementById('attr-filtre').value = '';
+      const produits = attrFamilleProduits.filter(p => p.categorie === f);
+      liste.innerHTML = produits.length ? produits.map(p => { const deja = attrNomsExistants.has(attrNorm(p.nom));
+        return `<label class="attr-ligne" data-nom="${escHtml(attrNorm(p.nom))}" style="display:flex;gap:8px;align-items:center;padding:3px 0;${deja ? 'opacity:.55;' : ''}"><input type="checkbox" data-nom-brut="${escHtml(p.nom)}" ${deja ? 'disabled' : 'checked'}><span>${escHtml(p.nom)}${deja ? ' <span class="badge badge-warning">déjà un attribut</span>' : ''}</span></label>`; }).join('') : '<span style="color:var(--muted);">Aucun produit.</span>';
+    }
+    function attrFamilleFiltrer(txt) { const t = attrNorm(txt); document.querySelectorAll('#attr-fam-liste .attr-ligne').forEach(l => { l.style.display = !t || l.dataset.nom.includes(t) ? 'flex' : 'none'; }); }
+    function attrFamilleCocher(v) { document.querySelectorAll('#attr-fam-liste .attr-ligne').forEach(l => { if (l.style.display !== 'none') { const c = l.querySelector('input'); if (!c.disabled) c.checked = v; } }); }
+    async function attrFamilleCreer() {
+      const etiquette = document.getElementById('attr-etiquette').value.trim().toUpperCase();
+      const prix = parseFloat(String(document.getElementById('attr-prix').value).replace(',', '.')) || 0;
+      const noms = [...document.querySelectorAll('#attr-fam-liste input[type=checkbox]')].filter(c => c.checked && !c.disabled).map(c => c.dataset.nomBrut);
+      if (!etiquette) { alert('L\'étiquette est obligatoire.'); return; }
+      if (!noms.length) { alert('Aucun produit coché.'); return; }
+      const b = document.getElementById('attr-creer'); if (b) { b.disabled = true; b.textContent = 'Création…'; }
+      const vus = new Set(), rows = [];
+      noms.forEach(n => { const k = attrNorm(n); if (!vus.has(k) && !attrNomsExistants.has(k)) { vus.add(k); rows.push({ business_id: BUSINESS_ID, categorie: etiquette, nom: n, prix_supplement: prix, actif: true, position: 0 }); } });
+      try {
+        for (let i = 0; i < rows.length; i += 100) { const { error } = await supabaseClient.from('attributs').insert(rows.slice(i, i + 100)); if (error) throw error; }
+        closeModal('modal-edit');
+        alert(`✅ ${rows.length} attribut${rows.length > 1 ? 's' : ''} créé${rows.length > 1 ? 's' : ''} dans « ${etiquette} ».`);
+        await loadAttributs();
+      } catch (err) { alert('❌ ' + err.message); if (b) { b.disabled = false; b.textContent = 'Créer les attributs'; } }
+    }
+
+    // ========================================
     // MESSAGES D'ACCUEIL ET DE FIN
     // 4 accueils (dits au décrochage) + 2 fins (dites avant le raccrochage). Une ligne = une variante, tirée au hasard.
     // Enregistrés dans business.messages_accueil (clés ouvert_connu, ouvert_inconnu, ferme_connu, ferme_inconnu, fin_commande, fin_sans_commande).
@@ -5480,7 +5541,7 @@
     // ========================================
     // IMPORTER LA CARTE : photos / PDF / site internet / saisie manuelle -> tableau de validation -> écriture -> annulation
     // La lecture est faite par la fonction extraire-carte (lecture seule). Toute l'écriture a lieu ici, après validation.
-    // Les options sont écrites au format des restaurants API (listes de choix avec prix par choix).
+    // Les options sont écrites au format des restaurants API (listes de choix avec prix par choix). Version 2 : informations du restaurant, attributs suggérés, noms modifiables, assistant.
     // ========================================
     const IMP = { mode: 'creation', nbExistants: 0, src: 'photos', couv: 'partielle', fichiers: [], url: '', carte: null, plan: null, etape: 1, stop: false,
                   modele: null, cles: null, historique: [], message: '', progression: { fait: 0, total: 0, texte: '' }, existants: [], familles: [], attributs: [] };
@@ -5503,29 +5564,6 @@
     }
 
     // ---------- Fusion des lots lus ----------
-    function impCarteVide() { return { produits: [], groupes: [], supplements: [], promotions: [], rapport: { prix_vus: 0, produits_lus: 0, remarques: '' } }; }
-    function impFusionner(base, ajout) {
-      const cles = new Map(base.produits.map((p, i) => [impCleLigne(p.famille, impNomComplet(p)), i]));
-      (ajout.produits || []).forEach(p => {
-        const k = impCleLigne(p.famille, impNomComplet(p));
-        if (cles.has(k)) { const e = base.produits[cles.get(k)]; if (!(e.prix > 0) && p.prix > 0) { e.prix = p.prix; e.incertain = p.incertain; } }
-        else { cles.set(k, base.produits.length); base.produits.push(p); }
-      });
-      (ajout.groupes || []).forEach(g => {
-        const e = base.groupes.find(x => impNorm(x.famille) === impNorm(g.famille) && impNorm(x.nom_groupe) === impNorm(g.nom_groupe));
-        if (!e) base.groupes.push(g);
-        else g.choix.forEach(c => { if (!e.choix.some(x => impNorm(x) === impNorm(c))) e.choix.push(c); });
-      });
-      (ajout.supplements || []).forEach(s => {
-        const e = base.supplements.find(x => impNorm(x.famille) === impNorm(s.famille) && Number(x.prix) === Number(s.prix));
-        if (!e) base.supplements.push(s);
-        else s.choix.forEach(c => { if (!e.choix.some(x => impNorm(x) === impNorm(c))) e.choix.push(c); });
-      });
-      (ajout.promotions || []).forEach(t => { if (!base.promotions.some(x => impNorm(x) === impNorm(t))) base.promotions.push(t); });
-      const r = ajout.rapport || {};
-      base.rapport.prix_vus += Number(r.prix_vus) || 0;
-      base.rapport.produits_lus = base.produits.length;
-    }
 
     // ---------- Photos et PDF ----------
     function impLireBase64(file) {
@@ -5599,7 +5637,7 @@
         IMP.url = ((rb.data && rb.data.type_params) || {}).site_carte || '';
         IMP.modele = modele;
         try { IMP.cles = (await appelClesIa({ action: 'lire' })).cles; } catch (_) { IMP.cles = null; }
-        IMP.etape = 1; IMP.fichiers = []; IMP.carte = null; IMP.plan = null; IMP.message = ''; IMP.stop = false;
+        IMP.etape = 1; IMP.fichiers = []; IMP.carte = null; IMP.plan = null; IMP.message = ''; IMP.stop = false; IMP.attente = null; IMP.assistant = { ouvert: false, fil: [], pile: [], attente: false, texte: '' };
         dessinerImport();
       } catch (err) {
         zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
@@ -5742,44 +5780,7 @@
     function impAnnulerPages() { IMP.attente = null; IMP.etape = 1; dessinerImport(); }
 
     // ---------- Plan : ce qui sera créé, modifié, désactivé ----------
-    async function impPreparer() {
-      const [rp, rf, ra] = await Promise.all([
-        supabaseClient.from('produits').select('id, nom, categorie, taille, prix, prix_livraison, prix_emporter, prix_sur_place, details, actif, famille_id').eq('business_id', BUSINESS_ID),
-        supabaseClient.from('produit_familles').select('id, nom').eq('business_id', BUSINESS_ID),
-        supabaseClient.from('attributs').select('id, nom, categorie').eq('business_id', BUSINESS_ID)
-      ]);
-      if (rp.error || rf.error || ra.error) throw new Error((rp.error || rf.error || ra.error).message);
-      IMP.existants = rp.data || []; IMP.familles = rf.data || []; IMP.attributs = ra.data || [];
-      IMP.mode = IMP.existants.length > 0 ? 'mise_a_jour' : 'creation';
-      IMP.plan = impConstruirePlan(IMP.carte, IMP.existants, IMP.familles, IMP.couv, IMP.mode);
-      IMP.etape = 3; dessinerImport();
-    }
 
-    function impConstruirePlan(carte, existants, familles, couv, mode) {
-      const plan = { nouveaux: [], prix: [], desc: [], absents: [], groupes: [], supplements: [], promotions: carte.promotions || [], famillesNouvelles: [] };
-      const parCle = new Map(existants.map(e => [impCleLigne(e.categorie, e.nom), e]));
-      const famillesExistantes = new Set(familles.map(f => impNorm(f.nom)).concat(existants.map(e => impNorm(e.categorie))));
-      const vus = new Set(), famillesLues = new Set();
-      carte.produits.forEach(p => {
-        const nomComplet = impNomComplet(p), cle = impCleLigne(p.famille, nomComplet);
-        famillesLues.add(impNorm(p.famille));
-        const e = parCle.get(cle);
-        if (!e) { plan.nouveaux.push({ on: true, famille: p.famille, sous_categorie: p.sous_categorie || '', nom: nomComplet, nomBase: p.nom, taille: p.taille || null, formule: p.formule || null, prix: p.prix, description: p.description || '', deduit: !!p.prix_deduit, incertain: !!p.incertain }); return; }
-        vus.add(e.id);
-        if (!(p.prix > 0)) return;
-        const anciens = [e.prix, e.prix_livraison, e.prix_emporter, e.prix_sur_place].filter(x => x !== null && x !== undefined).map(Number);
-        if (anciens.some(x => Math.abs(x - p.prix) > 0.001)) plan.prix.push({ on: true, id: e.id, nom: e.nom, avant: { prix: e.prix, prix_livraison: e.prix_livraison, prix_emporter: e.prix_emporter, prix_sur_place: e.prix_sur_place }, apres: p.prix });
-        if (p.description && impNorm(p.description) !== impNorm(e.details || '')) plan.desc.push({ on: true, id: e.id, nom: e.nom, avant: e.details || '', apres: p.description });
-      });
-      if (couv === 'complete' && mode === 'mise_a_jour') {
-        existants.filter(e => e.actif !== false && famillesLues.has(impNorm(e.categorie)) && !vus.has(e.id)).forEach(e => plan.absents.push({ on: true, id: e.id, nom: e.nom, famille: e.categorie }));
-      }
-      plan.famillesNouvelles = [...new Set(plan.nouveaux.map(n => n.famille))].filter(f => !famillesExistantes.has(impNorm(f))).map(f => ({ on: true, nom: f }));
-      const nouvelles = new Set(plan.famillesNouvelles.map(f => impNorm(f.nom)));
-      plan.groupes = (carte.groupes || []).map(g => ({ ...g, on: !g.incertain, ecriture: nouvelles.has(impNorm(g.famille)) }));
-      plan.supplements = (carte.supplements || []).map(s => ({ ...s, on: true, ecriture: nouvelles.has(impNorm(s.famille)) }));
-      return plan;
-    }
 
     // ---------- Tableau de validation ----------
     function impCase(groupe, i, coche) { return `<input type="checkbox" style="width:22px;height:22px;margin-top:2px;" ${coche ? 'checked' : ''} onchange="impCocher('${groupe}',${i},this.checked)">`; }
@@ -5795,48 +5796,7 @@
       if (tous.length && tous.every(x => x === tous[0])) return impPrix(tous[0]);
       return `livraison ${impPrix(a.prix_livraison)} / emporter ${impPrix(a.prix_emporter)} / sur place ${impPrix(a.prix_sur_place)}`;
     }
-    function impLigneHtml(l, i) {
-      return `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:10px 0;border-bottom:1px solid #e6e8ec;">${impCase('nouveaux', i, l.on)}
-        <div><div style="font-size:12.5px;color:var(--muted);">${escHtml(l.famille)}${l.sous_categorie ? ' · ' + escHtml(l.sous_categorie) : ''}${l.deduit ? ' <span class="badge badge-warning">prix déduit du groupe : à vérifier</span>' : ''}${l.incertain ? ' <span class="badge badge-warning">À vérifier : prix illisible</span>' : ''}</div>
-          <div style="display:grid;grid-template-columns:1fr 110px;gap:8px;margin-top:4px;">
-            <input type="text" value="${escHtml(l.nom)}" aria-label="Nom" oninput="IMP.plan.nouveaux[${i}].nom=this.value">
-            <input type="text" value="${l.prix > 0 ? String(l.prix).replace('.', ',') : ''}" placeholder="Prix €" inputmode="decimal" aria-label="Prix" id="imp-prix-${i}" style="${l.on && !(l.prix > 0) ? 'border-color:var(--err);' : ''}" oninput="impPrixSaisi(${i},this.value)"></div>
-          ${l.description ? `<div style="font-size:12.5px;color:var(--muted);margin-top:4px;">${escHtml(l.description)}</div>` : ''}</div></div>`;
-    }
-    function impHtmlValidation() {
-      const p = IMP.plan, r = IMP.carte.rapport;
-      const manuel = IMP.src === 'manuel';
-      let h = `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:16px;">Vérification avant écriture</h3>
-        <div class="groupe-note" style="background:var(--info-bg);color:var(--info);">${manuel ? 'Saisie manuelle.' : `${IMP.src === 'site' ? 'Site lu.' : IMP.fichiers.length + ' fichier(s) lu(s).'} ${r.prix_vus} prix vus, ${r.produits_lus} produits lus.`} Rien n'est écrit avant « Appliquer ».</div>`;
-      if (manuel) h += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('produit')">➕ Ajouter un produit</button><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('groupe')">➕ Ajouter un groupe d'options</button><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('supplement')">➕ Ajouter des suppléments</button></div>`;
-      if (IMP.mode === 'creation' || manuel) {
-        if (p.famillesNouvelles.length) h += impBlocTitre('Familles à créer', 'familles', p.famillesNouvelles) + p.famillesNouvelles.map((f, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:6px 0;">${impCase('familles', i, f.on)}<div><strong>${escHtml(f.nom)}</strong></div></div>`).join('');
-      }
-      if (p.nouveaux.length) h += impBlocTitre(IMP.mode === 'creation' ? 'Produits' : 'Nouveaux produits', 'nouveaux', p.nouveaux, IMP.mode === 'creation' ? '' : 'Nom différent d\'un produit existant : créé comme nouveau produit.') + p.nouveaux.map(impLigneHtml).join('');
-      if (p.prix.length) h += impBlocTitre('Prix modifiés', 'prix', p.prix, 'Un prix unique remplace les trois prix par mode ; les anciens prix sont affichés.') + p.prix.map((x, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #e6e8ec;">${impCase('prix', i, x.on)}<div><strong>${escHtml(x.nom)}</strong><div style="font-size:13px;color:var(--muted);"><s>${impAvantPrix(x.avant)}</s> → <strong style="color:#2b2f36;">${impPrix(x.apres)}</strong></div></div></div>`).join('');
-      if (p.desc.length) h += impBlocTitre('Descriptions modifiées', 'desc', p.desc, 'Cochées par défaut comme le reste : relire les textes lus sur une photo.') + p.desc.map((x, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #e6e8ec;">${impCase('desc', i, x.on)}<div><strong>${escHtml(x.nom)}</strong><div style="font-size:13px;color:var(--muted);"><s>${escHtml(x.avant || '(vide)')}</s><br><strong style="color:#2b2f36;">${escHtml(x.apres)}</strong></div></div></div>`).join('');
-      if (IMP.couv === 'complete' && IMP.mode === 'mise_a_jour' && !manuel) {
-        const nb = p.absents.filter(x => x.on).length;
-        if (p.absents.length) h += `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:14px;" id="imp-bandeau-absents">${nb} produit${nb > 1 ? 's seront désactivés' : ' sera désactivé'} (jamais supprimés) : à vérifier avant de continuer.</div>` + impBlocTitre('Produits absents de la source', 'absents', p.absents) + p.absents.map((x, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:6px 0;">${impCase('absents', i, x.on)}<div><strong>${escHtml(x.nom)}</strong><div style="font-size:12.5px;color:var(--muted);">${escHtml(x.famille)} : famille présente dans la source, désactivation proposée</div></div></div>`).join('');
-      } else if (IMP.mode === 'mise_a_jour' && !manuel) h += '<div class="groupe-note" style="background:var(--warn-bg,#fff3e0);color:var(--warn);margin-top:14px;">Source partielle : aucun produit n\'est désactivé.</div>';
-      if (p.groupes.length) h += impBlocTitre('Groupes d\'options détectés', 'groupes', p.groupes, 'Écrits seulement pour les familles créées par cet import ; sinon à créer à la main.') + p.groupes.map((g, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #e6e8ec;">${g.ecriture ? impCase('groupes', i, g.on) : '<span></span>'}<div><strong>${escHtml(g.famille)} · ${escHtml(g.nom_groupe)}</strong> ${g.incertain ? '<span class="badge badge-warning">à vérifier</span>' : ''}${g.ecriture ? '' : ' <span class="badge badge-warning">non écrit : famille existante</span>'}<div style="font-size:13px;color:var(--muted);">${escHtml(g.question || '')} ${g.min}–${g.max} choix · ${g.prix_choix > 0 ? impPrix(g.prix_choix) + ' par choix' : 'inclus'}<br>${escHtml(g.choix.join(', '))}</div></div></div>`).join('');
-      if (p.supplements.length) h += impBlocTitre('Suppléments détectés', 'supplements', p.supplements) + p.supplements.map((s, i) => `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #e6e8ec;">${s.ecriture ? impCase('supplements', i, s.on) : '<span></span>'}<div><strong>${escHtml(s.famille)} · ${impPrix(s.prix)} chacun</strong>${s.ecriture ? '' : ' <span class="badge badge-warning">non écrit : famille existante</span>'}<div style="font-size:13px;color:var(--muted);">${escHtml(s.choix.join(', '))}</div></div></div>`).join('');
-      if (p.promotions.length) h += `<h3 style="margin:18px 0 6px;font-size:15px;">Promotions à traiter <span style="font-weight:400;color:var(--muted);font-size:12.5px;">(non importées dans la carte)</span></h3>` + p.promotions.map(t => `<div style="padding:4px 0;font-size:14px;">${escHtml(t)}</div>`).join('') + '<div style="font-size:12.5px;color:var(--muted);">Enregistrées dans une liste en attente pour le futur module promotions, sans effet sur l\'agent.</div>';
-      if (!p.nouveaux.length && !p.prix.length && !p.desc.length && !p.absents.length && !manuel) h += '<div class="no-data" style="margin-top:12px;">Aucun écart avec la carte actuelle.</div>';
-      h += `<div id="imp-msg-appliquer"></div><div class="form-actions" style="justify-content:flex-start;margin-top:16px;flex-wrap:wrap;"><button type="button" class="btn btn-primary" id="imp-btn-appliquer" onclick="impAppliquer()">Appliquer</button><button type="button" class="btn btn-secondary" onclick="chargerImportCarte()">Recommencer</button></div></div>`;
-      return h;
-    }
 
-    function impCocher(groupe, i, v) {
-      const t = groupe === 'familles' ? IMP.plan.famillesNouvelles : IMP.plan[groupe];
-      t[i].on = v;
-      impRedessinerGarderPosition();
-    }
-    function impToutCocher(groupe, v) {
-      const t = groupe === 'familles' ? IMP.plan.famillesNouvelles : IMP.plan[groupe];
-      t.forEach(x => { if (groupe !== 'groupes' && groupe !== 'supplements') x.on = v; else if (x.ecriture) x.on = v; });
-      impRedessinerGarderPosition();
-    }
     function impRedessinerGarderPosition() { const y = window.scrollY; dessinerImport(); window.scrollTo(0, y); }
     function impPrixSaisi(i, v) {
       const n = parseFloat(String(v).replace(',', '.'));
@@ -5844,20 +5804,6 @@
       const c = document.getElementById('imp-prix-' + i);
       if (c) c.style.borderColor = IMP.plan.nouveaux[i].on && !(IMP.plan.nouveaux[i].prix > 0) ? 'var(--err)' : '';
       impMajBoutonAppliquer();
-    }
-    function impMajBoutonAppliquer() {
-      const b = document.getElementById('imp-btn-appliquer');
-      if (!b || !IMP.plan) return;
-      const p = IMP.plan;
-      const sansPrix = p.nouveaux.filter(x => x.on && !(x.prix > 0)).length;
-      const total = p.nouveaux.filter(x => x.on).length + p.prix.filter(x => x.on).length + p.desc.filter(x => x.on).length
-        + (IMP.couv === 'complete' ? p.absents.filter(x => x.on).length : 0) + p.groupes.filter(x => x.on && x.ecriture).length + p.supplements.filter(x => x.on && x.ecriture).length;
-      b.disabled = sansPrix > 0 || total === 0;
-      b.textContent = `Appliquer (${total} modification${total > 1 ? 's' : ''})`;
-      const m = document.getElementById('imp-msg-appliquer');
-      if (m) m.innerHTML = sansPrix ? `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:10px;">${sansPrix} ligne cochée sans prix : renseigner le prix ou décocher la ligne.</div>` : '';
-      const ban = document.getElementById('imp-bandeau-absents');
-      if (ban) { const nb = p.absents.filter(x => x.on).length; ban.textContent = `${nb} produit${nb > 1 ? 's seront désactivés' : ' sera désactivé'} (jamais supprimés) : à vérifier avant de continuer.`; }
     }
 
     // ---------- Saisie manuelle : ajouts ----------
@@ -5904,133 +5850,8 @@
     function impTranches(tableau, taille) { const t = []; for (let i = 0; i < tableau.length; i += taille) t.push(tableau.slice(i, i + taille)); return t; }
     function impSlug(s) { return impNorm(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 
-    async function impAppliquer() {
-      const p = IMP.plan;
-      const nbNouveaux = p.nouveaux.filter(x => x.on).length, nbPrix = p.prix.filter(x => x.on).length, nbDesc = p.desc.filter(x => x.on).length;
-      const nbAbs = IMP.couv === 'complete' ? p.absents.filter(x => x.on).length : 0;
-      const msg = `Écrire dans la carte de ce restaurant ?\n\n• ${nbNouveaux} produit(s) créé(s)\n• ${nbPrix} prix modifié(s)\n• ${nbDesc} description(s) modifiée(s)\n• ${nbAbs} produit(s) désactivé(s)\n\nL'opération pourra être annulée.`;
-      if (!confirm(msg)) return;
-      const b = document.getElementById('imp-btn-appliquer'); if (b) { b.disabled = true; b.textContent = 'Écriture en cours…'; }
-      const log = { familles_creees: [], produits_crees: [], attributs_crees: [], options_creees: [], supplements_crees: [], prix_modifies: [], descriptions_modifiees: [], desactives: [] };
-      try {
-        const bid = BUSINESS_ID;
-        // 1) Familles
-        const idFamille = {}; IMP.familles.forEach(f => { idFamille[impNorm(f.nom)] = f.id; });
-        IMP.existants.forEach(e => { if (e.famille_id) idFamille[impNorm(e.categorie)] = idFamille[impNorm(e.categorie)] || e.famille_id; });
-        const aCreer = p.famillesNouvelles.filter(f => f.on).map((f, i) => ({ business_id: bid, nom: f.nom, position: IMP.familles.length + i, actif: true }));
-        if (aCreer.length) {
-          const { data, error } = await supabaseClient.from('produit_familles').insert(aCreer).select('id, nom');
-          if (error) throw error;
-          data.forEach(f => { idFamille[impNorm(f.nom)] = f.id; log.familles_creees.push(f.id); });
-        }
-        // 2) Nouveaux produits (un prix unique pour les trois modes)
-        const famillesExclues = new Set(p.famillesNouvelles.filter(f => !f.on).map(f => impNorm(f.nom)));
-        const lignes = p.nouveaux.filter(x => x.on && x.prix > 0 && !famillesExclues.has(impNorm(x.famille)));
-        const rows = lignes.map((x, i) => ({
-          business_id: bid, famille_id: idFamille[impNorm(x.famille)] || null, nom: x.nom, categorie: x.famille, prix: x.prix, prix_livraison: x.prix, prix_emporter: x.prix, prix_sur_place: x.prix,
-          taille: x.taille, details: x.description || null, type_produit: 'produit_standard', position: i,
-          metadata: { source: 'import', ...(x.sous_categorie ? { sous_categorie: x.sous_categorie } : {}), ...(x.formule ? { formule: x.formule } : {}), ...(x.deduit ? { prix_deduit: true } : {}) }, actif: true
-        }));
-        const crees = [];
-        for (const t of impTranches(rows, 100)) {
-          const { data, error } = await supabaseClient.from('produits').insert(t).select('id, nom, categorie, taille, famille_id');
-          if (error) throw error;
-          data.forEach(d => { crees.push(d); log.produits_crees.push(d.id); });
-        }
-        // 3) Options et suppléments des familles créées par cet import
-        const attributParNom = {}; IMP.attributs.forEach(a => { attributParNom[impNorm(a.nom)] = a.id; });
-        const idAttribut = async (nom, categorie, prix) => {
-          const k = impNorm(nom); if (attributParNom[k]) return attributParNom[k];
-          const { data, error } = await supabaseClient.from('attributs').insert({ business_id: bid, categorie, nom, prix_supplement: prix || 0, actif: true, position: 0 }).select('id').single();
-          if (error) throw error;
-          attributParNom[k] = data.id; log.attributs_crees.push(data.id); return data.id;
-        };
-        for (const g of p.groupes.filter(x => x.on && x.ecriture)) {
-          const produitsFamille = crees.filter(c => impNorm(c.categorie) === impNorm(g.famille));
-          for (const c of g.choix) await idAttribut(c, g.nom_groupe, g.prix_choix);
-          const optionsRows = produitsFamille.map((prod, i) => {
-            const mm = (prod.taille && g.min_max_par_taille && g.min_max_par_taille[String(prod.taille).toUpperCase()]) || [g.min, g.max];
-            const prixModes = { livraison: g.prix_choix, emporter: g.prix_choix, sur_place: g.prix_choix };
-            return { business_id: bid, produit_id: prod.id, categorie_attribut: g.nom_groupe, min: mm[0], max: Math.max(mm[0], mm[1], 1), obligatoire: mm[0] > 0, inclus_gratuit: g.prix_choix > 0 ? 0 : Math.max(mm[0], mm[1], 1), position: i, comportement: 'ajout', libelle: g.question || null,
-              donnees_fournisseur: { origine: 'import', nom_groupe: g.nom_groupe, ids: Object.fromEntries(g.choix.map(c => [c, 'import:' + impSlug(c)])), choix: g.choix.map(c => ({ nom: c, prix: prixModes })) } };
-          });
-          for (const t of impTranches(optionsRows, 100)) {
-            const { data, error } = await supabaseClient.from('produit_options').insert(t).select('id');
-            if (error) throw error;
-            data.forEach(d => log.options_creees.push(d.id));
-          }
-        }
-        for (const s of p.supplements.filter(x => x.on && x.ecriture)) {
-          const produitsFamille = crees.filter(c => impNorm(c.categorie) === impNorm(s.famille));
-          const tailles = [...new Set(produitsFamille.map(c => c.taille || null))];
-          const famId = idFamille[impNorm(s.famille)] || null;
-          const rowsS = [];
-          for (const c of s.choix) {
-            const aid = await idAttribut(c, 'SUPPLEMENT', s.prix);
-            tailles.forEach(t => rowsS.push({ business_id: bid, famille_id: famId, produit_id: null, taille: t, attribut_id: aid, prix_livraison: s.prix, prix_emporter: s.prix, prix_sur_place: s.prix }));
-          }
-          for (const t of impTranches(rowsS, 100)) {
-            const { data, error } = await supabaseClient.from('supplements_prix').insert(t).select('id');
-            if (error) throw error;
-            data.forEach(d => log.supplements_crees.push(d.id));
-          }
-        }
-        // 4) Prix, descriptions, désactivations (mise à jour)
-        for (const x of p.prix.filter(y => y.on)) {
-          const { error } = await supabaseClient.from('produits').update({ prix: x.apres, prix_livraison: x.apres, prix_emporter: x.apres, prix_sur_place: x.apres }).eq('id', x.id);
-          if (error) throw error;
-          log.prix_modifies.push({ id: x.id, avant: x.avant });
-        }
-        for (const x of p.desc.filter(y => y.on)) {
-          const { error } = await supabaseClient.from('produits').update({ details: x.apres }).eq('id', x.id);
-          if (error) throw error;
-          log.descriptions_modifiees.push({ id: x.id, avant: x.avant });
-        }
-        const aDesactiver = IMP.couv === 'complete' ? p.absents.filter(x => x.on).map(x => x.id) : [];
-        if (aDesactiver.length) {
-          const { error } = await supabaseClient.from('produits').update({ actif: false }).in('id', aDesactiver);
-          if (error) throw error;
-          log.desactives = aDesactiver;
-        }
-        // 5) Promotions en attente et adresse du site
-        const { data: cour } = await supabaseClient.from('business').select('type_params').eq('id', bid).single();
-        const tp = { ...((cour && cour.type_params) || {}) };
-        let tpChange = false;
-        if (p.promotions.length) {
-          const liste = Array.isArray(tp.promotions_a_traiter) ? tp.promotions_a_traiter : [];
-          p.promotions.forEach(t => { if (!liste.some(x => impNorm(x.texte) === impNorm(t))) { liste.push({ texte: t, source: IMP.src, date: new Date().toISOString().slice(0, 10) }); tpChange = true; } });
-          tp.promotions_a_traiter = liste;
-        }
-        if (IMP.src === 'site' && IMP.url.trim() && !tp.site_carte) { tp.site_carte = IMP.url.trim(); tpChange = true; }
-        if (tpChange) { const { error } = await supabaseClient.from('business').update({ type_params: tp }).eq('id', bid); if (error) throw error; }
-        // 6) Historique (permet d'annuler)
-        const resume = { produits_crees: log.produits_crees.length, prix_modifies: log.prix_modifies.length, descriptions_modifiees: log.descriptions_modifiees.length, desactives: log.desactives.length, options: log.options_creees.length, supplements: log.supplements_crees.length, familles: log.familles_creees.length };
-        const { error: eh } = await supabaseClient.from('imports_carte').insert({ business_id: bid, source: IMP.src, couverture: IMP.src === 'manuel' ? null : IMP.couv, mode: IMP.mode, resume, annulation: log });
-        if (eh) throw new Error('Historique non enregistré (' + eh.message + ') : l\'import a été annulé automatiquement.');
-        IMP.htmlResultat = `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:16px;">${IMP.mode === 'creation' ? 'Carte créée' : 'Mise à jour appliquée'}</h3>
-          <div class="groupe-note" style="background:var(--ok-bg,#e6f4ea);color:var(--ok);">${resume.produits_crees} produit(s) créé(s), ${resume.prix_modifies} prix modifié(s), ${resume.descriptions_modifiees} description(s) modifiée(s), ${resume.desactives} produit(s) désactivé(s)${resume.options ? `, ${resume.options} groupe(s) d'options` : ''}${resume.supplements ? `, ${resume.supplements} supplément(s)` : ''}. L'agent lit la nouvelle carte dès l'appel suivant (délai de 60 secondes au plus).</div>
-          <div class="form-actions" style="justify-content:flex-start;margin-top:14px;"><button type="button" class="btn btn-secondary" onclick="chargerImportCarte()">Voir l'historique et annuler</button><button type="button" class="btn btn-secondary" onclick="allerSection('produits')">Voir les produits</button></div></div>`;
-        IMP.etape = 4; dessinerImport(); majPastillesParam();
-      } catch (err) {
-        console.error('Import : erreur pendant l\'écriture', err);
-        try { await impDefaire(log); } catch (e2) { console.error('Retour arrière partiel', e2); }
-        alert('❌ Import interrompu : ' + (err.message || err) + '\n\nCe qui avait déjà été écrit a été annulé.');
-        dessinerImport();
-      }
-    }
 
     // Défait ce qu'un import a écrit (utilisé pour l'annulation et en cas d'erreur)
-    async function impDefaire(log) {
-      const del = async (table, ids) => { for (const t of impTranches(ids || [], 100)) { if (!t.length) continue; const { error } = await supabaseClient.from(table).delete().in('id', t); if (error) throw new Error(table + ' : ' + error.message); } };
-      await del('supplements_prix', log.supplements_crees);
-      await del('produit_options', log.options_creees);
-      await del('produits', log.produits_crees);
-      await del('attributs', log.attributs_crees);
-      await del('produit_familles', log.familles_creees);
-      for (const x of (log.prix_modifies || [])) { const { error } = await supabaseClient.from('produits').update({ prix: x.avant.prix, prix_livraison: x.avant.prix_livraison, prix_emporter: x.avant.prix_emporter, prix_sur_place: x.avant.prix_sur_place }).eq('id', x.id); if (error) throw error; }
-      for (const x of (log.descriptions_modifiees || [])) { const { error } = await supabaseClient.from('produits').update({ details: x.avant || null }).eq('id', x.id); if (error) throw error; }
-      if ((log.desactives || []).length) { const { error } = await supabaseClient.from('produits').update({ actif: true }).in('id', log.desactives); if (error) throw error; }
-    }
 
     async function impAnnuler(id) {
       if (!confirm('Annuler cette mise à jour ?\n\nLes anciens prix et descriptions sont rétablis, les produits désactivés sont réactivés et les produits ajoutés sont retirés.')) return;
@@ -6058,10 +5879,887 @@
       return `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:15px;">Historique</h3>${IMP.historique.map(h => {
         const r = h.resume || {};
         const date = new Date(h.cree_le).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
-        const detail = `${r.produits_crees || 0} créé(s), ${r.prix_modifies || 0} prix, ${r.desactives || 0} désactivé(s)`;
+        const detail = `${r.produits_crees || 0} créé(s), ${r.prix_modifies || 0} prix, ${r.desactives || 0} désactivé(s)${r.infos ? ', ' + r.infos + ' information(s)' : ''}`;
         return `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid #e6e8ec;"><span>${date} · ${h.source === 'photos' ? 'Photos ou PDF' : h.source === 'site' ? 'Site internet' : 'Saisie manuelle'} · ${detail}</span>
           ${h.statut === 'annule' ? '<span class="badge badge-warning">Annulé</span>' : (premierApplique && premierApplique.id === h.id ? `<button type="button" class="btn btn-danger btn-sm" onclick="impAnnuler('${h.id}')">Annuler cette mise à jour</button>` : '<span class="badge badge-success">Appliqué</span>')}</div>`;
       }).join('')}</div>`;
+    }
+
+
+    // ========================================
+    // IMPORT V2 : informations du restaurant, attributs suggérés, noms modifiables, assistant
+    // Tout reste une suggestion : rien n'est écrit avant « Appliquer », et tout s'annule.
+    // ========================================
+    IMP.business = null; IMP.horaires = []; IMP.zones = []; IMP.optionsExistantes = new Set(); IMP.supplementsExistants = new Set();
+    IMP.codesZones = {}; IMP.uid = 0; IMP.assistant = { ouvert: false, fil: [], pile: [], attente: false };
+
+    function impUid(p) { IMP.uid += 1; return p + IMP.uid; }
+    function impChiffres(s) { return String(s == null ? '' : s).replace(/\D/g, ''); }
+    function impVide(v) { return v === null || v === undefined || String(v).trim() === ''; }
+    function impNormZone(s) { return impNorm(s).replace(/['’-]/g, ' ').replace(/\s+/g, ' ').trim(); }
+    function impTelNorm(s) { let d = impChiffres(s); if (d.startsWith('0033')) d = d.slice(4); else if (d.startsWith('33') && d.length === 11) d = d.slice(2); else if (d.startsWith('0')) d = d.slice(1); return d; }
+    function impTelInternational(s) {
+      const brut = String(s || '').trim(), d = impChiffres(brut);
+      if (d.startsWith('0033')) return '+' + d.slice(2);
+      if (d.startsWith('33') && d.length === 11) return '+' + d;
+      if (d.startsWith('0') && d.length === 10) return '+33' + d.slice(1);
+      return brut;
+    }
+    function impTelAffiche(s) { const d = impChiffres(s); return d.length === 10 ? d.replace(/(\d{2})(?=\d)/g, '$1 ') : String(s || ''); }
+    function impFormuleDe(e) {
+      const md = e.metadata || {};
+      if (md.formule === 'SEUL' || md.formule === 'MENU') return md.formule;
+      const n = impNorm(e.nom);
+      if (/(^| )MENU( |$)/.test(n)) return 'MENU';
+      if (/(^| )SEUL( |$)/.test(n)) return 'SEUL';
+      return null;
+    }
+
+    // ---------- Informations du restaurant lues sur la source ----------
+    function impRestoVide() { return { telephone: '', email: '', site: '', adresse: { rue: '', code_postal: '', ville: '' }, modes: [], horaires: [], zones: [], vu_non_importe: [] }; }
+    function impFusionnerResto(b, a) {
+      if (!a) return;
+      ['telephone', 'email', 'site'].forEach(k => { if (!b[k] && a[k]) b[k] = a[k]; });
+      ['rue', 'code_postal', 'ville'].forEach(k => { if (!b.adresse[k] && a.adresse && a.adresse[k]) b.adresse[k] = a.adresse[k]; });
+      (a.modes || []).forEach(m => { if (!b.modes.includes(m)) b.modes.push(m); });
+      (a.horaires || []).forEach(h => { if (!b.horaires.some(x => x.jour === h.jour)) b.horaires.push(h); });
+      (a.zones || []).forEach(z => { if (!b.zones.some(x => impNormZone(x.nom) === impNormZone(z.nom))) b.zones.push(z); });
+      (a.vu_non_importe || []).forEach(t => { if (!b.vu_non_importe.some(x => impNorm(x) === impNorm(t))) b.vu_non_importe.push(t); });
+    }
+    function impCarteVide() { return { produits: [], groupes: [], supplements: [], promotions: [], restaurant: impRestoVide(), rapport: { prix_vus: 0, produits_lus: 0, remarques: '' } }; }
+    function impFusionner(base, ajout) {
+      const cles = new Map(base.produits.map((p, i) => [impCleLigne(p.famille, impNomComplet(p)), i]));
+      (ajout.produits || []).forEach(p => {
+        const k = impCleLigne(p.famille, impNomComplet(p));
+        if (cles.has(k)) { const e = base.produits[cles.get(k)]; if (!(e.prix > 0) && p.prix > 0) { e.prix = p.prix; e.incertain = p.incertain; } }
+        else { cles.set(k, base.produits.length); base.produits.push(p); }
+      });
+      (ajout.groupes || []).forEach(g => {
+        const e = base.groupes.find(x => impNorm(x.famille) === impNorm(g.famille) && impNorm(x.nom_groupe) === impNorm(g.nom_groupe));
+        if (!e) base.groupes.push(g);
+        else g.choix.forEach(c => { if (!e.choix.some(x => impNorm(x) === impNorm(c))) e.choix.push(c); });
+      });
+      (ajout.supplements || []).forEach(s => {
+        const e = base.supplements.find(x => impNorm(x.famille) === impNorm(s.famille) && Number(x.prix) === Number(s.prix));
+        if (!e) base.supplements.push(s);
+        else s.choix.forEach(c => { if (!e.choix.some(x => impNorm(x) === impNorm(c))) e.choix.push(c); });
+      });
+      (ajout.promotions || []).forEach(t => { if (!base.promotions.some(x => impNorm(x) === impNorm(t))) base.promotions.push(t); });
+      if (!base.restaurant) base.restaurant = impRestoVide();
+      impFusionnerResto(base.restaurant, ajout.restaurant);
+      const r = ajout.rapport || {};
+      base.rapport.prix_vus += Number(r.prix_vus) || 0;
+      base.rapport.produits_lus = base.produits.length;
+    }
+
+    // ---------- Horaires ----------
+    function impHorairesActuels(rows) {
+      const m = {};
+      (rows || []).slice().sort((a, b) => (a.numero_tranche || 0) - (b.numero_tranche || 0)).forEach(r => {
+        const j = String(r.jour || '').toLowerCase();
+        if (!m[j]) m[j] = { tranches: [] };
+        if (r.est_ouvert) m[j].tranches.push([String(r.heure_ouverture).slice(0, 5), String(r.heure_fermeture).slice(0, 5)]);
+      });
+      return m;
+    }
+    function impTranchesTexte(t) { return t && t.length ? t.map(x => x[0] + '–' + x[1]).join(' · ') : 'fermé'; }
+    function impParseTranches(txt) {
+      const out = [], re = /(\d{1,2})\s*[h:]\s*(\d{2})?\s*[-–—à]+\s*(\d{1,2})\s*[h:]\s*(\d{2})?/gi;
+      const p2 = n => String(n).padStart(2, '0'); let m;
+      while ((m = re.exec(String(txt || ''))) !== null) {
+        const h1 = parseInt(m[1], 10), m1 = m[2] ? parseInt(m[2], 10) : 0, h2 = parseInt(m[3], 10), m2 = m[4] ? parseInt(m[4], 10) : 0;
+        if (h1 > 24 || h2 > 24 || m1 > 59 || m2 > 59) continue;
+        out.push([p2(h1 % 24) + ':' + p2(m1), p2(h2 % 24) + ':' + p2(m2)]);
+      }
+      return out;
+    }
+    const IMP_JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+
+    // ---------- Plan des informations : nouveau = rempli ; différent = proposé avec l'ancienne valeur ; identique = ignoré ----------
+    function impConstruireInfos(resto) {
+      resto = resto || impRestoVide();
+      const infos = { champs: [], horaires: null, zones: [], modes: null, vu: resto.vu_non_importe || [] };
+      const b = IMP.business || {}, tp = b.type_params || {};
+      const ajouter = (cle, libelle, avant, apres, egal) => {
+        if (impVide(avant)) infos.champs.push({ cle, libelle, etat: 'nouveau', avant: '', apres, on: true });
+        else if (!egal) infos.champs.push({ cle, libelle, etat: 'different', avant, apres, on: true });
+      };
+      if (!impVide(resto.telephone)) { const ap = impTelInternational(resto.telephone); ajouter('telephone', 'Téléphone public', b.telephone_public, ap, impTelNorm(b.telephone_public) === impTelNorm(ap)); }
+      if (!impVide(resto.email)) ajouter('email', 'E-mail', b.email, resto.email, impNorm(b.email) === impNorm(resto.email));
+      if (!impVide(resto.site)) ajouter('site', 'Site internet', tp.site_carte, resto.site, impNorm(tp.site_carte) === impNorm(resto.site));
+      const a = resto.adresse || {};
+      if (!impVide(a.rue) || !impVide(a.code_postal) || !impVide(a.ville)) {
+        const act = { rue: b.adresse_rue || '', code_postal: b.code_postal || '', ville: b.ville || '' };
+        const cle = o => impNorm(o.rue) + '|' + impChiffres(o.code_postal) + '|' + impNorm(o.ville);
+        const ap = { rue: a.rue || '', code_postal: a.code_postal || '', ville: a.ville || '' };
+        const texte = o => [o.rue, [o.code_postal, o.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+        const vide = !act.rue && !act.code_postal && !act.ville;
+        if (vide) infos.champs.push({ cle: 'adresse', libelle: 'Adresse', etat: 'nouveau', avant: '', apres: ap, on: true });
+        else if (cle(act) !== cle(ap)) infos.champs.push({ cle: 'adresse', libelle: 'Adresse', etat: 'different', avant: texte(act), apres: ap, on: true });
+      }
+      // horaires : seulement les jours cités par la source
+      if ((resto.horaires || []).length) {
+        const actuels = impHorairesActuels(IMP.horaires), jours = [];
+        (resto.horaires || []).slice().sort((x, y) => IMP_JOURS.indexOf(x.jour) - IMP_JOURS.indexOf(y.jour)).forEach(h => {
+          const ap = h.ferme ? [] : h.tranches, av = actuels[h.jour] ? actuels[h.jour].tranches : [];
+          const sans = !IMP.horaires.some(r => String(r.jour).toLowerCase() === h.jour);
+          if (JSON.stringify(ap) === JSON.stringify(av) && !(sans && ap.length)) return;
+          if (sans && !ap.length) return;
+          jours.push({ jour: h.jour, etat: sans ? 'nouveau' : 'different', avant: impTranchesTexte(av), texte: impTranchesTexte(ap), tranches: ap });
+        });
+        if (jours.length) infos.horaires = { on: true, jours };
+      }
+      // zones de livraison
+      const parNom = new Map((IMP.zones || []).map(z => [impNormZone(z.nom), z]));
+      (resto.zones || []).forEach(z => {
+        const k = impNormZone(z.nom), ex = parNom.get(k), codes = IMP.codesZones[k] || [];
+        let cp = z.code_postal || '', propose = false;
+        if (!cp && codes.length === 1) { cp = codes[0]; propose = true; }
+        if (!ex) { infos.zones.push({ on: true, etat: 'nouvelle', id: null, nom: z.nom, code_postal: cp, propose, codes, minimum: z.minimum || 0, frais: z.frais || 0, delai_min: z.delai_min || null, avant: null }); return; }
+        const avant = { code_postal: ex.code_postal || '', minimum: Number(ex.montant_minimum || 0), frais: Number(ex.frais_service || 0), delai_min: ex.temps_livraison_min || null };
+        // zone existante : ne jamais effacer une valeur ; minimum et frais ne sont proposés que si la source en donne un (> 0)
+        const apres = { code_postal: cp || avant.code_postal, minimum: z.minimum > 0 ? z.minimum : avant.minimum, frais: z.frais > 0 ? z.frais : avant.frais, delai_min: z.delai_min || avant.delai_min };
+        if (avant.code_postal !== apres.code_postal || avant.minimum !== apres.minimum || avant.frais !== apres.frais || (avant.delai_min || null) !== (apres.delai_min || null))
+          infos.zones.push({ on: true, etat: 'differente', id: ex.id, nom: ex.nom, code_postal: apres.code_postal, propose: propose && !avant.code_postal, codes, minimum: apres.minimum, frais: apres.frais, delai_min: apres.delai_min, avant });
+      });
+      // modes de commande proposés
+      if ((resto.modes || []).length) {
+        const actuels = Array.isArray(tp.modes_actifs) ? tp.modes_actifs : null;
+        const ap = IMP_MODES.map(m => m[0]).filter(m => resto.modes.includes(m));
+        if (!actuels) infos.modes = { on: true, etat: 'nouveau', avant: [], apres: ap };
+        else if (JSON.stringify([...actuels].sort()) !== JSON.stringify([...ap].sort())) infos.modes = { on: true, etat: 'different', avant: actuels, apres: ap };
+      }
+      return infos;
+    }
+    const IMP_MODES = [['a_emporter', 'À emporter'], ['sur_place', 'Sur place'], ['livraison', 'Livraison']];
+    function impNbInfos() {
+      const i = IMP.plan && IMP.plan.infos; if (!i) return 0;
+      return i.champs.filter(x => x.on).length + (i.horaires && i.horaires.on ? 1 : 0) + i.zones.filter(x => x.on).length + (i.modes && i.modes.on ? 1 : 0);
+    }
+
+    // ---------- Produits : liste commune (nouveaux + existants), sélecteurs, familles ----------
+    function impListeProduits(plan) {
+      const p = plan || IMP.plan, liste = [];
+      p.nouveaux.forEach(l => liste.push({ cle: 'n:' + l.uid, existant: false, famille: l.famille, nom: l.nom, taille: l.taille, formule: l.formule, on: l.on, ref: l }));
+      IMP.existants.filter(e => e.actif !== false).forEach(e => liste.push({ cle: 'e:' + e.id, existant: true, famille: e.categorie, nom: e.nom, taille: e.taille, formule: impFormuleDe(e), on: true, ref: e }));
+      return liste;
+    }
+    function impSelectionner(sel) {
+      sel = sel || {};
+      return impListeProduits().filter(x => {
+        if (sel.existants === true && !x.existant) return false;
+        if (sel.existants === false && x.existant) return false;
+        if (sel.familles && sel.familles.length && !sel.familles.some(f => impNorm(f) === impNorm(x.famille))) return false;
+        if (sel.formule && x.formule !== sel.formule) return false;
+        if (sel.tailles && sel.tailles.length && !sel.tailles.some(t => impNorm(t) === impNorm(x.taille || ''))) return false;
+        if (sel.nom_contient && !impNorm(x.nom).includes(impNorm(sel.nom_contient))) return false;
+        return true;
+      });
+    }
+    function impRenommerFamille(ancien, nouveau) {
+      nouveau = String(nouveau || '').trim(); if (!nouveau) return 0;
+      const p = IMP.plan, k = impNorm(ancien); let n = 0;
+      p.nouveaux.forEach(l => { if (impNorm(l.famille) === k) { l.famille = nouveau; n++; } });
+      p.groupes.forEach(g => { if (impNorm(g.famille) === k) g.famille = nouveau; });
+      p.supplements.forEach(s => { if (impNorm(s.famille) === k) s.famille = nouveau; });
+      const f = p.famillesNouvelles.find(x => impNorm(x.nom) === k);
+      if (f) {
+        const autre = p.famillesNouvelles.find(x => x !== f && impNorm(x.nom) === impNorm(nouveau));
+        if (autre) p.famillesNouvelles.splice(p.famillesNouvelles.indexOf(f), 1); else f.nom = nouveau;
+      }
+      if (IMP.familles.some(x => impNorm(x.nom) === impNorm(nouveau))) { const i = p.famillesNouvelles.findIndex(x => impNorm(x.nom) === impNorm(nouveau)); if (i >= 0) p.famillesNouvelles.splice(i, 1); }
+      return n;
+    }
+
+    // ---------- Attributs suggérés : boissons créées depuis la famille Boissons, appliquées aux menus ----------
+    function impSuggererBoissons(plan) {
+      const estBoisson = f => /BOISSON/.test(impNorm(f));
+      const noms = [];
+      plan.nouveaux.forEach(l => { if (estBoisson(l.famille) && !noms.includes(l.nom)) noms.push(l.nom); });
+      IMP.existants.forEach(e => { if (e.actif !== false && estBoisson(e.categorie) && !noms.some(n => impNorm(n) === impNorm(e.nom))) noms.push(e.nom); });
+      if (!noms.length) return;
+      if (plan.groupes.some(g => /BOISSON/.test(impNorm(g.nom_groupe)))) return;
+      const menus = impListeProduits(plan).filter(x => x.formule === 'MENU' && !estBoisson(x.famille));
+      const cibles = menus.filter(x => !x.existant || !IMP.optionsExistantes.has(x.ref.id + '|BOISSONS')).map(x => x.cle);
+      if (!cibles.length) return;
+      plan.groupes.push({ uid: impUid('g'), source: 'boissons', on: true, famille: '', nom_groupe: 'BOISSONS', question: 'Quelle boisson ?', choix: noms, prix_choix: 0, min: 0, max: 1, inclus: 1, min_max_par_taille: {}, incertain: false, cibles });
+    }
+
+    // ---------- Plan complet ----------
+    function impConstruirePlan(carte, existants, familles, couv, mode) {
+      const plan = { nouveaux: [], prix: [], desc: [], absents: [], groupes: [], supplements: [], promotions: carte.promotions || [], famillesNouvelles: [], infos: null };
+      const parCle = new Map();
+      existants.forEach(e => parCle.set(impCleLigne(e.categorie, e.nom), e));
+      existants.forEach(e => { const md = e.metadata || {}; if (md.nom_source) { const k = impCleLigne(md.famille_source || e.categorie, md.nom_source); if (!parCle.has(k)) parCle.set(k, e); } });
+      const famillesExistantes = new Set(familles.map(f => impNorm(f.nom)).concat(existants.map(e => impNorm(e.categorie))));
+      const vus = new Set(), famillesLues = new Set();
+      carte.produits.forEach(p => {
+        const nomComplet = impNomComplet(p), cle = impCleLigne(p.famille, nomComplet);
+        famillesLues.add(impNorm(p.famille));
+        const e = parCle.get(cle);
+        if (!e) { plan.nouveaux.push({ uid: impUid('n'), on: true, famille: p.famille, familleSource: p.famille, sous_categorie: p.sous_categorie || '', nom: nomComplet, nomSource: nomComplet, nomBase: p.nom, taille: p.taille || null, formule: p.formule || null, prix: p.prix, description: p.description || '', deduit: !!p.prix_deduit, incertain: !!p.incertain }); return; }
+        vus.add(e.id);
+        if (!(p.prix > 0)) return;
+        const anciens = [e.prix, e.prix_livraison, e.prix_emporter, e.prix_sur_place].filter(x => x !== null && x !== undefined).map(Number);
+        if (anciens.some(x => Math.abs(x - p.prix) > 0.001)) plan.prix.push({ on: true, id: e.id, nom: e.nom, avant: { prix: e.prix, prix_livraison: e.prix_livraison, prix_emporter: e.prix_emporter, prix_sur_place: e.prix_sur_place }, apres: p.prix });
+        if (p.description && impNorm(p.description) !== impNorm(e.details || '')) plan.desc.push({ on: true, id: e.id, nom: e.nom, avant: e.details || '', apres: p.description });
+      });
+      if (couv === 'complete' && mode === 'mise_a_jour') {
+        existants.filter(e => e.actif !== false && famillesLues.has(impNorm(e.categorie)) && !vus.has(e.id)).forEach(e => plan.absents.push({ on: true, id: e.id, nom: e.nom, famille: e.categorie }));
+      }
+      plan.famillesNouvelles = [...new Set(plan.nouveaux.map(n => n.famille))].filter(f => !famillesExistantes.has(impNorm(f))).map(f => ({ on: true, nom: f }));
+      // listes de choix : appliquées par défaut aux produits NOUVEAUX de la famille ; les produits existants se choisissent à la main ou avec l'assistant
+      plan.groupes = (carte.groupes || []).map(g => {
+        const cibles = plan.nouveaux.filter(l => impNorm(l.famille) === impNorm(g.famille)).map(l => 'n:' + l.uid);
+        return { ...g, uid: impUid('g'), source: 'ia', on: !g.incertain && cibles.length > 0, inclus: null, cibles };
+      });
+      plan.supplements = (carte.supplements || []).map(s => ({ ...s, uid: impUid('s'), on: true }));
+      impSuggererBoissons(plan);
+      plan.infos = impConstruireInfos(carte.restaurant);
+      return plan;
+    }
+
+    async function impPreparer() {
+      const doux = r => (r && !r.error ? (r.data || []) : []);
+      const [rp, rf, ra, rb, rh, rz, ro, rs] = await Promise.all([
+        supabaseClient.from('produits').select('id, nom, categorie, taille, prix, prix_livraison, prix_emporter, prix_sur_place, details, actif, famille_id, metadata').eq('business_id', BUSINESS_ID),
+        supabaseClient.from('produit_familles').select('id, nom').eq('business_id', BUSINESS_ID),
+        supabaseClient.from('attributs').select('id, nom, categorie').eq('business_id', BUSINESS_ID),
+        supabaseClient.from('business').select('id, nom, adresse_rue, code_postal, ville, telephone_public, email, type_params').eq('id', BUSINESS_ID).single(),
+        supabaseClient.from('business_horaires').select('jour, numero_tranche, heure_ouverture, heure_fermeture, est_ouvert').eq('business_id', BUSINESS_ID),
+        supabaseClient.from('zones_service').select('id, nom, code_postal, montant_minimum, frais_service, temps_livraison_min, type_zone').eq('business_id', BUSINESS_ID),
+        supabaseClient.from('produit_options').select('produit_id, categorie_attribut').eq('business_id', BUSINESS_ID),
+        supabaseClient.from('supplements_prix').select('famille_id, taille, attribut_id').eq('business_id', BUSINESS_ID)
+      ]);
+      if (rp.error || rf.error || ra.error) throw new Error((rp.error || rf.error || ra.error).message);
+      IMP.existants = rp.data || []; IMP.familles = rf.data || []; IMP.attributs = ra.data || [];
+      IMP.business = rb && !rb.error ? rb.data : null; IMP.horaires = doux(rh); IMP.zones = doux(rz);
+      IMP.optionsExistantes = new Set(doux(ro).map(o => o.produit_id + '|' + impNorm(o.categorie_attribut)));
+      IMP.supplementsExistants = new Set(doux(rs).map(s => s.famille_id + '|' + (s.taille || '') + '|' + s.attribut_id));
+      IMP.mode = IMP.existants.length > 0 ? 'mise_a_jour' : 'creation';
+      // codes postaux des zones : base officielle des communes (jamais devinés) ; sans réponse, le champ reste vide
+      IMP.codesZones = {};
+      const resto = IMP.carte && IMP.carte.restaurant;
+      if (resto && resto.zones.length && IMP.src !== 'manuel') {
+        const sans = resto.zones.filter(z => !z.code_postal);
+        if (sans.length) {
+          try {
+            const cp = (resto.adresse && resto.adresse.code_postal) || (IMP.business && IMP.business.code_postal) || '';
+            const d = await appelExtraire({ action: 'completer_zones', zones: sans.map(z => ({ nom: z.nom })), code_postal: cp });
+            (d.zones || []).forEach(z => { IMP.codesZones[impNormZone(z.nom)] = z.codes_possibles || []; });
+          } catch (_) { /* sans réponse : codes postaux laissés vides */ }
+        }
+      }
+      IMP.plan = impConstruirePlan(IMP.carte, IMP.existants, IMP.familles, IMP.couv, IMP.mode);
+      IMP.etape = 3; dessinerImport();
+    }
+
+    // ---------- Tableau de validation (v2) ----------
+    const IMP_INPUT = 'padding:6px 8px;border:1.5px solid #cfd3d9;border-radius:7px;font-size:14px;font-family:inherit;';
+    function impBadgeEtat(e) { return (e === 'nouveau' || e === 'nouvelle') ? '<span class="badge badge-success">nouveau</span>' : '<span class="badge badge-warning">différent</span>'; }
+    function impCaseInfo(type, k, coche) { return `<input type="checkbox" style="width:22px;height:22px;margin-top:2px;" ${coche ? 'checked' : ''} onchange="impInfoCocher('${type}',${k},this.checked)">`; }
+    function impLigne(contenuCase, corps) { return `<div style="display:grid;grid-template-columns:28px 1fr;gap:8px;padding:9px 0;border-bottom:1px solid #e6e8ec;">${contenuCase}<div>${corps}</div></div>`; }
+
+    function impLigneHtml(l, i) {
+      const badges = (l.deduit ? ' <span class="badge badge-warning">prix déduit du groupe : à vérifier</span>' : '') + (l.incertain ? ' <span class="badge badge-warning">À vérifier : prix illisible</span>' : '')
+        + (impNorm(l.nom) !== impNorm(l.nomSource) ? ' <span class="badge badge-info">modifié</span>' : '');
+      return impLigne(impCase('nouveaux', i, l.on), `<div style="font-size:12.5px;color:var(--muted);">${escHtml(l.famille)}${l.sous_categorie ? ' · ' + escHtml(l.sous_categorie) : ''}${badges}</div>
+        <div style="display:grid;grid-template-columns:1fr 110px;gap:8px;margin-top:4px;">
+          <input type="text" style="${IMP_INPUT}" value="${escHtml(l.nom)}" aria-label="Nom" oninput="IMP.plan.nouveaux[${i}].nom=this.value">
+          <input type="text" style="${IMP_INPUT}${l.on && !(l.prix > 0) ? 'border-color:var(--err);' : ''}" value="${l.prix > 0 ? String(l.prix).replace('.', ',') : ''}" placeholder="Prix €" inputmode="decimal" aria-label="Prix" id="imp-prix-${i}" oninput="impPrixSaisi(${i},this.value)"></div>
+        <input type="text" style="${IMP_INPUT}width:100%;margin-top:6px;color:var(--muted);" value="${escHtml(l.description)}" placeholder="Description (facultatif)" aria-label="Description" oninput="IMP.plan.nouveaux[${i}].description=this.value">`);
+    }
+
+    function impHtmlInfos() {
+      const i = IMP.plan.infos; if (!i) return '';
+      const a = !!(i.champs.length || i.horaires || i.zones.length || i.modes);
+      if (!a && !i.vu.length) return '';
+      const n = impNbInfos();
+      let h = `<details ${a ? 'open' : ''} style="margin-top:16px;border-top:1px solid #e6e8ec;padding-top:12px;"><summary style="cursor:pointer;font-size:15px;font-weight:700;">Informations du restaurant <span style="font-weight:400;color:var(--muted);font-size:12.5px;">(${n} proposition${n > 1 ? 's' : ''} cochée${n > 1 ? 's' : ''})</span></summary>`;
+      if (a) h += '<div style="font-size:12.5px;color:var(--muted);margin:6px 0 2px;">Une information déjà renseignée et différente est proposée avec son ancienne valeur barrée, comme pour les produits.</div>';
+      i.champs.forEach((c, k) => {
+        const saisie = c.cle === 'adresse'
+          ? `<div style="display:grid;grid-template-columns:2fr 1fr 1.4fr;gap:6px;"><input type="text" style="${IMP_INPUT}" value="${escHtml(c.apres.rue)}" placeholder="Rue" onchange="impInfoAdresse(${k},'rue',this.value)"><input type="text" style="${IMP_INPUT}" value="${escHtml(c.apres.code_postal)}" placeholder="Code postal" inputmode="numeric" onchange="impInfoAdresse(${k},'code_postal',this.value)"><input type="text" style="${IMP_INPUT}" value="${escHtml(c.apres.ville)}" placeholder="Ville" onchange="impInfoAdresse(${k},'ville',this.value)"></div>`
+          : `<input type="text" style="${IMP_INPUT}width:100%;" value="${escHtml(c.apres)}" onchange="impInfoSaisie(${k},this.value)">`;
+        h += impLigne(impCaseInfo('champs', k, c.on), `<div style="font-size:12.5px;color:var(--muted);">${c.libelle} ${impBadgeEtat(c.etat)}</div>${saisie}${c.etat === 'different' ? `<div style="font-size:12.5px;color:var(--muted);text-decoration:line-through;margin-top:3px;">${escHtml(c.avant)}</div>` : ''}`);
+      });
+      if (i.horaires) {
+        h += impLigne(impCaseInfo('horaires', 0, i.horaires.on), `<div style="font-size:12.5px;color:var(--muted);margin-bottom:4px;">Horaires d'ouverture : seuls les jours listés sont modifiés</div>`
+          + i.horaires.jours.map((j, k) => `<div style="display:grid;grid-template-columns:70px 1fr;gap:6px;align-items:center;margin:3px 0;"><strong style="text-transform:capitalize;">${j.jour.slice(0, 3)}.</strong><div><input type="text" style="${IMP_INPUT}width:100%;" value="${escHtml(j.texte)}" onchange="impHoraireSaisie(${k},this.value)" aria-label="Horaires ${j.jour}"> ${impBadgeEtat(j.etat)}${j.etat === 'different' ? `<span style="font-size:12.5px;color:var(--muted);text-decoration:line-through;"> ${escHtml(j.avant)}</span>` : ''}</div></div>`).join('')
+          + '<div style="font-size:12px;color:var(--muted);margin-top:4px;">Format : 10:30–14:00 · 17:30–22:00, ou « fermé ».</div>');
+      }
+      i.zones.forEach((z, k) => {
+        const cp = (z.codes.length > 1 && !z.code_postal)
+          ? `<select style="${IMP_INPUT}" onchange="impZoneChamp(${k},'code_postal',this.value)"><option value="">Code postal : à choisir</option>${z.codes.map(c => `<option value="${c}">${c}</option>`).join('')}</select>`
+          : `<input type="text" style="${IMP_INPUT}width:100%;" value="${escHtml(z.code_postal)}" placeholder="Code postal (facultatif)" inputmode="numeric" maxlength="5" onchange="impZoneChamp(${k},'code_postal',this.value)">`;
+        const av = z.avant ? `<div style="font-size:12.5px;color:var(--muted);text-decoration:line-through;margin-top:3px;">Avant : ${[z.avant.code_postal || 'sans code postal', 'minimum ' + impPrix(z.avant.minimum), z.avant.frais > 0 ? 'frais ' + impPrix(z.avant.frais) : 'frais gratuits'].join(' · ')}</div>` : '';
+        h += impLigne(impCaseInfo('zones', k, z.on), `<div style="font-size:12.5px;color:var(--muted);">Zone de livraison ${impBadgeEtat(z.etat)}${z.propose ? ' <span class="badge badge-info">code postal proposé : à vérifier</span>' : ''}${(!z.code_postal && z.codes.length > 1) ? ' <span class="badge badge-warning">plusieurs codes possibles</span>' : ''}</div>
+          <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:6px;margin-top:3px;"><input type="text" style="${IMP_INPUT}" value="${escHtml(z.nom)}" onchange="impZoneChamp(${k},'nom',this.value)" aria-label="Nom de la zone">${cp}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:6px;font-size:12px;color:var(--muted);"><label>Minimum €<input type="text" inputmode="decimal" style="${IMP_INPUT}width:100%;" value="${String(z.minimum).replace('.', ',')}" onchange="impZoneChamp(${k},'minimum',this.value)"></label><label>Frais €<input type="text" inputmode="decimal" style="${IMP_INPUT}width:100%;" value="${String(z.frais).replace('.', ',')}" onchange="impZoneChamp(${k},'frais',this.value)"></label><label>Délai (min)<input type="text" inputmode="numeric" style="${IMP_INPUT}width:100%;" value="${z.delai_min || ''}" onchange="impZoneChamp(${k},'delai_min',this.value)"></label></div>${av}`);
+      });
+      if (i.modes) {
+        h += impLigne(impCaseInfo('modes', 0, i.modes.on), `<div style="font-size:12.5px;color:var(--muted);">Modes de commande proposés ${impBadgeEtat(i.modes.etat)}</div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px;">${IMP_MODES.map(m => `<label style="display:flex;gap:6px;align-items:center;"><input type="checkbox" ${i.modes.apres.includes(m[0]) ? 'checked' : ''} onchange="impModeBascule('${m[0]}',this.checked)">${m[1]}</label>`).join('')}</div>
+          ${i.modes.etat === 'different' ? `<div style="font-size:12.5px;color:var(--muted);text-decoration:line-through;margin-top:3px;">${i.modes.avant.map(x => (IMP_MODES.find(m => m[0] === x) || [x, x])[1]).join(', ') || 'aucun'}</div>` : ''}`);
+      }
+      if (i.vu.length) h += `<div class="groupe-note" style="background:var(--bg,#eceef1);color:var(--muted);margin-top:10px;"><strong>Vu sur la source, non importé :</strong><br>${i.vu.map(t => '• ' + escHtml(t)).join('<br>')}</div>`;
+      return h + '</details>';
+    }
+
+    // ---------- Attributs suggérés ----------
+    function impNbCibles(g) {
+      const vivantes = new Set(impListeProduits().filter(x => x.existant ? !IMP.optionsExistantes.has(x.ref.id + '|' + impNorm(g.nom_groupe)) : (x.on && impFamilleActive(x.famille))).map(x => x.cle));
+      return (g.cibles || []).filter(c => vivantes.has(c)).length;
+    }
+    function impFamilleActive(famille) { const f = IMP.plan.famillesNouvelles.find(x => impNorm(x.nom) === impNorm(famille)); return !f || f.on; }
+    function impGroupeActif(g) { return g.on && impNbCibles(g) > 0; }
+    function impHtmlAttributs() {
+      const p = IMP.plan; let h = '';
+      const SOURCES = { ia: 'lu sur la source', boissons: 'créées depuis la famille Boissons', assistant: 'demandé à l\'assistant' };
+      if (p.groupes.length) {
+        h += impBlocTitre('Attributs suggérés', 'groupes', p.groupes, 'Listes de choix (sauces, boissons, viandes…) : modifiables, et appliquées aux produits choisis. Rien n\'est créé sans produit concerné.');
+        p.groupes.forEach((g, i) => {
+          const n = impNbCibles(g);
+          const noms = impListeProduits().filter(x => (g.cibles || []).includes(x.cle)).slice(0, 3).map(x => escHtml(x.nom)).join(', ');
+          h += `<div style="border:1px solid #e6e8ec;border-radius:10px;padding:10px 12px;margin:8px 0;display:grid;grid-template-columns:28px 1fr;gap:8px;">${impCase('groupes', i, g.on)}<div>
+            <div style="font-size:12.5px;color:var(--muted);margin-bottom:4px;"><span class="badge badge-info">${SOURCES[g.source] || SOURCES.ia}</span>${g.incertain ? ' <span class="badge badge-warning">à vérifier</span>' : ''}${g.famille ? ' · ' + escHtml(g.famille) : ''}</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;"><input type="text" style="${IMP_INPUT}" value="${escHtml(g.nom_groupe)}" aria-label="Étiquette" onchange="impGroupeChamp('${g.uid}','nom_groupe',this.value)"><input type="text" style="${IMP_INPUT}" value="${escHtml(g.question || '')}" placeholder="Question posée au client" onchange="impGroupeChamp('${g.uid}','question',this.value)"></div>
+            <textarea style="${IMP_INPUT}width:100%;min-height:74px;margin-top:6px;" aria-label="Choix, un par ligne" onchange="impGroupeChoix('${g.uid}',this.value)">${escHtml((g.choix || []).join('\n'))}</textarea>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px;font-size:12px;color:var(--muted);">
+              <label>Min<input type="number" min="0" style="${IMP_INPUT}width:100%;" value="${g.min}" onchange="impGroupeChamp('${g.uid}','min',this.value)"></label>
+              <label>Max<input type="number" min="1" style="${IMP_INPUT}width:100%;" value="${g.max}" onchange="impGroupeChamp('${g.uid}','max',this.value)"></label>
+              <label>Inclus<input type="number" min="0" style="${IMP_INPUT}width:100%;" value="${g.inclus === null || g.inclus === undefined ? (g.prix_choix > 0 ? 0 : g.max) : g.inclus}" onchange="impGroupeChamp('${g.uid}','inclus',this.value)"></label>
+              <label>Prix/choix €<input type="text" inputmode="decimal" style="${IMP_INPUT}width:100%;" value="${String(g.prix_choix || 0).replace('.', ',')}" onchange="impGroupeChamp('${g.uid}','prix_choix',this.value)"></label></div>
+            <div style="margin-top:8px;font-size:13.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><span>Appliqué à <strong>${n}</strong> produit${n > 1 ? 's' : ''}${noms && n ? ' (' + noms + (n > 3 ? '…' : '') + ')' : ''}</span><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirCibles('${g.uid}')">✎ Choisir les produits</button></div>
+          </div></div>`;
+        });
+      }
+      if (p.supplements.length) {
+        h += impBlocTitre('Suppléments détectés', 'supplements', p.supplements, 'Extras payants à prix fixe, appliqués à tous les produits de la famille (une combinaison déjà présente est ignorée).');
+        p.supplements.forEach((s, i) => {
+          h += impLigne(impCase('supplements', i, s.on), `<div style="display:grid;grid-template-columns:1fr 110px;gap:6px;align-items:center;"><strong>${escHtml(s.famille)}</strong><input type="text" inputmode="decimal" style="${IMP_INPUT}" value="${String(s.prix).replace('.', ',')}" onchange="impSuppChamp('${s.uid}','prix',this.value)" aria-label="Prix du supplément"></div>
+            <textarea style="${IMP_INPUT}width:100%;min-height:60px;margin-top:6px;" aria-label="Suppléments, un par ligne" onchange="impSuppChamp('${s.uid}','choix',this.value)">${escHtml((s.choix || []).join('\n'))}</textarea>`);
+        });
+      }
+      return h;
+    }
+
+    // Fenêtre « Appliquer à… » : choix des produits d'une liste d'attributs
+    function impOuvrirCibles(uid) {
+      const g = IMP.plan.groupes.find(x => x.uid === uid); if (!g) return;
+      const deja = new Set(g.cibles || []), cle = impNorm(g.nom_groupe), parFam = new Map();
+      impListeProduits().forEach(x => { if (!x.existant && !x.on) return; if (!parFam.has(x.famille)) parFam.set(x.famille, []); parFam.get(x.famille).push(x); });
+      let corps = `<input type="text" style="${IMP_INPUT}width:100%;margin-bottom:10px;" placeholder="Rechercher un produit…" oninput="impFiltrerCibles(this.value)">`;
+      [...parFam.entries()].forEach(([fam, liste]) => {
+        corps += `<div class="imp-cible-fam" style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;"><strong>${escHtml(fam)}</strong><span><button type="button" class="btn btn-secondary btn-sm" onclick="impCiblesFamille(this,true)">Tout</button> <button type="button" class="btn btn-secondary btn-sm" onclick="impCiblesFamille(this,false)">Aucun</button></span></div>
+          ${liste.map(x => { const pres = x.existant && IMP.optionsExistantes.has(x.ref.id + '|' + cle); return `<label class="imp-cible" data-nom="${escHtml(impNorm(x.nom))}" style="display:flex;gap:8px;align-items:center;padding:3px 0;${pres ? 'opacity:.55;' : ''}"><input type="checkbox" data-cle="${x.cle}" ${deja.has(x.cle) && !pres ? 'checked' : ''} ${pres ? 'disabled' : ''}><span>${escHtml(x.nom)}${x.existant ? ' <span class="badge badge-info">existant</span>' : ''}${pres ? ' <span class="badge badge-warning">déjà présent</span>' : ''}</span></label>`; }).join('')}</div>`;
+      });
+      const modal = document.getElementById('modal-edit');
+      modal.innerHTML = `<div class="modal-content" onclick="event.stopPropagation()" style="max-height:88vh;overflow:auto;"><div class="modal-header"><h2>Appliquer « ${escHtml(g.nom_groupe)} » à…</h2><button class="btn-close" onclick="closeModal('modal-edit')">×</button></div>${corps}
+        <div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit')">Annuler</button><button type="button" class="btn btn-primary" onclick="impEnregistrerCibles('${uid}')">Enregistrer</button></div></div>`;
+      modal.classList.add('show'); modal.onclick = () => closeModal('modal-edit');
+    }
+    function impFiltrerCibles(txt) { const t = impNorm(txt); document.querySelectorAll('#modal-edit .imp-cible').forEach(l => { l.style.display = !t || l.dataset.nom.includes(t) ? 'flex' : 'none'; }); }
+    function impCiblesFamille(bouton, v) { bouton.closest('.imp-cible-fam').querySelectorAll('input[type=checkbox]:not(:disabled)').forEach(c => { if (c.closest('.imp-cible').style.display !== 'none') c.checked = v; }); }
+    function impEnregistrerCibles(uid) {
+      const g = IMP.plan.groupes.find(x => x.uid === uid); if (!g) return;
+      g.cibles = [...document.querySelectorAll('#modal-edit input[data-cle]')].filter(c => c.checked && !c.disabled).map(c => c.dataset.cle);
+      if (g.cibles.length && !g.on) g.on = true;
+      closeModal('modal-edit'); impRedessinerGarderPosition();
+    }
+
+    // ---------- Écran complet ----------
+    function impHtmlValidation() {
+      const p = IMP.plan, r = IMP.carte.rapport;
+      const manuel = IMP.src === 'manuel';
+      let h = `<div style="${IMP_CARTE_CSS}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;"><h3 style="margin:0;font-size:16px;">Vérification avant écriture</h3><button type="button" class="btn btn-secondary btn-sm" onclick="impAssistantBascule()">💬 Ajuster avec l'assistant</button></div>
+        <div class="groupe-note" style="background:var(--info-bg);color:var(--info);">${manuel ? 'Saisie manuelle.' : `${IMP.src === 'site' ? 'Site lu.' : IMP.fichiers.length + ' fichier(s) lu(s).'} ${r.prix_vus} prix vus, ${r.produits_lus} produits lus.`} Tout est une suggestion : rien n'est écrit avant « Appliquer », et l'opération s'annule.</div>`;
+      h += impHtmlAssistant();
+      if (manuel) h += `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('produit')">➕ Ajouter un produit</button><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('groupe')">➕ Ajouter un groupe d'options</button><button type="button" class="btn btn-secondary btn-sm" onclick="impOuvrirAjout('supplement')">➕ Ajouter des suppléments</button></div>`;
+      h += impHtmlInfos();
+      if (p.famillesNouvelles.length) h += impBlocTitre('Familles à créer', 'familles', p.famillesNouvelles, 'Le nom d\'une famille se corrige ici : tous ses produits suivent.') + p.famillesNouvelles.map((f, i) => impLigne(impCase('familles', i, f.on), `<input type="text" style="${IMP_INPUT}width:100%;font-weight:700;" value="${escHtml(f.nom)}" aria-label="Nom de la famille" onchange="impFamilleNom(${i},this.value)">`)).join('');
+      if (p.nouveaux.length) h += impBlocTitre(IMP.mode === 'creation' ? 'Produits' : 'Nouveaux produits', 'nouveaux', p.nouveaux, IMP.mode === 'creation' ? 'Noms, prix et descriptions modifiables.' : 'Nom différent d\'un produit existant : créé comme nouveau produit.') + p.nouveaux.map(impLigneHtml).join('');
+      if (p.prix.length) h += impBlocTitre('Prix modifiés', 'prix', p.prix, 'Un prix unique remplace les trois prix par mode ; les anciens prix sont affichés.') + p.prix.map((x, i) => impLigne(impCase('prix', i, x.on), `<strong>${escHtml(x.nom)}</strong><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px;"><span style="color:var(--muted);text-decoration:line-through;font-size:13px;">${impAvantPrix(x.avant)}</span> → <input type="text" inputmode="decimal" style="${IMP_INPUT}width:100px;" value="${String(x.apres).replace('.', ',')}" onchange="impPrixApres(${i},this.value)" aria-label="Nouveau prix"></div>`)).join('');
+      if (p.desc.length) h += impBlocTitre('Descriptions modifiées', 'desc', p.desc, 'Cochées par défaut comme le reste : relire les textes lus sur une photo.') + p.desc.map((x, i) => impLigne(impCase('desc', i, x.on), `<strong>${escHtml(x.nom)}</strong><div style="color:var(--muted);text-decoration:line-through;font-size:13px;margin-top:3px;">${escHtml(x.avant || '(vide)')}</div><input type="text" style="${IMP_INPUT}width:100%;margin-top:4px;" value="${escHtml(x.apres)}" onchange="IMP.plan.desc[${i}].apres=this.value" aria-label="Nouvelle description">`)).join('');
+      if (IMP.couv === 'complete' && IMP.mode === 'mise_a_jour' && !manuel) {
+        const nb = p.absents.filter(x => x.on).length;
+        if (p.absents.length) h += `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:14px;" id="imp-bandeau-absents">${nb} produit${nb > 1 ? 's seront désactivés' : ' sera désactivé'} (jamais supprimés) : à vérifier avant de continuer.</div>` + impBlocTitre('Produits absents de la source', 'absents', p.absents, 'Désactivés seulement dans les familles présentes dans la source.') + p.absents.map((x, i) => impLigne(impCase('absents', i, x.on), `<strong>${escHtml(x.nom)}</strong> <span style="color:var(--muted);font-size:12.5px;">${escHtml(x.famille)}</span>`)).join('');
+      } else if (IMP.mode === 'mise_a_jour' && !manuel) h += '<div class="groupe-note" style="background:var(--warn-bg,#fff3e0);color:var(--warn);margin-top:14px;">Source partielle : aucun produit n\'est désactivé.</div>';
+      h += impHtmlAttributs();
+      if (p.promotions.length) h += `<h3 style="margin:18px 0 6px;font-size:15px;">Promotions à traiter <span style="font-weight:400;color:var(--muted);font-size:12.5px;">(non importées dans la carte)</span></h3>` + p.promotions.map(t => `<div style="padding:4px 0;font-size:14px;">${escHtml(t)}</div>`).join('') + '<div style="font-size:12.5px;color:var(--muted);margin-top:4px;">Conservées dans le restaurant pour un traitement ultérieur.</div>';
+      if (!p.nouveaux.length && !p.prix.length && !p.desc.length && !p.absents.length && !p.groupes.length && !p.supplements.length && !impNbInfos() && !manuel) h += '<div class="no-data" style="margin-top:12px;">Aucun écart avec la carte actuelle.</div>';
+      h += `<div id="imp-msg-appliquer"></div><div class="form-actions" style="justify-content:flex-start;margin-top:16px;flex-wrap:wrap;"><button type="button" class="btn btn-primary" id="imp-btn-appliquer" onclick="impAppliquer()">Appliquer</button><button type="button" class="btn btn-secondary" onclick="chargerImportCarte()">Recommencer</button></div></div>`;
+      return h;
+    }
+
+    // ---------- Gestionnaires de saisie ----------
+    function impTableau(groupe) { const p = IMP.plan; return groupe === 'familles' ? p.famillesNouvelles : p[groupe]; }
+    function impCocher(groupe, i, v) { impTableau(groupe)[i].on = v; impRedessinerGarderPosition(); }
+    function impToutCocher(groupe, v) { impTableau(groupe).forEach(x => { x.on = v; }); impRedessinerGarderPosition(); }
+    function impInfoCocher(type, k, v) { const i = IMP.plan.infos; if (type === 'champs') i.champs[k].on = v; else if (type === 'zones') i.zones[k].on = v; else i[type].on = v; impMajBoutonAppliquer(); }
+    function impInfoSaisie(k, v) { IMP.plan.infos.champs[k].apres = IMP.plan.infos.champs[k].cle === 'telephone' ? impTelInternational(v) : v.trim(); }
+    function impInfoAdresse(k, champ, v) { IMP.plan.infos.champs[k].apres[champ] = champ === 'ville' ? v.trim().toUpperCase() : v.trim(); }
+    function impHoraireSaisie(k, v) { const j = IMP.plan.infos.horaires.jours[k]; j.tranches = impParseTranches(v); j.texte = impTranchesTexte(j.tranches); }
+    function impZoneChamp(k, champ, v) {
+      const z = IMP.plan.infos.zones[k];
+      if (champ === 'nom') z.nom = v.trim().toUpperCase();
+      else if (champ === 'code_postal') { z.code_postal = impChiffres(v).slice(0, 5); z.propose = false; }
+      else if (champ === 'delai_min') { const n = parseInt(v, 10); z.delai_min = n > 0 ? n : null; }
+      else { const n = parseFloat(String(v).replace(',', '.')); z[champ] = Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0; }
+      impRedessinerGarderPosition();
+    }
+    function impModeBascule(code, v) { const m = IMP.plan.infos.modes; m.apres = IMP_MODES.map(x => x[0]).filter(c => (c === code ? v : m.apres.includes(c))); impMajBoutonAppliquer(); }
+    function impFamilleNom(i, v) { const f = IMP.plan.famillesNouvelles[i]; if (!f) return; impRenommerFamille(f.nom, v); impRedessinerGarderPosition(); }
+    function impPrixApres(i, v) { const n = parseFloat(String(v).replace(',', '.')); if (Number.isFinite(n) && n > 0) IMP.plan.prix[i].apres = Math.round(n * 100) / 100; impRedessinerGarderPosition(); }
+    function impGroupeChamp(uid, champ, v) {
+      const g = IMP.plan.groupes.find(x => x.uid === uid); if (!g) return;
+      if (champ === 'nom_groupe') g.nom_groupe = v.trim().toUpperCase();
+      else if (champ === 'question') g.question = v.trim();
+      else if (champ === 'prix_choix') { const n = parseFloat(String(v).replace(',', '.')); g.prix_choix = Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0; }
+      else { const n = Math.max(0, parseInt(v, 10) || 0); g[champ] = n; if (champ === 'min' && g.max < n) g.max = n; if (champ === 'max' && g.max < 1) g.max = 1; }
+      impRedessinerGarderPosition();
+    }
+    function impGroupeChoix(uid, v) { const g = IMP.plan.groupes.find(x => x.uid === uid); if (!g) return; g.choix = [...new Set(v.split(/\r?\n/).map(x => x.trim().toUpperCase()).filter(Boolean))]; impRedessinerGarderPosition(); }
+    function impSuppChamp(uid, champ, v) {
+      const s = IMP.plan.supplements.find(x => x.uid === uid); if (!s) return;
+      if (champ === 'prix') { const n = parseFloat(String(v).replace(',', '.')); s.prix = Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0; }
+      else s.choix = [...new Set(v.split(/\r?\n/).map(x => x.trim().toUpperCase()).filter(Boolean))];
+      impRedessinerGarderPosition();
+    }
+    function impMajBoutonAppliquer() {
+      const b = document.getElementById('imp-btn-appliquer');
+      if (!b || !IMP.plan) return;
+      const p = IMP.plan;
+      const sansPrix = p.nouveaux.filter(x => x.on && !(x.prix > 0)).length;
+      const total = p.nouveaux.filter(x => x.on).length + p.prix.filter(x => x.on).length + p.desc.filter(x => x.on).length
+        + (IMP.couv === 'complete' ? p.absents.filter(x => x.on).length : 0) + p.groupes.filter(impGroupeActif).length + p.supplements.filter(x => x.on).length + impNbInfos();
+      b.disabled = sansPrix > 0 || total === 0;
+      b.textContent = `Appliquer (${total} modification${total > 1 ? 's' : ''})`;
+      const m = document.getElementById('imp-msg-appliquer');
+      if (m) m.innerHTML = sansPrix ? `<div class="groupe-note" style="background:var(--err-bg,#fdecea);color:var(--err);margin-top:10px;">${sansPrix} ligne cochée sans prix : renseigner le prix ou décocher la ligne.</div>` : '';
+      const ban = document.getElementById('imp-bandeau-absents');
+      if (ban) { const nb = p.absents.filter(x => x.on).length; ban.textContent = `${nb} produit${nb > 1 ? 's seront désactivés' : ' sera désactivé'} (jamais supprimés) : à vérifier avant de continuer.`; }
+    }
+
+    // ---------- Écriture (v2) ----------
+    async function impAppliquer() {
+      const p = IMP.plan;
+      const b = document.getElementById('imp-btn-appliquer'); if (b) { b.disabled = true; b.textContent = 'Écriture en cours…'; }
+      const log = { familles_creees: [], produits_crees: [], attributs_crees: [], options_creees: [], supplements_crees: [], prix_modifies: [], descriptions_modifiees: [], desactives: [], infos_avant: null, horaires_avant: [], zones_creees: [], zones_modifiees: [] };
+      try {
+        const bid = BUSINESS_ID;
+        // 1) Familles (noms éventuellement corrigés)
+        const idFamille = {}; IMP.familles.forEach(f => { idFamille[impNorm(f.nom)] = f.id; });
+        IMP.existants.forEach(e => { if (e.famille_id) idFamille[impNorm(e.categorie)] = idFamille[impNorm(e.categorie)] || e.famille_id; });
+        const aCreer = p.famillesNouvelles.filter(f => f.on && f.nom.trim()).map((f, i) => ({ business_id: bid, nom: f.nom.trim(), position: IMP.familles.length + i, actif: true }));
+        if (aCreer.length) {
+          const { data, error } = await supabaseClient.from('produit_familles').insert(aCreer).select('id, nom');
+          if (error) throw error;
+          data.forEach(f => { idFamille[impNorm(f.nom)] = f.id; log.familles_creees.push(f.id); });
+        }
+        // 2) Nouveaux produits (un prix unique pour les trois modes) ; le nom lu sur la source est mémorisé si le nom a été corrigé
+        const famillesExclues = new Set(p.famillesNouvelles.filter(f => !f.on).map(f => impNorm(f.nom)));
+        const lignes = p.nouveaux.filter(x => x.on && x.prix > 0 && x.nom.trim() && !famillesExclues.has(impNorm(x.famille)));
+        const rows = lignes.map((x, i) => {
+          const md = { source: 'import', ...(x.sous_categorie ? { sous_categorie: x.sous_categorie } : {}), ...(x.formule ? { formule: x.formule } : {}), ...(x.deduit ? { prix_deduit: true } : {}) };
+          if (impNorm(x.nom) !== impNorm(x.nomSource) || impNorm(x.famille) !== impNorm(x.familleSource)) { md.nom_source = x.nomSource; md.famille_source = x.familleSource; }
+          return { business_id: bid, famille_id: idFamille[impNorm(x.famille)] || null, nom: x.nom.trim(), categorie: x.famille, prix: x.prix, prix_livraison: x.prix, prix_emporter: x.prix, prix_sur_place: x.prix,
+            taille: x.taille, details: x.description || null, type_produit: 'produit_standard', position: i, metadata: md, actif: true };
+        });
+        const crees = [];
+        for (const t of impTranches(rows, 100)) {
+          const { data, error } = await supabaseClient.from('produits').insert(t).select('id, nom, categorie, taille, famille_id');
+          if (error) throw error;
+          data.forEach(d => { crees.push(d); log.produits_crees.push(d.id); });
+        }
+        const creeParCle = new Map(crees.map(d => [impCleLigne(d.categorie, d.nom), d]));
+        // 3) Listes de choix et suppléments
+        const attributParNom = {}; IMP.attributs.forEach(a => { attributParNom[impNorm(a.nom)] = a.id; });
+        const idAttribut = async (nom, categorie, prix) => {
+          const k = impNorm(nom); if (attributParNom[k]) return attributParNom[k];
+          const { data, error } = await supabaseClient.from('attributs').insert({ business_id: bid, categorie, nom, prix_supplement: prix || 0, actif: true, position: 0 }).select('id').single();
+          if (error) throw error;
+          attributParNom[k] = data.id; log.attributs_crees.push(data.id); return data.id;
+        };
+        const produitsCibles = g => (g.cibles || []).map(cle => {
+          if (cle.startsWith('n:')) {
+            const l = p.nouveaux.find(x => 'n:' + x.uid === cle); if (!l || !l.on) return null;
+            const d = creeParCle.get(impCleLigne(l.famille, l.nom.trim())); return d ? { id: d.id, taille: d.taille } : null;
+          }
+          const e = IMP.existants.find(x => 'e:' + x.id === cle);
+          if (!e || e.actif === false || IMP.optionsExistantes.has(e.id + '|' + impNorm(g.nom_groupe))) return null;
+          return { id: e.id, taille: e.taille };
+        }).filter(Boolean);
+        for (const g of p.groupes.filter(x => x.on)) {
+          const cibles = produitsCibles(g), choix = (g.choix || []).filter(Boolean);
+          if (!cibles.length || !choix.length || !g.nom_groupe.trim()) continue;
+          for (const c of choix) await idAttribut(c, g.nom_groupe, g.prix_choix);
+          const base = (g.inclus === null || g.inclus === undefined) ? (g.prix_choix > 0 ? 0 : null) : g.inclus;
+          const prixModes = { livraison: g.prix_choix, emporter: g.prix_choix, sur_place: g.prix_choix };
+          const optionsRows = cibles.map((prod, i) => {
+            const mm = (prod.taille && g.min_max_par_taille && g.min_max_par_taille[String(prod.taille).toUpperCase()]) || [g.min, g.max];
+            const mx = Math.max(mm[0], mm[1], 1);
+            return { business_id: bid, produit_id: prod.id, categorie_attribut: g.nom_groupe, min: mm[0], max: mx, obligatoire: mm[0] > 0, inclus_gratuit: base === null ? mx : Math.min(base, mx), position: i, comportement: 'ajout', libelle: g.question || null,
+              donnees_fournisseur: { origine: 'import', nom_groupe: g.nom_groupe, ids: Object.fromEntries(choix.map(c => [c, 'import:' + impSlug(c)])), choix: choix.map(c => ({ nom: c, prix: prixModes })) } };
+          });
+          for (const t of impTranches(optionsRows, 100)) {
+            const { data, error } = await supabaseClient.from('produit_options').insert(t).select('id');
+            if (error) throw error;
+            data.forEach(d => log.options_creees.push(d.id));
+          }
+        }
+        for (const s of p.supplements.filter(x => x.on)) {
+          const deLaFamille = [...crees.filter(c => impNorm(c.categorie) === impNorm(s.famille)), ...IMP.existants.filter(e => e.actif !== false && impNorm(e.categorie) === impNorm(s.famille))];
+          if (!deLaFamille.length || !(s.choix || []).length) continue;
+          const tailles = [...new Set(deLaFamille.map(c => c.taille || null))];
+          const famId = idFamille[impNorm(s.famille)] || null;
+          const rowsS = [];
+          for (const c of s.choix) {
+            const aid = await idAttribut(c, 'SUPPLEMENT', s.prix);
+            tailles.forEach(t => {
+              const k = famId + '|' + (t || '') + '|' + aid;
+              if (IMP.supplementsExistants.has(k)) return;
+              IMP.supplementsExistants.add(k);
+              rowsS.push({ business_id: bid, famille_id: famId, produit_id: null, taille: t, attribut_id: aid, prix_livraison: s.prix, prix_emporter: s.prix, prix_sur_place: s.prix });
+            });
+          }
+          for (const t of impTranches(rowsS, 100)) {
+            const { data, error } = await supabaseClient.from('supplements_prix').insert(t).select('id');
+            if (error) throw error;
+            data.forEach(d => log.supplements_crees.push(d.id));
+          }
+        }
+        // 4) Prix, descriptions, désactivations (mise à jour)
+        for (const x of p.prix.filter(y => y.on)) {
+          const { error } = await supabaseClient.from('produits').update({ prix: x.apres, prix_livraison: x.apres, prix_emporter: x.apres, prix_sur_place: x.apres }).eq('id', x.id);
+          if (error) throw error;
+          log.prix_modifies.push({ id: x.id, avant: x.avant });
+        }
+        for (const x of p.desc.filter(y => y.on)) {
+          const { error } = await supabaseClient.from('produits').update({ details: x.apres }).eq('id', x.id);
+          if (error) throw error;
+          log.descriptions_modifiees.push({ id: x.id, avant: x.avant });
+        }
+        const aDesactiver = IMP.couv === 'complete' ? p.absents.filter(x => x.on).map(x => x.id) : [];
+        if (aDesactiver.length) {
+          const { error } = await supabaseClient.from('produits').update({ actif: false }).in('id', aDesactiver);
+          if (error) throw error;
+          log.desactives = aDesactiver;
+        }
+        // 5) Informations du restaurant : coordonnées, horaires, zones, modes (anciennes valeurs conservées pour l'annulation)
+        const infos = p.infos;
+        const { data: cour } = await supabaseClient.from('business').select('adresse_rue, code_postal, ville, telephone_public, email, type_params').eq('id', bid).single();
+        const tp = { ...((cour && cour.type_params) || {}) };
+        const maj = {}, colAvant = {}, tpAvant = {};
+        const noterTp = k => { if (!(k in tpAvant)) tpAvant[k] = { existait: k in tp, valeur: tp[k] === undefined ? null : tp[k] }; };
+        let tpChange = false;
+        if (infos) {
+          infos.champs.filter(c => c.on).forEach(c => {
+            if (c.cle === 'telephone') { colAvant.telephone_public = cour.telephone_public; maj.telephone_public = c.apres; }
+            else if (c.cle === 'email') { colAvant.email = cour.email; maj.email = c.apres; }
+            else if (c.cle === 'adresse') { colAvant.adresse_rue = cour.adresse_rue; colAvant.code_postal = cour.code_postal; colAvant.ville = cour.ville; maj.adresse_rue = c.apres.rue || null; maj.code_postal = c.apres.code_postal || null; maj.ville = c.apres.ville || null; }
+            else if (c.cle === 'site') { noterTp('site_carte'); tp.site_carte = c.apres; tpChange = true; }
+          });
+          if (infos.modes && infos.modes.on && infos.modes.apres.length) { noterTp('modes_actifs'); tp.modes_actifs = infos.modes.apres; tpChange = true; }
+          if (infos.horaires && infos.horaires.on) {
+            for (const j of infos.horaires.jours) {
+              const { data: anciennes, error: ea } = await supabaseClient.from('business_horaires').select('business_id, jour, numero_tranche, heure_ouverture, heure_fermeture, est_ouvert').eq('business_id', bid).eq('jour', j.jour);
+              if (ea) throw ea;
+              log.horaires_avant.push({ jour: j.jour, rows: anciennes || [] });
+              const { error: ed } = await supabaseClient.from('business_horaires').delete().eq('business_id', bid).eq('jour', j.jour);
+              if (ed) throw ed;
+              if (j.tranches.length) {
+                const { error: ei } = await supabaseClient.from('business_horaires').insert(j.tranches.map((t, i) => ({ business_id: bid, jour: j.jour, numero_tranche: i + 1, heure_ouverture: t[0] + ':00', heure_fermeture: t[1] + ':00', est_ouvert: true })));
+                if (ei) throw ei;
+              }
+            }
+          }
+          for (const z of infos.zones.filter(x => x.on && x.nom.trim())) {
+            if (!z.id) {
+              const { data, error } = await supabaseClient.from('zones_service').insert({ business_id: bid, nom: z.nom.trim(), code_postal: z.code_postal || null, type_zone: 'livraison', montant_minimum: z.minimum, frais_service: z.frais, temps_livraison_min: z.delai_min || null, actif: true }).select('id').single();
+              if (error) throw error;
+              log.zones_creees.push(data.id);
+            } else {
+              log.zones_modifiees.push({ id: z.id, avant: { code_postal: z.avant.code_postal || null, montant_minimum: z.avant.minimum, frais_service: z.avant.frais, temps_livraison_min: z.avant.delai_min || null } });
+              const { error } = await supabaseClient.from('zones_service').update({ code_postal: z.code_postal || null, montant_minimum: z.minimum, frais_service: z.frais, temps_livraison_min: z.delai_min || null }).eq('id', z.id);
+              if (error) throw error;
+            }
+          }
+        }
+        // promotions en attente et adresse du site
+        if (p.promotions.length) {
+          const liste = Array.isArray(tp.promotions_a_traiter) ? tp.promotions_a_traiter : [];
+          p.promotions.forEach(t => { if (!liste.some(x => impNorm(x.texte) === impNorm(t))) { liste.push({ texte: t, source: IMP.src, date: new Date().toISOString().slice(0, 10) }); tpChange = true; } });
+          tp.promotions_a_traiter = liste;
+        }
+        if (IMP.src === 'site' && IMP.url.trim() && !tp.site_carte) { noterTp('site_carte'); tp.site_carte = IMP.url.trim(); tpChange = true; }
+        if (Object.keys(maj).length || tpChange) {
+          if (Object.keys(colAvant).length || Object.keys(tpAvant).length) log.infos_avant = { colonnes: colAvant, tp: tpAvant };
+          const { error } = await supabaseClient.from('business').update({ ...maj, ...(tpChange ? { type_params: tp } : {}) }).eq('id', bid);
+          if (error) throw error;
+        }
+        // 6) Historique (permet d'annuler)
+        const resume = { produits_crees: log.produits_crees.length, prix_modifies: log.prix_modifies.length, descriptions_modifiees: log.descriptions_modifiees.length, desactives: log.desactives.length, options: log.options_creees.length, supplements: log.supplements_crees.length, familles: log.familles_creees.length,
+          infos: Object.keys(maj).length + log.zones_creees.length + log.zones_modifiees.length + log.horaires_avant.length + (infos && infos.modes && infos.modes.on ? 1 : 0) };
+        const { error: eh } = await supabaseClient.from('imports_carte').insert({ business_id: bid, source: IMP.src, couverture: IMP.src === 'manuel' ? null : IMP.couv, mode: IMP.mode, resume, annulation: log });
+        if (eh) throw new Error('Historique non enregistré (' + eh.message + ') : l\'import a été annulé automatiquement.');
+        IMP.htmlResultat = `<div style="${IMP_CARTE_CSS}"><h3 style="margin:0 0 8px;font-size:16px;">${IMP.mode === 'creation' ? 'Carte créée' : 'Mise à jour appliquée'}</h3>
+          <div class="groupe-note" style="background:var(--ok-bg,#e6f4ea);color:var(--ok);">${resume.produits_crees} produit(s) créé(s), ${resume.prix_modifies} prix modifié(s), ${resume.descriptions_modifiees} description(s) modifiée(s), ${resume.desactives} produit(s) désactivé(s)${resume.options || resume.supplements ? `, ${resume.options} liste(s) de choix appliquée(s) et ${resume.supplements} supplément(s)` : ''}${resume.infos ? `, ${resume.infos} information(s) du restaurant` : ''}.</div>
+          <div class="form-actions" style="justify-content:flex-start;margin-top:14px;"><button type="button" class="btn btn-secondary" onclick="chargerImportCarte()">Voir l'historique et annuler</button><button type="button" class="btn btn-secondary" onclick="allerSection('produits')">Voir les produits</button></div></div>`;
+        IMP.etape = 4; dessinerImport(); majPastillesParam();
+      } catch (err) {
+        console.error('Import : erreur pendant l\'écriture', err);
+        try { await impDefaire(log); } catch (e2) { console.error('Retour arrière partiel', e2); }
+        alert('❌ Import interrompu : ' + (err.message || err) + '\n\nCe qui avait déjà été écrit a été annulé.');
+        dessinerImport();
+      }
+    }
+
+    // Défait ce qu'un import a écrit (utilisé pour l'annulation et en cas d'erreur)
+    async function impDefaire(log) {
+      const del = async (table, ids) => { for (const t of impTranches(ids || [], 100)) { if (!t.length) continue; const { error } = await supabaseClient.from(table).delete().in('id', t); if (error) throw new Error(table + ' : ' + error.message); } };
+      // informations du restaurant (écrites en dernier, défaites en premier)
+      if (log.infos_avant) {
+        const ia = log.infos_avant, maj = { ...(ia.colonnes || {}) };
+        if (Object.keys(ia.tp || {}).length) {
+          const { data: cour } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+          const tp = { ...((cour && cour.type_params) || {}) };
+          Object.entries(ia.tp).forEach(([k, v]) => { if (v.existait) tp[k] = v.valeur; else delete tp[k]; });
+          maj.type_params = tp;
+        }
+        if (Object.keys(maj).length) { const { error } = await supabaseClient.from('business').update(maj).eq('id', BUSINESS_ID); if (error) throw new Error('business : ' + error.message); }
+      }
+      await del('zones_service', log.zones_creees);
+      for (const x of (log.zones_modifiees || [])) { const { error } = await supabaseClient.from('zones_service').update(x.avant).eq('id', x.id); if (error) throw new Error('zones_service : ' + error.message); }
+      for (const h of (log.horaires_avant || [])) {
+        const { error } = await supabaseClient.from('business_horaires').delete().eq('business_id', BUSINESS_ID).eq('jour', h.jour); if (error) throw new Error('business_horaires : ' + error.message);
+        if ((h.rows || []).length) { const { error: e2 } = await supabaseClient.from('business_horaires').insert(h.rows); if (e2) throw new Error('business_horaires : ' + e2.message); }
+      }
+      await del('supplements_prix', log.supplements_crees);
+      await del('produit_options', log.options_creees);
+      await del('produits', log.produits_crees);
+      await del('attributs', log.attributs_crees);
+      await del('produit_familles', log.familles_creees);
+      for (const x of (log.prix_modifies || [])) { const { error } = await supabaseClient.from('produits').update({ prix: x.avant.prix, prix_livraison: x.avant.prix_livraison, prix_emporter: x.avant.prix_emporter, prix_sur_place: x.avant.prix_sur_place }).eq('id', x.id); if (error) throw error; }
+      for (const x of (log.descriptions_modifiees || [])) { const { error } = await supabaseClient.from('produits').update({ details: x.avant || null }).eq('id', x.id); if (error) throw error; }
+      if ((log.desactives || []).length) { const { error } = await supabaseClient.from('produits').update({ actif: true }).in('id', log.desactives); if (error) throw error; }
+    }
+
+    // ========================================
+    // ASSISTANT D'AJUSTEMENT : il agit sur le tableau de vérification (brouillon), jamais sur la base.
+    // L'IA ne renvoie que des opérations d'un vocabulaire fermé ; elles sont exécutées ici, avec annulation de chaque demande.
+    // ========================================
+    function impAssistantBascule() { IMP.assistant.ouvert = !IMP.assistant.ouvert; impRedessinerGarderPosition(); }
+
+    function impHtmlAssistant() {
+      const a = IMP.assistant; if (!a.ouvert) return '';
+      const bulle = (txt, moi) => `<div style="background:${moi ? '#3a4048' : 'white'};color:${moi ? 'white' : 'inherit'};border:1px solid ${moi ? '#3a4048' : '#e6e8ec'};border-radius:12px;padding:8px 11px;margin:6px ${moi ? '0 6px 36px' : '36px 6px 0'};font-size:14px;">${escHtml(txt)}`;
+      let h = `<div style="border:1.5px solid #e6e8ec;border-radius:12px;padding:12px;margin-top:12px;background:#fafbfc;"><div style="font-weight:700;margin-bottom:2px;">Ajuster avec l'assistant</div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:6px;">L'assistant modifie seulement ce tableau : rien n'est écrit avant « Appliquer ». Chaque demande s'annule.</div>`;
+      a.fil.forEach((m, mi) => {
+        if (m.role === 'user') h += bulle(m.texte, true) + '</div>';
+        else if (m.role === 'sys') h += `<div style="font-size:12.5px;color:var(--muted);margin:6px 0;">${escHtml(m.texte)}</div>`;
+        else h += bulle(m.texte || (m.ops && m.ops.length ? 'Voici ce que je propose :' : ''), false) + (m.ops || []).map((o, oi) => `<div style="border:1px solid ${o.etat === 'attente' ? '#c0392b' : '#e6e8ec'};border-radius:8px;padding:6px 10px;margin-top:6px;background:white;font-size:13.5px;"><strong>${escHtml(o.resume)}</strong>${o.etat === 'attente' ? `<div style="margin-top:6px;"><button type="button" class="btn btn-danger btn-sm" onclick="impAssistantDecider(${mi},${oi},true)">Accepter</button> <button type="button" class="btn btn-secondary btn-sm" onclick="impAssistantDecider(${mi},${oi},false)">Ignorer</button></div>` : o.etat === 'ignore' ? ' <span class="badge badge-warning">ignoré</span>' : o.etat === 'erreur' ? ' <span class="badge badge-warning">non appliqué</span>' : o.etat === 'question' ? '' : ' <span class="badge badge-success">appliqué</span>'}</div>`).join('') + '</div>';
+      });
+      if (a.attente) h += '<div style="color:var(--muted);font-size:13px;margin:6px 0;">Réflexion en cours…</div>';
+      const dicter = (window.SpeechRecognition || window.webkitSpeechRecognition) ? '<button type="button" class="btn btn-secondary btn-sm" onclick="impDicter()">🎙 Dicter</button>' : '';
+      h += `<textarea id="imp-assistant-texte" style="${IMP_INPUT}width:100%;min-height:64px;margin-top:8px;" placeholder="Ex. : 1 sauce incluse pour les plats, 2 pour les sandwichs" oninput="IMP.assistant.texte=this.value">${escHtml(a.texte || '')}</textarea>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"><button type="button" class="btn btn-primary btn-sm" onclick="impAssistantEnvoyer()" ${a.attente ? 'disabled' : ''}>Envoyer</button>${dicter}<button type="button" class="btn btn-secondary btn-sm" onclick="impAssistantAnnuler()" ${a.pile.length ? '' : 'disabled'}>↶ Annuler la dernière demande</button></div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px;">Exemples : « ajoute toutes les boissons 33 cl en attributs pour les menus, une boisson incluse » · « renomme la famille X en Y » · « +0,50 € sur les pizzas taille L » · « mets les noms en minuscules sauf la première lettre »</div></div>`;
+      return h;
+    }
+
+    function impDicter() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) return;
+      const r = new SR(); r.lang = 'fr-FR'; r.interimResults = false; r.maxAlternatives = 1;
+      r.onresult = ev => { const t = ev.results[0][0].transcript; IMP.assistant.texte = ((IMP.assistant.texte || '') + ' ' + t).trim(); impRedessinerGarderPosition(); };
+      r.onerror = () => {}; r.start();
+    }
+
+    // Résumé compact du tableau envoyé à l'IA (jamais la base elle-même)
+    function impBrouillonResume() {
+      const p = IMP.plan, fam = new Map();
+      impListeProduits().filter(x => x.on).forEach(x => {
+        if (!fam.has(x.famille)) fam.set(x.famille, { nom: x.famille, existante: IMP.familles.some(f => impNorm(f.nom) === impNorm(x.famille)), nb_produits: 0, nb_nouveaux: 0, tailles: new Set(), formules: new Set(), exemples: [] });
+        const f = fam.get(x.famille); f.nb_produits++; if (!x.existant) f.nb_nouveaux++; if (x.taille) f.tailles.add(x.taille); if (x.formule) f.formules.add(x.formule); if (f.exemples.length < 5) f.exemples.push(x.nom);
+      });
+      return {
+        familles: [...fam.values()].map(f => ({ ...f, tailles: [...f.tailles], formules: [...f.formules] })),
+        listes_de_choix: p.groupes.map(g => ({ etiquette: g.nom_groupe, nb_choix: (g.choix || []).length, nb_produits: impNbCibles(g), min: g.min, max: g.max })),
+        attributs_existants: [...new Set(IMP.attributs.map(a => a.categorie))].map(c => ({ etiquette: c, nb: IMP.attributs.filter(a => a.categorie === c).length })),
+        produits_decoches: p.nouveaux.filter(x => !x.on).length
+      };
+    }
+
+    function impEchapper(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+    function impStyleTexte(t, style) {
+      const s = String(t || '');
+      if (style === 'majuscules') return s.toUpperCase();
+      if (style === 'minuscules') return s.toLowerCase();
+      const m = s.toLowerCase(); return m.charAt(0).toUpperCase() + m.slice(1);
+    }
+    const impS = n => (n > 1 ? 's' : '');
+    const impArrondi = n => Math.round(n * 100) / 100;
+
+    // Une opération touche-t-elle beaucoup de lignes, ou toute une famille ? Alors elle demande une confirmation.
+    function impOpRisque(op) {
+      const SEUIL = 100;
+      if (['changer_prix', 'modifier_description', 'deplacer', 'renommer_produits', 'retirer_lignes'].includes(op.op)) {
+        const cibles = impSelectionner(op.selecteur);
+        if (cibles.length > SEUIL) return true;
+        if (op.op === 'retirer_lignes') {
+          const toutes = impListeProduits(), cles = new Set(cibles.map(x => x.cle)), fams = new Set(cibles.map(x => impNorm(x.famille)));
+          return [...fams].some(f => toutes.filter(x => impNorm(x.famille) === f).every(x => cles.has(x.cle)));
+        }
+      }
+      return false;
+    }
+
+    // Exécute UNE opération sur le tableau ; retourne { resume, nb, erreur? }
+    function impOpExecuter(op) {
+      const p = IMP.plan, cibles = () => impSelectionner(op.selecteur);
+      switch (op.op) {
+        case 'renommer_famille': {
+          const nouvelle = p.famillesNouvelles.some(f => impNorm(f.nom) === impNorm(op.de));
+          if (!nouvelle) return { resume: `Famille « ${op.de} » : déjà dans la carte, non renommée (seules les familles créées par cet import se renomment).`, nb: 0, erreur: true };
+          const n = impRenommerFamille(op.de, op.vers);
+          return { resume: `Famille « ${op.de} » renommée en « ${op.vers} » (${n} produit${impS(n)})`, nb: n };
+        }
+        case 'fusionner_familles': {
+          let n = 0; const ignorees = [];
+          (op.de || []).forEach(d => { if (p.famillesNouvelles.some(f => impNorm(f.nom) === impNorm(d))) n += impRenommerFamille(d, op.vers); else ignorees.push(d); });
+          return { resume: `Familles fusionnées dans « ${op.vers} » (${n} produit${impS(n)})${ignorees.length ? ' · déjà dans la carte, non touchées : ' + ignorees.join(', ') : ''}`, nb: n, erreur: n === 0 };
+        }
+        case 'renommer_produits': {
+          if (!op.chercher) return { resume: 'Texte à remplacer manquant.', nb: 0, erreur: true };
+          const re = new RegExp(impEchapper(op.chercher), 'gi'); let n = 0;
+          impSelectionner({ ...op.selecteur, existants: false }).forEach(x => { const avant = x.ref.nom; x.ref.nom = x.ref.nom.replace(re, op.remplacer).replace(/\s{2,}/g, ' ').trim(); if (x.ref.nom !== avant) n++; });
+          return { resume: `« ${op.chercher} » remplacé par « ${op.remplacer} » dans ${n} nom${impS(n)} de produit`, nb: n, erreur: n === 0 };
+        }
+        case 'mettre_en_forme': {
+          let n = 0;
+          if (op.cible === 'produits') p.nouveaux.forEach(l => { const v = impStyleTexte(l.nom, op.style); if (v !== l.nom) { l.nom = v; n++; } });
+          else if (op.cible === 'familles') [...p.famillesNouvelles].forEach(f => { const v = impStyleTexte(f.nom, op.style); if (v !== f.nom) { impRenommerFamille(f.nom, v); n++; } });
+          else { p.groupes.forEach(g => { g.nom_groupe = impStyleTexte(g.nom_groupe, op.style); g.choix = g.choix.map(c => impStyleTexte(c, op.style)); n += g.choix.length; }); p.supplements.forEach(s => { s.choix = s.choix.map(c => impStyleTexte(c, op.style)); n += s.choix.length; }); }
+          return { resume: `Mise en forme « ${op.style.replace('_', ' ')} » : ${n} ${op.cible === 'attributs' ? 'attribut' : op.cible === 'familles' ? 'famille' : 'nom de produit'}${impS(n)}`, nb: n, erreur: n === 0 };
+        }
+        case 'changer_prix': {
+          if (!op.mode || !(op.mode === 'fixer' ? op.valeur > 0 : true)) return { resume: 'Mode ou valeur de prix manquant.', nb: 0, erreur: true };
+          const calc = base => op.mode === 'fixer' ? op.valeur : op.mode === 'ajouter' ? base + op.valeur : base * (1 + op.valeur / 100);
+          let n = 0, exemple = '';
+          cibles().forEach(x => {
+            if (!x.existant) {
+              const l = x.ref; if (!(l.prix > 0) && op.mode !== 'fixer') return;
+              const v = impArrondi(calc(l.prix || 0)); if (v > 0 && v !== l.prix) { if (!exemple) exemple = `${l.nom} ${impPrix(l.prix)} → ${impPrix(v)}`; l.prix = v; n++; }
+            } else {
+              const e = x.ref, entree = p.prix.find(y => y.id === e.id), base = entree ? entree.apres : Number(e.prix !== null && e.prix !== undefined ? e.prix : e.prix_livraison);
+              if (!(base > 0) && op.mode !== 'fixer') return;
+              const v = impArrondi(calc(base || 0)); if (!(v > 0) || v === base) return;
+              if (entree) { entree.apres = v; entree.on = true; } else p.prix.push({ on: true, id: e.id, nom: e.nom, avant: { prix: e.prix, prix_livraison: e.prix_livraison, prix_emporter: e.prix_emporter, prix_sur_place: e.prix_sur_place }, apres: v });
+              if (!exemple) exemple = `${e.nom} ${impPrix(base)} → ${impPrix(v)}`; n++;
+            }
+          });
+          const lib = op.mode === 'fixer' ? `fixé à ${impPrix(op.valeur)}` : op.mode === 'ajouter' ? `${op.valeur >= 0 ? '+' : ''}${String(op.valeur).replace('.', ',')} €` : `${op.valeur >= 0 ? '+' : ''}${op.valeur} %`;
+          return { resume: `Prix ${lib} : ${n} produit${impS(n)}${exemple ? ' (ex. ' + exemple + ')' : ''}`, nb: n, erreur: n === 0 };
+        }
+        case 'modifier_description': {
+          let n = 0;
+          cibles().forEach(x => {
+            const nouv = (ancien) => op.mode === 'ajouter' ? [ancien, op.texte].filter(Boolean).join(' · ') : op.texte;
+            if (!x.existant) { x.ref.description = nouv(x.ref.description); n++; }
+            else { const e = x.ref, entree = p.desc.find(y => y.id === e.id); const v = nouv(entree ? entree.apres : (e.details || '')); if (entree) { entree.apres = v; entree.on = true; } else p.desc.push({ on: true, id: e.id, nom: e.nom, avant: e.details || '', apres: v }); n++; }
+          });
+          return { resume: `Description ${op.mode === 'ajouter' ? 'complétée' : 'remplacée'} : ${n} produit${impS(n)}`, nb: n, erreur: n === 0 };
+        }
+        case 'deplacer': {
+          const vers = op.vers_famille; if (!vers) return { resume: 'Famille de destination manquante.', nb: 0, erreur: true };
+          let n = 0; const anciennes = new Set();
+          impSelectionner({ ...op.selecteur, existants: false }).forEach(x => { anciennes.add(impNorm(x.ref.famille)); x.ref.famille = vers; n++; });
+          const connue = IMP.familles.some(f => impNorm(f.nom) === impNorm(vers)) || p.famillesNouvelles.some(f => impNorm(f.nom) === impNorm(vers));
+          if (n && !connue) p.famillesNouvelles.push({ on: true, nom: vers });
+          p.famillesNouvelles = p.famillesNouvelles.filter(f => !anciennes.has(impNorm(f.nom)) || p.nouveaux.some(l => impNorm(l.famille) === impNorm(f.nom)));
+          return { resume: `${n} produit${impS(n)} déplacé${impS(n)} vers « ${vers} »`, nb: n, erreur: n === 0 };
+        }
+        case 'retirer_lignes': case 'remettre_lignes': {
+          const v = op.op === 'remettre_lignes'; let n = 0;
+          cibles().forEach(x => {
+            if (!x.existant) { if (x.ref.on !== v) { x.ref.on = v; n++; } }
+            else { [p.prix, p.desc].forEach(t => t.filter(y => y.id === x.ref.id).forEach(y => { if (y.on !== v) { y.on = v; n++; } })); }
+          });
+          return { resume: `${n} ligne${impS(n)} ${v ? 'remise' + impS(n) : 'retirée' + impS(n)} du tableau (rien n'est supprimé de la base)`, nb: n, erreur: n === 0 };
+        }
+        case 'creer_attributs_depuis_famille': {
+          const et = op.etiquette || op.famille;
+          let noms = [];
+          impListeProduits().filter(x => impNorm(x.famille) === impNorm(op.famille) && (x.existant || x.on)).forEach(x => { if (!noms.some(n => impNorm(n) === impNorm(x.nom))) noms.push(x.nom); });
+          if (op.nom_contient) noms = noms.filter(n => impNorm(n).includes(impNorm(op.nom_contient)));
+          (op.exclure_contient || []).forEach(ex => { noms = noms.filter(n => !impNorm(n).includes(impNorm(ex))); });
+          if (!noms.length) return { resume: `Aucun produit trouvé dans la famille « ${op.famille} »${op.nom_contient ? ' avec « ' + op.nom_contient + ' »' : ''}.`, nb: 0, erreur: true };
+          let g = p.groupes.find(x => x.source !== 'ia' && impNorm(x.nom_groupe) === impNorm(et));
+          if (g) g.choix = noms;
+          else p.groupes.push({ uid: impUid('g'), source: 'assistant', on: true, famille: '', nom_groupe: et, question: '', choix: noms, prix_choix: 0, min: 0, max: 1, inclus: 1, min_max_par_taille: {}, incertain: false, cibles: [] });
+          return { resume: `Attributs « ${et} » : ${noms.length} choix créés depuis la famille « ${op.famille} » (à appliquer à des produits)`, nb: noms.length };
+        }
+        case 'ajouter_groupe': {
+          const et = op.etiquette || 'CHOIX';
+          let choix = op.choix && op.choix.length ? op.choix : null;
+          let g = p.groupes.find(x => x.source !== 'ia' && impNorm(x.nom_groupe) === impNorm(et) && !(x.cibles || []).length);
+          if (!g) {
+            if (!choix) choix = IMP.attributs.filter(a => impNorm(a.categorie) === impNorm(et)).map(a => a.nom);
+            const modele = p.groupes.find(x => impNorm(x.nom_groupe) === impNorm(et));
+            if ((!choix || !choix.length) && modele) choix = [...modele.choix];
+            if (!choix || !choix.length) return { resume: `Aucun attribut « ${et} » : créer d'abord ces attributs (ex. depuis une famille de produits).`, nb: 0, erreur: true };
+            g = { uid: impUid('g'), source: 'assistant', on: true, famille: '', nom_groupe: et, question: '', choix, prix_choix: 0, min: 0, max: 1, inclus: 1, min_max_par_taille: {}, incertain: false, cibles: [] };
+            p.groupes.push(g);
+          } else if (choix) g.choix = choix;
+          g.question = op.question || g.question || ''; g.min = op.min; g.max = Math.max(op.min, op.max, 1);
+          g.inclus = Math.min(op.inclus, g.max); g.prix_choix = op.prix_choix;
+          const cles = cibles().filter(x => x.existant ? !IMP.optionsExistantes.has(x.ref.id + '|' + impNorm(et)) : x.on).map(x => x.cle);
+          p.groupes.forEach(o => { if (o !== g && impNorm(o.nom_groupe) === impNorm(et)) o.cibles = (o.cibles || []).filter(c => !cles.includes(c)); });
+          g.cibles = cles;
+          p.groupes = p.groupes.filter(o => o === g || o.source === 'ia' || impNorm(o.nom_groupe) !== impNorm(et) || (o.cibles || []).length > 0);   // une liste de même étiquette devenue vide disparaît
+          return { resume: `Liste « ${et} » (${g.choix.length} choix, ${g.inclus} incluse${impS(g.inclus)}, max ${g.max}) appliquée à ${cles.length} produit${impS(cles.length)}`, nb: cles.length, erreur: cles.length === 0 };
+        }
+        default: return { resume: 'Opération inconnue.', nb: 0, erreur: true };
+      }
+    }
+
+    async function impAssistantEnvoyer() {
+      const a = IMP.assistant, demande = (a.texte || '').trim();
+      if (!demande || a.attente) return;
+      a.fil.push({ role: 'user', texte: demande }); a.texte = ''; a.attente = true; impRedessinerGarderPosition();
+      try {
+        const d = await appelExtraire({ action: 'assistant', demande, brouillon: impBrouillonResume() });
+        const ops = d.operations || [], msg = { role: 'ia', texte: d.message || '', ops: [] };
+        if (!ops.length) { msg.texte = msg.texte || 'Je n\'ai pas compris cette demande : peux-tu la reformuler ?'; }
+        else if (ops[0].op === 'question') { msg.texte = ops[0].texte || 'Peux-tu préciser ?'; }
+        else {
+          a.pile.push(JSON.stringify(IMP.plan));
+          ops.forEach(op => {
+            if (op.op === 'question') { msg.texte = (msg.texte ? msg.texte + ' ' : '') + op.texte; return; }
+            if (impOpRisque(op)) { const n = impSelectionner(op.selecteur).length; msg.ops.push({ op, etat: 'attente', resume: `${op.op === 'retirer_lignes' ? 'Retirer du tableau' : 'Modifier'} ${n} produit${impS(n)} : confirmation demandée` }); return; }
+            let r; try { r = impOpExecuter(op); } catch (e) { r = { resume: 'Opération impossible : ' + e.message, nb: 0, erreur: true }; }
+            msg.ops.push({ op, etat: r.erreur ? 'erreur' : 'applique', resume: r.resume });
+          });
+        }
+        a.fil.push(msg);
+      } catch (err) { a.fil.push({ role: 'ia', texte: 'Erreur : ' + err.message, ops: [] }); }
+      a.attente = false; impRedessinerGarderPosition();
+    }
+
+    function impAssistantDecider(mi, oi, accepter) {
+      const o = IMP.assistant.fil[mi].ops[oi];
+      if (!accepter) { o.etat = 'ignore'; impRedessinerGarderPosition(); return; }
+      let r; try { r = impOpExecuter(o.op); } catch (e) { r = { resume: 'Opération impossible : ' + e.message, nb: 0, erreur: true }; }
+      o.etat = r.erreur ? 'erreur' : 'applique'; o.resume = r.resume;
+      impRedessinerGarderPosition();
+    }
+
+    function impAssistantAnnuler() {
+      const a = IMP.assistant; if (!a.pile.length) return;
+      IMP.plan = JSON.parse(a.pile.pop());
+      a.fil.push({ role: 'sys', texte: 'Dernière demande annulée.' });
+      impRedessinerGarderPosition();
     }
 
 
@@ -7080,7 +7778,7 @@
       });
  
       const parCP = {};
-      zonesLivraison.forEach(z => {
+      zonesLivraison.filter(z => z.code_postal).forEach(z => {
         if (!parCP[z.code_postal]) parCP[z.code_postal] = [];
         parCP[z.code_postal].push(z.nom);
       });
