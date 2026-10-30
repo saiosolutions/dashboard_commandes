@@ -124,6 +124,9 @@
     var e = r.ecriture;
     var n = function (o, c) { return (o && o[c] != null) ? Number(o[c]) || 0 : 0; };
     var morceaux = [];
+    var det = (e.details && typeof e.details === 'object') ? e.details : null;
+    var nbRestaurant = (det && det.restaurant && det.restaurant.modifies && det.restaurant.modifies.lignes) ? det.restaurant.modifies.lignes.length : 0;
+    if (nbRestaurant > 0) morceaux.push('restaurant : ' + nbRestaurant + ' changement(s)');
     if (n(e.produits, 'crees') + n(e.produits, 'modifies') > 0) {
       morceaux.push('produits : ' + n(e.produits, 'crees') + ' créé(s), ' + n(e.produits, 'modifies') + ' modifié(s)');
     }
@@ -160,6 +163,7 @@
 
   // ---------- Détail déplié d'une notification ----------
   var SECTIONS_DETAIL = [
+    ['restaurant', 'Restaurant et paramètres', { modifies: 'modifications' }],
     ['produits', 'Produits', { crees: 'créés', modifies: 'modifiés', desactives: 'désactivés (disparus chez le fournisseur)' }],
     ['groupes_options', "Groupes d'options", { crees: 'créés', modifies: 'modifiés', supprimes: 'supprimés (disparus chez le fournisseur)' }],
     ['supplements', 'Prix des suppléments', { ajoutes: 'ajoutés', modifies: 'modifiés', retires: 'retirés' }],
