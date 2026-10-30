@@ -7,9 +7,6 @@
        2. après un échec d'envoi (ou une commande « À vérifier » pour un restaurant non API)
        3. données anonymisées (mesures techniques des appels)
    - enregistrement dans business.type_params.conservation (réussite, échec, anonymisé)
-   - encart « Modes de paiement » sous le précédent : espèces, carte bancaire, ticket restaurant
-       * restaurant NON relié : cases à cocher, enregistrées dans business.type_params.modes_paiement
-       * restaurant relié à une API : affichage seul des modes définis par le fournisseur (type_params.paiement)
    Ne modifie aucune fonction existante : elle ajoute seulement un affichage après elles.
    La purge elle-même est faite côté Supabase par la fonction purge_donnees_personnelles.
    ============================================================ */
@@ -37,9 +34,6 @@
     '.conserv-encart .conserv-msg { font-size: 12.5px; min-height: 18px; }',
     '.conserv-encart .conserv-msg.ok { color: var(--ok); }',
     '.conserv-encart .conserv-msg.err { color: var(--err); }',
-    '.conserv-encart .paiement-case { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; cursor: pointer; }',
-    '.conserv-encart .paiement-case input { width: 20px; height: 20px; }',
-    '.conserv-encart .paiement-liste { margin: 0 0 8px; padding-left: 18px; font-size: 14px; line-height: 1.6; }',
     '@media (max-width: 1100px) { .conserv-encart { float: none; clear: none; width: auto; max-width: 760px; margin: 0 0 16px 0; } }'
   ].join('\n');
   document.head.appendChild(style);
@@ -164,115 +158,16 @@
   };
 
 
-  // ---------- Encart « Modes de paiement » ----------
-  var PAIEMENTS_AFFICHES = [['espece', 'Espèces'], ['cb', 'Carte bancaire'], ['ticket', 'Ticket restaurant']];
-
-  function clePaiement(v) {
-    var s = String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
-    if (!s) return null;
-    if (s.indexOf('espece') === 0 || s === 'cash' || s === 'liquide') return 'espece';
-    if (s === 'cb' || s.indexOf('carte') === 0) return 'cb';
-    if (s.indexOf('ticket') === 0 || s.indexOf('titre') === 0 || s === 'tr') return 'ticket';
-    return null;
-  }
-
-  function clesPaiement(brut) {
-    var liste = [];
-    if (Array.isArray(brut)) liste = brut;
-    else if (typeof brut === 'string') liste = brut.split(',');
-    else if (brut && typeof brut === 'object') {
-      Object.keys(brut).forEach(function (k) { if (brut[k] === true || brut[k] === 'true' || brut[k] === 1) liste.push(k); });
-    }
-    var cles = [];
-    liste.forEach(function (x) {
-      var k = clePaiement(x && typeof x === 'object' ? (x.nom || x.code || x.id || x.libelle || '') : x);
-      if (k && cles.indexOf(k) < 0) cles.push(k);
-    });
-    return PAIEMENTS_AFFICHES.map(function (p) { return p[0]; }).filter(function (k) { return cles.indexOf(k) >= 0; });
-  }
-
-  function afficherMessagePaiement(texte, genre) {
-    var m = document.getElementById('paiement-msg');
-    if (!m) return;
-    m.className = 'conserv-msg' + (genre ? ' ' + genre : '');
-    m.textContent = texte || '';
-  }
-
-  async function injecterPaiement() {
-    var zone = document.getElementById('fiche-contenu');
-    if (!zone) return;
-    if (zone.querySelector('.loading') || zone.querySelector('.no-data')) return;
-    if (zone.querySelector('#paiement-encart')) return;
-    var bid = BUSINESS_ID;
-    var r = await supabaseClient.from('business').select('id_externe, type_params').eq('id', bid).single();
-    if (r.error) { console.warn('paiement : lecture impossible', r.error); return; }
-    if (bid !== BUSINESS_ID) return;
-    if (zone.querySelector('#paiement-encart')) return;
-    var api = !!(r.data.id_externe && String(r.data.id_externe).trim() !== '');
-    var tp = r.data.type_params || {};
-    if (typeof tp === 'string') { try { tp = JSON.parse(tp); } catch (e) { tp = {}; } }
-    var brut = api ? (tp.paiement !== undefined ? tp.paiement : tp.modes_paiement)
-                   : (tp.modes_paiement !== undefined ? tp.modes_paiement : tp.paiement);
-    var cles = clesPaiement(brut);
-
-    var corps;
-    if (api) {
-      var noms = PAIEMENTS_AFFICHES.filter(function (p) { return cles.indexOf(p[0]) >= 0; }).map(function (p) { return '<li>' + esc(p[1]) + '</li>'; }).join('');
-      corps = '<div class="conserv-aide">Modes définis par le fournisseur. Pour les changer, modifiez-les chez le fournisseur puis relancez la synchronisation de la carte.</div>' +
-        (noms ? '<ul class="paiement-liste">' + noms + '</ul>' : '<div class="conserv-aide">Aucun mode reconnu : l\'agent ne posera pas la question du paiement.</div>');
-    } else {
-      var cases = PAIEMENTS_AFFICHES.map(function (p) {
-        return '<label class="paiement-case"><input type="checkbox" id="paiement-' + p[0] + '"' + (cles.indexOf(p[0]) >= 0 ? ' checked' : '') + '> ' + esc(p[1]) + '</label>';
-      }).join('');
-      corps = '<div class="conserv-aide">Modes proposés par l\'agent à la fin de la commande, pour la livraison, à emporter et sur place. Aucun mode coché : l\'agent ne pose pas la question.</div>' + cases +
-        '<div class="conserv-pied"><div class="conserv-msg" id="paiement-msg" role="status" aria-live="polite"></div>' +
-        '<button type="button" class="btn btn-primary" id="paiement-bouton" onclick="enregistrerPaiements()">Enregistrer</button></div>';
-    }
-    var d = document.createElement('div');
-    d.className = 'conserv-encart';
-    d.id = 'paiement-encart';
-    d.innerHTML = '<h3>Modes de paiement</h3>' + corps;
-    var premier = zone.querySelector('#conserv-encart');
-    if (premier && premier.nextSibling) zone.insertBefore(d, premier.nextSibling);
-    else if (premier) zone.appendChild(d);
-    else zone.insertBefore(d, zone.firstChild);
-  }
-
-  window.enregistrerPaiements = async function () {
-    var choisis = PAIEMENTS_AFFICHES.filter(function (p) { var c = document.getElementById('paiement-' + p[0]); return c && c.checked; }).map(function (p) { return p[0]; });
-    var bouton = document.getElementById('paiement-bouton');
-    if (bouton) bouton.disabled = true;
-    afficherMessagePaiement('Enregistrement…', '');
-    try {
-      var bid = BUSINESS_ID;
-      var cur = await supabaseClient.from('business').select('type_params').eq('id', bid).single();
-      if (cur.error) throw cur.error;
-      var tp = cur.data.type_params || {};
-      if (typeof tp === 'string') { try { tp = JSON.parse(tp); } catch (e) { tp = {}; } }
-      var maj = Object.assign({}, tp, { modes_paiement: choisis });
-      var up = await supabaseClient.from('business').update({ type_params: maj }).eq('id', bid);
-      if (up.error) throw up.error;
-      afficherMessagePaiement('Enregistré.', 'ok');
-    } catch (e) {
-      console.warn('paiement : enregistrement impossible', e);
-      afficherMessagePaiement('Échec de l\'enregistrement : ' + (e && e.message ? e.message : 'erreur inconnue'), 'err');
-    } finally {
-      if (bouton) bouton.disabled = false;
-    }
-  };
-
   // ---------- Branchement sur le back-office existant (sans le modifier) ----------
   function apres(nom, action) {
     var original = window[nom];
     if (typeof original !== 'function') { console.warn('conservation : fonction introuvable', nom); return; }
     window[nom] = async function () {
       var resultat = await original.apply(this, arguments);
-      try { action(); } catch (e) { console.warn('conservation', nom, e); }
+      try { action.apply(this, arguments); } catch (e) { console.warn('conservation', nom, e); }
       return resultat;
     };
   }
 
-  apres('chargerFiche', function () {
-    Promise.resolve(injecter()).then(function () { return injecterPaiement(); }).catch(function (e) { console.warn('conservation', e); });
-  });
+  apres('chargerFiche', function () { injecter(); });
 })();
