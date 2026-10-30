@@ -529,6 +529,10 @@
     .h-arrow { color: var(--muted); font-size: 13px; }
     .del-creneau { color: var(--err, #c0392b); background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px 6px; }
     .add-creneau { background: none; border: 1px dashed #b8c0ca; color: var(--info); border-radius: 7px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; align-self: flex-start; margin-top: 2px; }
+    .h-tabs { display: flex; gap: 8px; margin: 0 0 12px; flex-wrap: wrap; }
+    .h-tab { background: white; border: 1px solid #b8c0ca; color: var(--ink); border-radius: 8px; padding: 10px 16px; min-height: 44px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .h-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+    .h-tab:focus-visible { outline: 3px solid rgba(95,104,115,0.45); outline-offset: 1px; }
     .continu-badge { font-size: 11px; background: var(--success-bg, #e8f3ea); color: var(--success, #3a7d44); padding: 3px 9px; border-radius: 999px; font-weight: 700; }
     .h-closed-text { color: var(--muted); font-style: italic; font-size: 14px; padding-top: 6px; }
     @media (max-width: 640px) {
@@ -1517,6 +1521,17 @@
           <span style="color: #666; font-size: 14px;">${texteSouhaite}</span>
         </div>
       ` : '';
+      let paiementHtml = '';
+      {
+        let ilp = cmd.instructions_livraison;
+        if (typeof ilp === 'string') { try { ilp = JSON.parse(ilp); } catch { ilp = null; } }
+        const textePaiement = libellesPaiement(ilp && ilp.mode_paiement);
+        if (textePaiement) paiementHtml = `
+            <div style="background: #fafbfc; padding: 14px; border-radius: 8px; margin-bottom: 14px;">
+              <strong>💳 Paiement</strong><br>
+              <span style="color: #666; font-size: 14px;">${escHtml(textePaiement)}</span>
+            </div>`;
+      }
       const modal = document.getElementById('modal-commande');
       modal.innerHTML = `
         <div class="modal-content" onclick="event.stopPropagation()">
@@ -1536,7 +1551,7 @@
                 ${instructionsAccesHtml}
               </div>
             ` : ''}
-            ${aVerifierHtml}${instructionsLivraisonHtml}
+            ${aVerifierHtml}${instructionsLivraisonHtml}${paiementHtml}
             <div style="margin-bottom: 16px;">
               <strong>📦 Articles</strong>
               <div style="margin-top: 12px;">${articlesHtml}</div>
@@ -1956,11 +1971,29 @@
     const JOURS_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
     // Structure de travail : { lundi: {ouvert:false, creneaux:[{ouv:'11:00',fer:'14:30'}]}, ... }
     let horairesData = {};
+    let modeHoraires = 'livraison';   // onglet affiché : 'livraison' ou 'emporter' (à emporter + sur place)
+    let horairesParMode = { livraison: {}, emporter: {} };
 
     // Convertit "HH:MM:SS" ou "HH:MM" en "HH:MM"
     function hhmm(t) {
       if (!t) return '';
       return String(t).slice(0, 5);
+    }
+
+    // Transforme les lignes de la base (un mode) en structure de travail par jour
+    function horairesDepuisLignes(lignes) {
+      const d = {};
+      JOURS_SEMAINE.forEach(j => { d[j] = { ouvert: false, creneaux: [] }; });
+      (lignes || []).slice().sort((a, b) => (a.numero_tranche || 0) - (b.numero_tranche || 0)).forEach(row => {
+        const j = row.jour;
+        if (!d[j]) d[j] = { ouvert: false, creneaux: [] };
+        d[j].creneaux.push({ ouv: hhmm(row.heure_ouverture), fer: hhmm(row.heure_fermeture) });
+        // Un jour est "ouvert" si au moins un créneau est est_ouvert=true
+        if (row.est_ouvert) d[j].ouvert = true;
+      });
+      // Si un jour n'a aucun créneau (cas limite), lui en donner un par défaut
+      JOURS_SEMAINE.forEach(j => { if (d[j].creneaux.length === 0) d[j].creneaux.push({ ouv: '11:00', fer: '14:30' }); });
+      return d;
     }
 
     async function loadHoraires() {
@@ -1973,32 +2006,37 @@
           .eq('business_id', BUSINESS_ID)
           .order('numero_tranche', { ascending: true });
         if (error) throw error;
-
-        // Construire la structure de travail par jour
-        horairesData = {};
-        JOURS_SEMAINE.forEach(j => { horairesData[j] = { ouvert: false, creneaux: [] }; });
-        (data || []).forEach(row => {
-          const j = row.jour;
-          if (!horairesData[j]) horairesData[j] = { ouvert: false, creneaux: [] };
-          horairesData[j].creneaux.push({ ouv: hhmm(row.heure_ouverture), fer: hhmm(row.heure_fermeture) });
-          // Un jour est "ouvert" si au moins un créneau est est_ouvert=true
-          if (row.est_ouvert) horairesData[j].ouvert = true;
-        });
-        // Si un jour ouvert n'a aucun créneau (cas limite), lui en donner un par défaut
-        JOURS_SEMAINE.forEach(j => {
-          if (horairesData[j].creneaux.length === 0) {
-            horairesData[j].creneaux.push({ ouv: '11:00', fer: '14:30' });
-          }
-        });
+        const lignes = data || [];
+        // Lignes d'un mode ; à défaut, lignes « sans mode » (valables pour tous les modes)
+        const pour = (m) => { const propres = lignes.filter(r => r.mode === m); return propres.length ? propres : lignes.filter(r => !r.mode); };
+        horairesParMode = { livraison: horairesDepuisLignes(pour('livraison')), emporter: horairesDepuisLignes(pour('emporter')) };
+        horairesData = horairesParMode[modeHoraires];
         renderHoraires();
       } catch (error) {
         container.innerHTML = `<div class="no-data">❌ Erreur: ${error.message}</div>`;
       }
     }
 
+    function changerOngletHoraires(mode) {
+      modeHoraires = mode;
+      horairesData = horairesParMode[mode];
+      renderHoraires();
+    }
+
+    function copierHoraires() {
+      const autre = modeHoraires === 'livraison' ? 'emporter' : 'livraison';
+      horairesParMode[autre] = JSON.parse(JSON.stringify(horairesData));
+      alert('📋 Horaires copiés vers l\'autre onglet. Pensez à enregistrer.');
+    }
+
     function renderHoraires() {
       const container = document.getElementById('horaires-content');
-      let html = '';
+      const enLivraison = modeHoraires === 'livraison';
+      let html = `<div class="h-tabs">
+        <button class="h-tab ${enLivraison ? 'active' : ''}" onclick="changerOngletHoraires('livraison')">🛵 Livraison</button>
+        <button class="h-tab ${enLivraison ? '' : 'active'}" onclick="changerOngletHoraires('emporter')">🛍️ À emporter / sur place</button>
+      </div>
+      <div class="groupe-note" style="margin:0 0 14px;">${enLivraison ? 'Horaires pendant lesquels l\'agent accepte une commande en livraison.' : 'Horaires pendant lesquels l\'agent accepte une commande à emporter ou sur place.'} Les deux onglets sont enregistrés ensemble.</div>`;
       JOURS_SEMAINE.forEach(jour => {
         const d = horairesData[jour];
         const nomJour = jour.charAt(0).toUpperCase() + jour.slice(1);
@@ -2028,7 +2066,8 @@
         }
         html += `</div>`;
       });
-      html += `<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      html += `<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap;">
+        <button class="btn btn-secondary" onclick="copierHoraires()">📋 Copier vers ${enLivraison ? 'À emporter / sur place' : 'Livraison'}</button>
         <button class="btn btn-secondary" onclick="loadHoraires()">Annuler</button>
         <button class="btn btn-primary" onclick="sauvegarderHoraires()">💾 Enregistrer les horaires</button>
       </div>`;
@@ -2070,37 +2109,41 @@
     }
 
     async function sauvegarderHoraires() {
-      // Vérifier les formats d'heure avant d'écrire
-      for (const jour of JOURS_SEMAINE) {
-        const d = horairesData[jour];
-        if (!d.ouvert) continue;
-        for (const c of d.creneaux) {
-          if (!heureValide(c.ouv) || !heureValide(c.fer)) {
-            alert(`⛔ Heure invalide pour ${jour} : "${c.ouv}" ou "${c.fer}". Format attendu : HH:MM (ex : 11:00).`);
-            return;
+      // Vérifier les formats d'heure des deux onglets avant d'écrire
+      for (const mode of ['livraison', 'emporter']) {
+        for (const jour of JOURS_SEMAINE) {
+          const d = horairesParMode[mode][jour];
+          if (!d.ouvert) continue;
+          for (const c of d.creneaux) {
+            if (!heureValide(c.ouv) || !heureValide(c.fer)) {
+              alert(`⛔ Heure invalide (${mode === 'livraison' ? 'livraison' : 'à emporter / sur place'}) pour ${jour} : "${c.ouv}" ou "${c.fer}". Format attendu : HH:MM (ex : 11:00).`);
+              return;
+            }
           }
         }
       }
       try {
-        // Stratégie simple et fiable : supprimer toutes les lignes du business, réinsérer proprement
+        // Stratégie simple et fiable : supprimer toutes les lignes du business, réinsérer proprement (un jeu par mode)
         const { error: delErr } = await supabaseClient
           .from('business_horaires')
           .delete()
           .eq('business_id', BUSINESS_ID);
         if (delErr) throw delErr;
 
-        // Construire les lignes à insérer (7 jours, avec est_ouvert selon le jour)
         const lignes = [];
-        JOURS_SEMAINE.forEach(jour => {
-          const d = horairesData[jour];
-          d.creneaux.forEach((c, i) => {
-            lignes.push({
-              business_id: BUSINESS_ID,
-              jour: jour,
-              numero_tranche: i + 1,
-              heure_ouverture: c.ouv + ':00',
-              heure_fermeture: c.fer + ':00',
-              est_ouvert: d.ouvert
+        ['livraison', 'emporter'].forEach(mode => {
+          JOURS_SEMAINE.forEach(jour => {
+            const d = horairesParMode[mode][jour];
+            d.creneaux.forEach((c, i) => {
+              lignes.push({
+                business_id: BUSINESS_ID,
+                jour: jour,
+                numero_tranche: i + 1,
+                heure_ouverture: c.ouv + ':00',
+                heure_fermeture: c.fer + ':00',
+                est_ouvert: d.ouvert,
+                mode: mode
+              });
             });
           });
         });
@@ -2110,7 +2153,7 @@
           .insert(lignes);
         if (insErr) throw insErr;
 
-        alert('✅ Horaires enregistrés');
+        alert('✅ Horaires enregistrés (livraison et à emporter / sur place)');
         loadHoraires();
       } catch (err) {
         alert('❌ Erreur: ' + err.message + '\n\nTes horaires n\'ont peut-être pas été sauvegardés. Recharge la page et réessaie.');
@@ -3237,9 +3280,10 @@
       const zone = document.getElementById('modes-contenu');
       zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
       try {
-        const { data, error } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+        const { data, error } = await supabaseClient.from('business').select('type_params, id_externe').eq('id', BUSINESS_ID).single();
         if (error) throw error;
         const tp = (data && data.type_params) || {};
+        const estApi = Boolean(data && data.id_externe && String(data.id_externe).trim() !== '');
         const fournisseur = (Array.isArray(tp.modes) ? tp.modes : []).map(m => m === 'emporter' ? 'a_emporter' : m);
         const enregistres = Array.isArray(tp.modes_actifs);
         let actifs = enregistres ? tp.modes_actifs : fournisseur.filter(m => m !== 'sur_place');
@@ -3262,6 +3306,7 @@
 
         zone.innerHTML = html;
         majApercuModes();
+        zone.insertAdjacentHTML('beforeend', htmlModesPaiement(tp, estApi));
       } catch (err) {
         zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
       }
@@ -3295,6 +3340,91 @@
         if (e2) throw e2;
         alert('✅ Modes enregistrés');
         majPastillesParam();
+        chargerModes();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+
+    // ========================================
+    // MODES DE PAIEMENT proposés par l'agent (à la fin de chaque commande, avant la validation)
+    // - restaurant relié à une API : modes du fournisseur (type_params.paiement), non modifiables ici ;
+    // - autre restaurant : modes cochés ici (type_params.modes_paiement).
+    // Valeurs envoyées au fournisseur : espece, CB, Ticket restaurant, cheque.
+    // ========================================
+    const MODES_PAIEMENT = [
+      ['espece', 'Espèces'],
+      ['cb', 'Carte bancaire'],
+      ['ticket', 'Ticket restaurant'],
+      ['cheque', 'Chèque']
+    ];
+
+    function clePaiementBO(v) {
+      const s = String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]+/g, ' ').trim();
+      if (!s) return null;
+      if (s.indexOf('espece') === 0 || s === 'cash' || s === 'liquide') return 'espece';
+      if (s === 'cb' || s.indexOf('cb ') === 0 || s.indexOf('carte') === 0) return 'cb';
+      if (s.indexOf('ticket') === 0 || s.indexOf('titre') === 0 || s === 'tr') return 'ticket';
+      if (s.indexOf('cheque') === 0) return 'cheque';
+      return null;
+    }
+
+    function clesPaiementDe(brut) {
+      let liste = [];
+      if (Array.isArray(brut)) liste = brut;
+      else if (typeof brut === 'string') liste = brut.split(',');
+      else if (brut && typeof brut === 'object') liste = Object.keys(brut).filter(k => brut[k] === true || brut[k] === 'true' || brut[k] === 1);
+      const cles = [];
+      liste.forEach(x => {
+        const k = clePaiementBO(x && typeof x === 'object' ? (x.nom || x.code || x.id || x.libelle || '') : x);
+        if (k && !cles.includes(k)) cles.push(k);
+      });
+      return MODES_PAIEMENT.map(m => m[0]).filter(k => cles.includes(k));
+    }
+
+    // Texte lisible d'un paiement enregistré dans une commande (ex. « Ticket restaurant,espece » -> « Ticket restaurant et Espèces »)
+    function libellesPaiement(valeur) {
+      if (!valeur) return '';
+      const noms = [];
+      String(valeur).split(',').forEach(x => {
+        const k = clePaiementBO(x);
+        const m = MODES_PAIEMENT.find(p => p[0] === k);
+        if (m && !noms.includes(m[1])) noms.push(m[1]);
+      });
+      return noms.join(' et ');
+    }
+
+    function htmlModesPaiement(tp, estApi) {
+      const brut = estApi ? (tp.paiement !== undefined ? tp.paiement : tp.modes_paiement) : (tp.modes_paiement !== undefined ? tp.modes_paiement : tp.paiement);
+      const cles = clesPaiementDe(brut);
+      let html = `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:18px;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Modes de paiement</div>
+        <div style="margin-bottom:12px;">${estApi ? '<span class="badge badge-info">définis par le fournisseur</span>' : '<span class="badge badge-success">réglage du restaurant</span>'}</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5;">L'agent demande comment le client paiera à la fin de chaque commande (livraison, à emporter, sur place), et ne propose que ces modes. Aucun mode : il ne pose pas la question.</div>`;
+      if (estApi) {
+        html += cles.length
+          ? '<ul style="margin:0 0 6px;padding-left:20px;line-height:1.8;">' + MODES_PAIEMENT.filter(m => cles.includes(m[0])).map(m => `<li>${m[1]}</li>`).join('') + '</ul>'
+          : '<div class="groupe-note">⚠️ Aucun mode reconnu chez le fournisseur : l\'agent ne posera pas la question du paiement.</div>';
+        html += '<div style="font-size:12.5px;color:var(--muted);margin-top:8px;">Pour les changer, modifiez-les chez le fournisseur : la synchro les reprend automatiquement.</div>';
+      } else {
+        MODES_PAIEMENT.forEach(([code, lib]) => {
+          html += `<div class="checkbox-group" style="margin-bottom:8px;"><input type="checkbox" id="paiement-${code}" ${cles.includes(code) ? 'checked' : ''}><label for="paiement-${code}" style="font-weight:600;">${lib}</label></div>`;
+        });
+        html += `<div class="form-actions" style="justify-content:flex-start;margin-top:10px;border-top:none;padding-top:0;"><button class="btn btn-primary" onclick="enregistrerModesPaiement()">💾 Enregistrer les modes de paiement</button></div>`;
+      }
+      return html + '</div>';
+    }
+
+    async function enregistrerModesPaiement() {
+      const choisis = MODES_PAIEMENT.map(m => m[0]).filter(code => { const c = document.getElementById('paiement-' + code); return c && c.checked; });
+      try {
+        const { data, error } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+        if (error) throw error;
+        const tp = (data && data.type_params) || {};
+        const { error: e2 } = await supabaseClient.from('business').update({ type_params: { ...tp, modes_paiement: choisis } }).eq('id', BUSINESS_ID);
+        if (e2) throw e2;
+        alert('✅ Modes de paiement enregistrés');
         chargerModes();
       } catch (err) {
         alert('❌ Erreur: ' + err.message);
@@ -6463,13 +6593,13 @@
           if (infos.modes && infos.modes.on && infos.modes.apres.length) { noterTp('modes_actifs'); tp.modes_actifs = infos.modes.apres; tpChange = true; }
           if (infos.horaires && infos.horaires.on) {
             for (const j of infos.horaires.jours) {
-              const { data: anciennes, error: ea } = await supabaseClient.from('business_horaires').select('business_id, jour, numero_tranche, heure_ouverture, heure_fermeture, est_ouvert').eq('business_id', bid).eq('jour', j.jour);
+              const { data: anciennes, error: ea } = await supabaseClient.from('business_horaires').select('business_id, jour, numero_tranche, heure_ouverture, heure_fermeture, est_ouvert, mode').eq('business_id', bid).eq('jour', j.jour);
               if (ea) throw ea;
               log.horaires_avant.push({ jour: j.jour, rows: anciennes || [] });
               const { error: ed } = await supabaseClient.from('business_horaires').delete().eq('business_id', bid).eq('jour', j.jour);
               if (ed) throw ed;
               if (j.tranches.length) {
-                const { error: ei } = await supabaseClient.from('business_horaires').insert(j.tranches.map((t, i) => ({ business_id: bid, jour: j.jour, numero_tranche: i + 1, heure_ouverture: t[0] + ':00', heure_fermeture: t[1] + ':00', est_ouvert: true })));
+                const { error: ei } = await supabaseClient.from('business_horaires').insert(['livraison', 'emporter'].flatMap(m => j.tranches.map((t, i) => ({ business_id: bid, jour: j.jour, numero_tranche: i + 1, heure_ouverture: t[0] + ':00', heure_fermeture: t[1] + ':00', est_ouvert: true, mode: m }))));
                 if (ei) throw ei;
               }
             }
@@ -7256,6 +7386,103 @@
       `;
       modal.classList.add('show');
       modal.onclick = () => closeModal('modal-edit');
+      chargerOptionsProduit(id);
+    }
+
+
+    // ========================================
+    // FICHE PRODUIT : options et suppléments disponibles (lecture seule)
+    // Montre ce que l'agent peut proposer et ce que le moteur de prix peut facturer :
+    // groupes de choix (produit_options) et suppléments payants (supplements_prix : propres au produit, sinon ceux de sa famille et de sa taille).
+    // ========================================
+    function prixEuroBO(v) { const n = Number(v); return (isFinite(n) ? n : 0).toFixed(2).replace('.', ',') + ' €'; }
+    function prixModesBO(l, e, s) {
+      const a = [l, e, s].map(x => Number(x) || 0);
+      if (a[0] === a[1] && a[1] === a[2]) return a[0] === 0 ? 'gratuit' : '+' + prixEuroBO(a[0]);
+      return 'livraison ' + prixEuroBO(a[0]) + ' · emporter ' + prixEuroBO(a[1]) + ' · sur place ' + prixEuroBO(a[2]);
+    }
+    function listeCourteBO(noms, max) {
+      const tri = noms.slice().sort((a, b) => a.localeCompare(b, 'fr'));
+      return tri.slice(0, max).map(escHtml).join(', ') + (tri.length > max ? ' … (+' + (tri.length - max) + ' autres)' : '');
+    }
+
+    async function chargerOptionsProduit(id) {
+      const modal = document.getElementById('modal-edit');
+      const form = modal && modal.querySelector('form');
+      if (!form || form.querySelector('#produit-options-bloc')) return;
+      const bloc = document.createElement('div');
+      bloc.id = 'produit-options-bloc';
+      bloc.style.cssText = 'border-top: 1px solid var(--line); margin-top: 16px; padding-top: 14px; font-size: 14px; line-height: 1.5;';
+      bloc.innerHTML = '<strong>Options et suppléments disponibles</strong><div style="font-size:12.5px;color:var(--muted);margin-top:6px;">Chargement…</div>';
+      const actions = form.querySelector('.form-actions');
+      if (actions) form.insertBefore(bloc, actions); else form.appendChild(bloc);
+      try {
+        const bid = BUSINESS_ID;
+        const pr = await supabaseClient.from('produits').select('id, nom, famille_id, taille').eq('id', id).single();
+        if (pr.error) throw pr.error;
+        const p = pr.data;
+        const op = await supabaseClient.from('produit_options').select('*').eq('produit_id', id).order('position', { ascending: true });
+        if (op.error) throw op.error;
+        const groupes = op.data || [];
+        const filtre = 'produit_id.eq.' + id + (p.famille_id ? ',famille_id.eq.' + p.famille_id : '');
+        const su = await supabaseClient.from('supplements_prix')
+          .select('famille_id, produit_id, taille, prix_livraison, prix_emporter, prix_sur_place, attributs(nom)')
+          .eq('business_id', bid).or(filtre);
+        if (su.error) throw su.error;
+        const lignes = su.data || [];
+        const propres = lignes.filter(r => r.produit_id === id);
+        const supplements = propres.length > 0 ? propres
+          : lignes.filter(r => !r.produit_id && r.famille_id === p.famille_id && String(r.taille || '') === String(p.taille || ''));
+
+        // Groupes sans liste du fournisseur (restaurant saisi à la main) : on liste les éléments de la catégorie
+        const categories = [];
+        groupes.forEach(g => {
+          const d = g.donnees_fournisseur || {};
+          if (!(Array.isArray(d.choix) && d.choix.length) && g.categorie_attribut && !categories.includes(g.categorie_attribut)) categories.push(g.categorie_attribut);
+        });
+        const parCategorie = {};
+        if (categories.length > 0) {
+          const at = await supabaseClient.from('attributs').select('nom, categorie').eq('business_id', bid).eq('actif', true).in('categorie', categories);
+          (at.data || []).forEach(a => { (parCategorie[a.categorie] = parCategorie[a.categorie] || []).push(a.nom); });
+        }
+
+        let html = '<strong>Options et suppléments disponibles</strong>' +
+          '<div style="font-size:12.5px;color:var(--muted);margin:6px 0 10px;">Lecture seule : ce que l\'agent peut proposer et ce que le moteur de prix peut facturer pour ce produit.</div>';
+        html += '<div style="font-weight:600;margin:8px 0 4px;">Questions et choix</div>';
+        if (groupes.length === 0) html += '<div style="font-size:12.5px;color:var(--muted);margin:0 0 8px;">Aucune option : ce produit n\'a aucun choix à poser.</div>';
+        groupes.forEach(g => {
+          const d = g.donnees_fournisseur || {};
+          const nom = g.libelle || d.nom_groupe || g.categorie_attribut || 'Choix';
+          const min = Number(g.min) || 0, max = Number(g.max) || 0;
+          const quantite = max > 0 ? (min === max ? 'exactement ' + max : 'de ' + min + ' à ' + max) : '';
+          const details = [g.obligatoire ? 'obligatoire' : 'facultatif'];
+          if (quantite) details.push(quantite);
+          if (Number(g.inclus_gratuit) > 0) details.push(g.inclus_gratuit + ' inclus');
+          if (g.comportement === 'retrait') details.push('retrait');
+          let noms;
+          if (Array.isArray(d.choix) && d.choix.length) {
+            noms = d.choix.map(c => { const p3 = c.prix || {}; const px = prixModesBO(p3.livraison, p3.emporter, p3.sur_place); return String(c.nom) + (px && px !== 'gratuit' ? ' (' + px + ')' : ''); });
+          } else {
+            noms = parCategorie[g.categorie_attribut] || [];
+          }
+          html += '<div style="margin:0 0 8px;"><strong>' + escHtml(nom) + '</strong> <span style="color:var(--muted);">(' + escHtml(details.join(', ')) + ')</span><br>' +
+            '<span style="color:var(--muted);">' + (noms.length ? listeCourteBO(noms, 60) : 'aucun choix listé') + '</span></div>';
+        });
+        html += '<div style="font-weight:600;margin:12px 0 4px;">Suppléments payants' + (propres.length > 0 ? ' (propres à ce produit)' : ' (ceux de sa famille et de sa taille)') + '</div>';
+        if (supplements.length === 0) {
+          html += '<div style="font-size:12.5px;color:var(--muted);">Aucun supplément payant disponible pour ce produit.</div>';
+        } else {
+          const parPrix = {};
+          supplements.forEach(r => { const cle = prixModesBO(r.prix_livraison, r.prix_emporter, r.prix_sur_place); (parPrix[cle] = parPrix[cle] || []).push((r.attributs && r.attributs.nom) || '?'); });
+          Object.keys(parPrix).forEach(cle => {
+            html += '<div style="margin:0 0 6px;"><strong>' + escHtml(cle) + '</strong> : <span style="color:var(--muted);">' + listeCourteBO(parPrix[cle], 80) + '</span></div>';
+          });
+        }
+        bloc.innerHTML = html;
+      } catch (e) {
+        console.warn('options du produit : lecture impossible', e);
+        bloc.innerHTML = '<strong>Options et suppléments disponibles</strong><div style="font-size:12.5px;color:var(--muted);margin-top:6px;">Lecture impossible : ' + escHtml(e && e.message ? e.message : 'erreur inconnue') + '</div>';
+      }
     }
 
     async function saveProduit(e, id) {
@@ -8282,7 +8509,7 @@
     });
   </script>
   <script src="agent-vocal.js?v=2"></script>
-  <script src="notifications-fournisseur.js?v=1"></script>
-  <script src="conservation.js?v=1"></script>
+  <script src="notifications-fournisseur.js?v=2"></script>
+  <script src="conservation.js?v=2"></script>
 </body>
 </html>
