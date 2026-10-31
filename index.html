@@ -1419,7 +1419,7 @@
         const typeText = cmd.type_livraison === 'livraison' ?
           `🛵 Livraison${cmd.adresse_livraison?.ville ? ' → ' + cmd.adresse_livraison.ville : ''}` :
           cmd.type_livraison === 'a_emporter' ? '🛍️ À emporter' : '🍽️ Sur place';
-        const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
+        const nomClient = [cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client', cmd.adresse_livraison?.nom_famille].filter(Boolean).join(' ');
         const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
         const callerId = cmd.adresse_livraison?.caller_id;
         const telDeclare = cmd.adresse_livraison?.telephone;
@@ -1468,7 +1468,7 @@
           `;
         });
       }
-      const nomClient = cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client';
+      const nomClient = [cmd.adresse_livraison?.nom || cmd.client?.nom || 'Client', cmd.adresse_livraison?.nom_famille].filter(Boolean).join(' ');
       const telClient = cmd.adresse_livraison?.telephone || cmd.client?.telephone || 'N/A';
       const callerId = cmd.adresse_livraison?.caller_id;
       const telDeclare = cmd.adresse_livraison?.telephone;
@@ -3280,7 +3280,7 @@
       const zone = document.getElementById('modes-contenu');
       zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
       try {
-        const { data, error } = await supabaseClient.from('business').select('type_params, id_externe').eq('id', BUSINESS_ID).single();
+        const { data, error } = await supabaseClient.from('business').select('type_params, id_externe, temps_preparation_min').eq('id', BUSINESS_ID).single();
         if (error) throw error;
         const tp = (data && data.type_params) || {};
         const estApi = Boolean(data && data.id_externe && String(data.id_externe).trim() !== '');
@@ -3307,6 +3307,7 @@
         zone.innerHTML = html;
         majApercuModes();
         zone.insertAdjacentHTML('beforeend', htmlModesPaiement(tp, estApi));
+        zone.insertAdjacentHTML('beforeend', htmlDelais(data, tp, estApi));
       } catch (err) {
         zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
       }
@@ -3425,6 +3426,53 @@
         const { error: e2 } = await supabaseClient.from('business').update({ type_params: { ...tp, modes_paiement: choisis } }).eq('id', BUSINESS_ID);
         if (e2) throw e2;
         alert('✅ Modes de paiement enregistrés');
+        chargerModes();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+
+    // ========================================
+    // DÉLAIS DE COMMANDE : l'heure choisie par le client doit être au moins égale à l'ouverture (ou à « maintenant ») + ce délai.
+    // - à emporter / sur place : temps de préparation du restaurant (business.temps_preparation_min ; par défaut 10 min, 15 min pour un restaurant relié à l'API) ;
+    // - livraison : délai de la zone (page Zones de livraison ; fourni par le fournisseur pour un restaurant API) ; à défaut la valeur ci-dessous (45 min).
+    // ========================================
+    function htmlDelais(biz, tp, estApi) {
+      const prepa = biz && biz.temps_preparation_min != null ? biz.temps_preparation_min : (estApi ? 15 : 10);
+      const liv = tp.delai_livraison_defaut_min != null ? tp.delai_livraison_defaut_min : 45;
+      return `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:18px;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Délais de commande</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5;">L'agent refuse une heure trop proche : l'heure choisie par le client doit être au moins égale à l'ouverture du créneau (ou à maintenant) plus ce délai, tous les jours.</div>
+        <div class="form-group">
+          <label for="delai-prepa">À emporter et sur place : temps de préparation (minutes)</label>
+          <input type="number" id="delai-prepa" min="0" max="300" step="1" value="${prepa}">
+        </div>
+        <div class="form-group">
+          <label for="delai-livraison">Livraison : délai par défaut (minutes)</label>
+          <input type="number" id="delai-livraison" min="1" max="300" step="1" value="${liv}">
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5;">${estApi
+          ? 'Livraison : le délai de chaque zone vient du fournisseur (page Zones de livraison). La valeur ci-dessus ne sert que pour une zone sans délai. Le fournisseur ne donne pas de temps de préparation : il se règle ici.'
+          : 'Livraison : chaque zone peut avoir son propre délai (page Zones de livraison). La valeur ci-dessus sert pour une zone sans délai.'}</div>
+        <div class="form-actions" style="justify-content:flex-start;border-top:none;padding-top:0;"><button class="btn btn-primary" onclick="enregistrerDelais()">💾 Enregistrer les délais</button></div>
+      </div>`;
+    }
+
+    async function enregistrerDelais() {
+      const prepa = parseInt(document.getElementById('delai-prepa').value, 10);
+      const liv = parseInt(document.getElementById('delai-livraison').value, 10);
+      if (!Number.isInteger(prepa) || prepa < 0 || prepa > 300 || !Number.isInteger(liv) || liv < 1 || liv > 300) {
+        alert('⛔ Indique des minutes entières : de 0 à 300 pour la préparation, de 1 à 300 pour la livraison.');
+        return;
+      }
+      try {
+        const { data, error } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+        if (error) throw error;
+        const tp = (data && data.type_params) || {};
+        const { error: e2 } = await supabaseClient.from('business').update({ temps_preparation_min: prepa, type_params: { ...tp, delai_livraison_defaut_min: liv } }).eq('id', BUSINESS_ID);
+        if (e2) throw e2;
+        alert('✅ Délais enregistrés');
         chargerModes();
       } catch (err) {
         alert('❌ Erreur: ' + err.message);
