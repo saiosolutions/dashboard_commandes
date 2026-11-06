@@ -3357,11 +3357,27 @@
         return 'Nous ne prenons pas de commande par téléphone pour le moment. À bientôt !';
       }
       let suffixe = e.jusqu_au ? ` jusqu'au ${dateLongueFr(e.jusqu_au)}` : ' en ce moment';
-      if (e.motif) suffixe += `, ${e.motif}`;
+      if (e.motif) suffixe += ` ${e.motif}`;   // pas de virgule : plus fluide à l'oral, sans pause
       const pas = 'pas de ' + indispos.map(m => MODES_PHRASES[m].pas).join(' ni de ');
       if (dispo.length >= 2) return `Exceptionnellement, ${pas}${suffixe}. Souhaitez-vous ${dispo.map(m => MODES_PHRASES[m].venir).join(' ou ')} ?`;
       if (dispo.length === 1) return `Exceptionnellement, ${pas}${suffixe} : nous prenons uniquement ${MODES_PHRASES[dispo[0]].seul}. Je vous écoute !`;
       return `Exceptionnellement, nous ne prenons pas de commande par téléphone${suffixe}. À bientôt !`;
+    }
+
+    // Phrase d'accueil calculée à partir des réglages enregistrés du restaurant (même logique que la page « Modes de commande »)
+    function phraseAccueilDepuisTp(tp) {
+      tp = tp || {};
+      const fournisseur = (Array.isArray(tp.modes) ? tp.modes : []).map(m => m === 'emporter' ? 'a_emporter' : m);
+      const enregistres = Array.isArray(tp.modes_actifs);
+      let actifs = enregistres ? tp.modes_actifs : fournisseur.filter(m => m !== 'sur_place');
+      if (!enregistres && actifs.length === 0) actifs = ['a_emporter', 'livraison'];
+      const retires = (tp.modes_retires && typeof tp.modes_retires === 'object') ? tp.modes_retires : {};
+      const definitifs = Array.isArray(tp.modes_definitifs) ? tp.modes_definitifs : [];
+      const susp = suspensionActive(tp.suspension);
+      const retiresTemp = Object.keys(retires).filter(c => !definitifs.includes(c) && !actifs.includes(c));
+      const suspendus = susp ? susp.modes.filter(c => actifs.includes(c)) : [];
+      const indispos = [...new Set([...suspendus, ...retiresTemp])];
+      return phraseAccueil({ actifs, indispos, motif: susp ? susp.motif : '', jusqu_au: susp ? susp.jusqu_au : '' });
     }
 
     async function chargerModes() {
@@ -5748,6 +5764,7 @@
     };
     let messagesPerso = [];          // [{ nom, valeur }] en cours d'édition
     let messagesNomResto = '';
+    let messagesQuestionMode = '';   // vraie question des modes du restaurant (calculée à partir de ses réglages)
 
     function variablesPourMessage(def) {
       return Object.keys(VARIABLES_MESSAGES).filter(k => { const f = VARIABLES_MESSAGES[k].fin; return f === 'les deux' || (def.fin ? f === 'fin' : f === 'accueil'); });
@@ -5770,6 +5787,7 @@
       if (!lignes.length) return [];
       const base = {};
       Object.keys(VARIABLES_MESSAGES).forEach(k => { base[k] = VARIABLES_MESSAGES[k].ex === null ? messagesNomResto : VARIABLES_MESSAGES[k].ex; });
+      if (messagesQuestionMode) base.question_mode = messagesQuestionMode;
       messagesPerso.forEach(p => { if (p.nom.trim()) base[p.nom.trim()] = p.valeur; });
       const cas = !def.fin ? [['', base]]
         : def.cle === 'fin_commande'
@@ -5836,6 +5854,7 @@
         const vp = (data.type_params && data.type_params.variables_perso) || {};
         messagesPerso = Object.keys(vp).map(k => ({ nom: k, valeur: String(vp[k]) }));
         messagesNomResto = [data.nom, data.ville].filter(Boolean).join(' ');
+        messagesQuestionMode = phraseAccueilDepuisTp(data.type_params);
         const carte = 'background:white;border-radius:12px;padding:20px 22px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:820px;margin-bottom:16px;';
         const bloc = (def) => `
           <div style="${carte}">
