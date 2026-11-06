@@ -1971,8 +1971,9 @@
     const JOURS_SEMAINE = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
     // Structure de travail : { lundi: {ouvert:false, creneaux:[{ouv:'11:00',fer:'14:30'}]}, ... }
     let horairesData = {};
-    let modeHoraires = 'livraison';   // onglet affiché : 'livraison' ou 'emporter' (à emporter + sur place)
-    let horairesParMode = { livraison: {}, emporter: {} };
+    let modeHoraires = 'livraison';   // onglet affiché : 'livraison', 'emporter' ou 'sur_place'
+    let horairesParMode = { livraison: {}, emporter: {}, sur_place: {} };
+    let surPlaceIdentique = true;     // vrai = aucune ligne « sur_place » en base : le sur place reprend les horaires « à emporter »
 
     // Convertit "HH:MM:SS" ou "HH:MM" en "HH:MM"
     function hhmm(t) {
@@ -2009,7 +2010,13 @@
         const lignes = data || [];
         // Lignes d'un mode ; à défaut, lignes « sans mode » (valables pour tous les modes)
         const pour = (m) => { const propres = lignes.filter(r => r.mode === m); return propres.length ? propres : lignes.filter(r => !r.mode); };
-        horairesParMode = { livraison: horairesDepuisLignes(pour('livraison')), emporter: horairesDepuisLignes(pour('emporter')) };
+        const lignesSurPlace = lignes.filter(r => r.mode === 'sur_place');
+        surPlaceIdentique = lignesSurPlace.length === 0;
+        horairesParMode = {
+          livraison: horairesDepuisLignes(pour('livraison')),
+          emporter: horairesDepuisLignes(pour('emporter')),
+          sur_place: horairesDepuisLignes(surPlaceIdentique ? pour('emporter') : lignesSurPlace)
+        };
         horairesData = horairesParMode[modeHoraires];
         renderHoraires();
       } catch (error) {
@@ -2024,19 +2031,53 @@
     }
 
     function copierHoraires() {
+      if (modeHoraires === 'sur_place') {
+        horairesParMode.sur_place = JSON.parse(JSON.stringify(horairesParMode.emporter));
+        horairesData = horairesParMode.sur_place;
+        renderHoraires();
+        alert('📋 Horaires « à emporter » copiés dans « sur place ». Pensez à enregistrer.');
+        return;
+      }
       const autre = modeHoraires === 'livraison' ? 'emporter' : 'livraison';
       horairesParMode[autre] = JSON.parse(JSON.stringify(horairesData));
       alert('📋 Horaires copiés vers l\'autre onglet. Pensez à enregistrer.');
     }
 
+    // Case « Identique à À emporter » de l'onglet Sur place : cochée = aucune ligne « sur_place » enregistrée
+    function basculerSurPlaceIdentique(identique) {
+      surPlaceIdentique = Boolean(identique);
+      if (!surPlaceIdentique) horairesParMode.sur_place = JSON.parse(JSON.stringify(horairesParMode.emporter));   // point de départ : mêmes horaires que « à emporter »
+      horairesData = horairesParMode.sur_place;
+      renderHoraires();
+    }
+
     function renderHoraires() {
       const container = document.getElementById('horaires-content');
       const enLivraison = modeHoraires === 'livraison';
+      const enSurPlace = modeHoraires === 'sur_place';
+      const notesHoraires = {
+        livraison: 'Horaires pendant lesquels l\'agent accepte une commande en livraison.',
+        emporter: 'Horaires pendant lesquels l\'agent accepte une commande à emporter.',
+        sur_place: 'Horaires pendant lesquels l\'agent accepte une commande sur place.'
+      };
       let html = `<div class="h-tabs">
         <button class="h-tab ${enLivraison ? 'active' : ''}" onclick="changerOngletHoraires('livraison')">🛵 Livraison</button>
-        <button class="h-tab ${enLivraison ? '' : 'active'}" onclick="changerOngletHoraires('emporter')">🛍️ À emporter / sur place</button>
+        <button class="h-tab ${modeHoraires === 'emporter' ? 'active' : ''}" onclick="changerOngletHoraires('emporter')">🛍️ À emporter</button>
+        <button class="h-tab ${enSurPlace ? 'active' : ''}" onclick="changerOngletHoraires('sur_place')">🍽️ Sur place</button>
       </div>
-      <div class="groupe-note" style="margin:0 0 14px;">${enLivraison ? 'Horaires pendant lesquels l\'agent accepte une commande en livraison.' : 'Horaires pendant lesquels l\'agent accepte une commande à emporter ou sur place.'} Les deux onglets sont enregistrés ensemble.</div>`;
+      <div class="groupe-note" style="margin:0 0 14px;">${notesHoraires[modeHoraires]} Les trois onglets sont enregistrés ensemble.</div>`;
+      if (enSurPlace) {
+        html += `<div class="checkbox-group" style="margin:0 0 14px;"><input type="checkbox" id="sp-identique" ${surPlaceIdentique ? 'checked' : ''} onchange="basculerSurPlaceIdentique(this.checked)"><label for="sp-identique" style="font-weight:600;">Identique à « À emporter »</label></div>`;
+        if (surPlaceIdentique) {
+          html += `<div class="options-help" style="margin:0 0 14px;">Le sur place suit automatiquement les horaires « À emporter », même si vous les modifiez plus tard. Décochez la case pour régler des horaires sur place à part, par exemple si la salle ferme plus tôt.</div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="loadHoraires()">Annuler</button>
+            <button class="btn btn-primary" onclick="sauvegarderHoraires()">💾 Enregistrer les horaires</button>
+          </div>`;
+          container.innerHTML = html;
+          return;
+        }
+      }
       JOURS_SEMAINE.forEach(jour => {
         const d = horairesData[jour];
         const nomJour = jour.charAt(0).toUpperCase() + jour.slice(1);
@@ -2067,7 +2108,7 @@
         html += `</div>`;
       });
       html += `<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;flex-wrap:wrap;">
-        <button class="btn btn-secondary" onclick="copierHoraires()">📋 Copier vers ${enLivraison ? 'À emporter / sur place' : 'Livraison'}</button>
+        <button class="btn btn-secondary" onclick="copierHoraires()">${enSurPlace ? '📋 Copier depuis « À emporter »' : '📋 Copier vers ' + (enLivraison ? 'À emporter' : 'Livraison')}</button>
         <button class="btn btn-secondary" onclick="loadHoraires()">Annuler</button>
         <button class="btn btn-primary" onclick="sauvegarderHoraires()">💾 Enregistrer les horaires</button>
       </div>`;
@@ -2110,13 +2151,14 @@
 
     async function sauvegarderHoraires() {
       // Vérifier les formats d'heure des deux onglets avant d'écrire
-      for (const mode of ['livraison', 'emporter']) {
+      const modesAEnregistrer = surPlaceIdentique ? ['livraison', 'emporter'] : ['livraison', 'emporter', 'sur_place'];
+      for (const mode of modesAEnregistrer) {
         for (const jour of JOURS_SEMAINE) {
           const d = horairesParMode[mode][jour];
           if (!d.ouvert) continue;
           for (const c of d.creneaux) {
             if (!heureValide(c.ouv) || !heureValide(c.fer)) {
-              alert(`⛔ Heure invalide (${mode === 'livraison' ? 'livraison' : 'à emporter / sur place'}) pour ${jour} : "${c.ouv}" ou "${c.fer}". Format attendu : HH:MM (ex : 11:00).`);
+              alert(`⛔ Heure invalide (${({ livraison: 'livraison', emporter: 'à emporter', sur_place: 'sur place' })[mode]}) pour ${jour} : "${c.ouv}" ou "${c.fer}". Format attendu : HH:MM (ex : 11:00).`);
               return;
             }
           }
@@ -2131,7 +2173,7 @@
         if (delErr) throw delErr;
 
         const lignes = [];
-        ['livraison', 'emporter'].forEach(mode => {
+        modesAEnregistrer.forEach(mode => {
           JOURS_SEMAINE.forEach(jour => {
             const d = horairesParMode[mode][jour];
             d.creneaux.forEach((c, i) => {
@@ -2153,7 +2195,7 @@
           .insert(lignes);
         if (insErr) throw insErr;
 
-        alert('✅ Horaires enregistrés (livraison et à emporter / sur place)');
+        alert('✅ Horaires enregistrés (livraison, à emporter et sur place)');
         loadHoraires();
       } catch (err) {
         alert('❌ Erreur: ' + err.message + '\n\nTes horaires n\'ont peut-être pas été sauvegardés. Recharge la page et réessaie.');
@@ -2214,7 +2256,7 @@
             const o = String(row.heure_ouverture).slice(0, 5);
             const f = String(row.heure_fermeture).slice(0, 5);
             if (!parJour[row.jour]) parJour[row.jour] = [];
-            parJour[row.jour].push(`${o}-${f}`);
+            if (!parJour[row.jour].includes(`${o}-${f}`)) parJour[row.jour].push(`${o}-${f}`);
           }
         });
         let txt = '';
@@ -3276,6 +3318,52 @@
       return `Ce serait ${libelles.join(', ')} ou ${dernier} ?`;
     }
 
+    // ---- Phrases d'accueil selon les modes disponibles (mêmes règles que l'agent) ----
+    // Textes courts pour chaque mode : « venir » (question), « pas » (« pas de … »), « seul » (« uniquement … »)
+    const MODES_PHRASES = {
+      sur_place: { venir: 'venir manger sur place', pas: 'repas sur place', seul: 'les commandes sur place' },
+      a_emporter: { venir: 'passer récupérer votre commande', pas: 'commande à emporter', seul: 'les commandes à emporter' },
+      livraison: { venir: 'être livré', pas: 'livraison', seul: 'les commandes en livraison' }
+    };
+    let modesEtat = { retires: {}, definitifs: [] };   // modes retirés chez le fournisseur (type_params.modes_retires / modes_definitifs)
+
+    function aujourdhuiParis() {
+      return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });   // AAAA-MM-JJ
+    }
+
+    function dateLongueFr(iso) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+      if (!m) return '';
+      const mois = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+      const j = Number(m[3]);
+      return (j === 1 ? '1er' : String(j)) + ' ' + mois[Number(m[2]) - 1];
+    }
+
+    // Une suspension est « en cours » si elle a des modes et que sa date de fin n'est pas passée
+    function suspensionActive(s) {
+      if (!s || !Array.isArray(s.modes) || s.modes.length === 0) return null;
+      if (s.jusqu_au && String(s.jusqu_au) < aujourdhuiParis()) return null;
+      return { modes: s.modes, motif: s.motif || '', jusqu_au: s.jusqu_au || '' };
+    }
+
+    // e = { actifs, indispos, motif, jusqu_au } ; retourne la phrase dite à l'accueil (après « Bonsoir, nom du restaurant. »)
+    function phraseAccueil(e) {
+      const ordre = ['sur_place', 'a_emporter', 'livraison'];
+      const dispo = ordre.filter(m => e.actifs.includes(m) && !e.indispos.includes(m));
+      const indispos = ordre.filter(m => e.indispos.includes(m));
+      if (indispos.length === 0) {
+        if (dispo.length >= 2) return questionPourModes(dispo);
+        if (dispo.length === 1) return `Nous prenons uniquement ${MODES_PHRASES[dispo[0]].seul}. Je vous écoute !`;
+        return 'Nous ne prenons pas de commande par téléphone pour le moment. À bientôt !';
+      }
+      let suffixe = e.jusqu_au ? ` jusqu'au ${dateLongueFr(e.jusqu_au)}` : ' en ce moment';
+      if (e.motif) suffixe += `, ${e.motif}`;
+      const pas = 'pas de ' + indispos.map(m => MODES_PHRASES[m].pas).join(' ni de ');
+      if (dispo.length >= 2) return `Exceptionnellement, ${pas}${suffixe}. Souhaitez-vous ${dispo.map(m => MODES_PHRASES[m].venir).join(' ou ')} ?`;
+      if (dispo.length === 1) return `Exceptionnellement, ${pas}${suffixe} : nous prenons uniquement ${MODES_PHRASES[dispo[0]].seul}. Je vous écoute !`;
+      return `Exceptionnellement, nous ne prenons pas de commande par téléphone${suffixe}. À bientôt !`;
+    }
+
     async function chargerModes() {
       const zone = document.getElementById('modes-contenu');
       zone.innerHTML = '<div class="loading">🔄 Chargement…</div>';
@@ -3288,6 +3376,10 @@
         const enregistres = Array.isArray(tp.modes_actifs);
         let actifs = enregistres ? tp.modes_actifs : fournisseur.filter(m => m !== 'sur_place');
         if (!enregistres && actifs.length === 0) actifs = ['a_emporter', 'livraison'];
+        modesEtat = {
+          retires: (tp.modes_retires && typeof tp.modes_retires === 'object') ? tp.modes_retires : {},
+          definitifs: Array.isArray(tp.modes_definitifs) ? tp.modes_definitifs : []
+        };
 
         let html = `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:18px;">
           <div style="margin-bottom:12px;">${enregistres ? '<span class="badge badge-success">Réglage enregistré</span>' : '<span class="badge badge-warning">Pas encore enregistré : valeurs par défaut</span>'}</div>`;
@@ -3299,12 +3391,14 @@
             ${propose ? '<span class="badge badge-info">proposé par le fournisseur</span>' : ''}</div>`;
         });
         html += `<div id="modes-alertes" style="margin:12px 0;"></div>
-          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--muted);margin-top:14px;">Question posée à l'accueil</div>
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--muted);margin-top:14px;">Ce que dira l'agent à l'accueil</div>
           <div id="modes-apercu" style="font-size:15px;margin:6px 0 16px;"></div>
           <div class="form-actions" style="justify-content:flex-start;margin-top:0;border-top:none;padding-top:0;">
             <button class="btn btn-primary" onclick="enregistrerModes()">💾 Enregistrer les modes</button></div></div>`;
 
         zone.innerHTML = html;
+        zone.insertAdjacentHTML('beforeend', htmlModesRetires());
+        zone.insertAdjacentHTML('beforeend', htmlSuspension(actifs, suspensionActive(tp.suspension)));
         majApercuModes();
         zone.insertAdjacentHTML('beforeend', htmlModesPaiement(tp, estApi));
         zone.insertAdjacentHTML('beforeend', htmlDelais(data, tp, estApi));
@@ -3313,21 +3407,126 @@
       }
     }
 
+    // Modes qui ont disparu chez le fournisseur : « temporaire » tant qu'on ne clique pas sur « C'est définitif »
+    function htmlModesRetires() {
+      const codes = MODES_COMMANDE.map(m => m[0]).filter(c => modesEtat.retires[c]);
+      if (codes.length === 0) return '';
+      let html = `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:18px;border:2px solid #f0c36d;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Mode retiré chez le fournisseur</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5;">Tant que ce n'est pas déclaré définitif, l'agent annonce le mode comme « exceptionnellement » indisponible. Si le fournisseur le propose de nouveau, tout se remet à jour tout seul.</div>`;
+      codes.forEach(code => {
+        const m = MODES_COMMANDE.find(x => x[0] === code);
+        const def = modesEtat.definitifs.includes(code);
+        const depuis = modesEtat.retires[code] && modesEtat.retires[code].depuis ? ' depuis le ' + dateLongueFr(modesEtat.retires[code].depuis) : '';
+        html += `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-weight:600;">${m[1]}</span>
+          <span class="badge ${def ? 'badge-info' : 'badge-warning'}">${def ? 'définitif' : 'temporaire'}</span>
+          <span style="font-size:13px;color:var(--muted);">n'est plus proposé${depuis}</span>
+          <button class="btn btn-secondary" onclick="declarerModeDefinitif('${code}', ${def ? 'false' : 'true'})">${def ? 'Remettre en temporaire' : 'C\'est définitif'}</button></div>`;
+      });
+      return html + '</div>';
+    }
+
+    // Suspension temporaire saisie à la main (stockée dans type_params.suspension : { modes, motif, jusqu_au })
+    function htmlSuspension(actifs, susp) {
+      const modes = susp ? susp.modes : [];
+      let html = `<div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-bottom:18px;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
+          <div style="font-size:16px;font-weight:700;">Indisponibilité temporaire</div>
+          <span class="badge ${susp ? 'badge-warning' : 'badge-info'}">${susp ? 'En cours' : 'Aucune en cours'}</span></div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.5;">Pour un imprévu : l'agent annonce que le mode est suspendu « exceptionnellement » et ne le propose plus. Sans date, la suspension dure jusqu'à ce que vous la retiriez ; avec une date, elle s'arrête d'elle-même le lendemain.</div>`;
+      MODES_COMMANDE.forEach(([code, lib]) => {
+        if (!actifs.includes(code) && !modes.includes(code)) return;
+        html += `<div class="checkbox-group" style="margin-bottom:8px;"><input type="checkbox" id="susp-${code}" ${modes.includes(code) ? 'checked' : ''} onchange="majApercuModes()"><label for="susp-${code}" style="font-weight:600;">Suspendre « ${lib} »</label></div>`;
+      });
+      const styleChamp = 'width:100%;max-width:420px;padding:10px 12px;border:1px solid #b8c0ca;border-radius:8px;font-size:14px;';
+      html += `<div style="margin-top:14px;"><label for="susp-motif" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Motif dit au client (facultatif)</label>
+          <input type="text" id="susp-motif" value="${escHtml(susp ? susp.motif : '')}" placeholder="ex. à cause de la neige" oninput="majApercuModes()" style="${styleChamp}"></div>
+        <div style="margin-top:12px;"><label for="susp-fin" style="display:block;font-weight:600;font-size:13px;margin-bottom:4px;">Jusqu'au (facultatif)</label>
+          <input type="date" id="susp-fin" value="${escHtml(susp ? susp.jusqu_au : '')}" min="${aujourdhuiParis()}" onchange="majApercuModes()" style="${styleChamp}"></div>
+        <div class="form-actions" style="justify-content:flex-start;margin-top:16px;border-top:none;padding-top:0;gap:10px;">
+          <button class="btn btn-primary" onclick="enregistrerSuspension()">💾 Enregistrer la suspension</button>
+          ${susp ? '<button class="btn btn-secondary" onclick="reprendreModes()">Reprendre maintenant</button>' : ''}</div></div>`;
+      return html;
+    }
+
     function modesCoches() {
       return MODES_COMMANDE.map(m => m[0]).filter(code => { const c = document.getElementById('mode-' + code); return c && c.checked; });
     }
 
     function majApercuModes() {
-      const modes = modesCoches();
-      const q = questionPourModes(modes);
+      const actifs = modesCoches();
+      const suspendus = MODES_COMMANDE.map(m => m[0]).filter(c => { const el = document.getElementById('susp-' + c); return el && el.checked; });
+      const motifEl = document.getElementById('susp-motif');
+      const finEl = document.getElementById('susp-fin');
+      const motif = motifEl ? motifEl.value.trim() : '';
+      const jusquau = finEl ? finEl.value : '';
+      const retiresTemp = Object.keys(modesEtat.retires).filter(c => !modesEtat.definitifs.includes(c) && !actifs.includes(c));
+      const indispos = [...new Set([...suspendus.filter(c => actifs.includes(c)), ...retiresTemp])];
+      const phrase = phraseAccueil({ actifs, indispos, motif, jusqu_au: jusquau });
+      const dispo = actifs.filter(c => !indispos.includes(c));
       const ap = document.getElementById('modes-apercu');
-      if (ap) ap.textContent = q ? '« ' + q + ' »' : '(aucune question : un seul mode)';
+      if (ap) ap.textContent = '« ' + phrase + ' »' + (dispo.length === 0 ? ' (puis l\'agent raccroche)' : '');
       const al = document.getElementById('modes-alertes');
       if (!al) return;
       let txt = '';
-      if (modes.length === 0) txt += '<div class="groupe-note">⚠️ Cochez au moins un mode.</div>';
-      if (modes.length === 1) txt += '<div class="groupe-note">⚠️ Un seul mode : la question n\'est pas posée. Le prompt de l\'agent devra alors être adapté (il demande encore « livraison ou à emporter »).</div>';
+      if (actifs.length === 0) txt += '<div class="groupe-note">⚠️ Cochez au moins un mode.</div>';
+      else if (dispo.length === 0 && indispos.length > 0) txt += '<div class="groupe-note">⚠️ Tous les modes sont indisponibles : l\'agent le dit puis raccroche, sans prendre de commande.</div>';
       al.innerHTML = txt;
+    }
+
+    async function lireTypeParams() {
+      const { data, error } = await supabaseClient.from('business').select('type_params').eq('id', BUSINESS_ID).single();
+      if (error) throw error;
+      return (data && data.type_params) || {};
+    }
+
+    async function ecrireTypeParams(tp) {
+      const { error } = await supabaseClient.from('business').update({ type_params: tp }).eq('id', BUSINESS_ID);
+      if (error) throw error;
+    }
+
+    async function enregistrerSuspension() {
+      const modes = MODES_COMMANDE.map(m => m[0]).filter(c => { const el = document.getElementById('susp-' + c); return el && el.checked; });
+      const motif = (document.getElementById('susp-motif').value || '').trim();
+      const fin = document.getElementById('susp-fin').value || '';
+      if (modes.length === 0 && (motif || fin)) { alert('Cochez au moins un mode à suspendre, ou videz le motif et la date.'); return; }
+      if (fin && fin < aujourdhuiParis()) { alert('La date de fin est déjà passée.'); return; }
+      try {
+        const tp = { ...(await lireTypeParams()) };
+        if (modes.length) tp.suspension = { modes, motif: motif || null, jusqu_au: fin || null };
+        else delete tp.suspension;
+        await ecrireTypeParams(tp);
+        alert(modes.length ? '✅ Suspension enregistrée' : '✅ Aucune suspension en cours');
+        chargerModes();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    async function reprendreModes() {
+      try {
+        const tp = { ...(await lireTypeParams()) };
+        delete tp.suspension;
+        await ecrireTypeParams(tp);
+        alert('✅ Les modes suspendus sont de nouveau proposés');
+        chargerModes();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
+    }
+
+    async function declarerModeDefinitif(code, oui) {
+      try {
+        const tp = { ...(await lireTypeParams()) };
+        const liste = (Array.isArray(tp.modes_definitifs) ? tp.modes_definitifs : []).filter(c => c !== code);
+        if (oui) liste.push(code);
+        tp.modes_definitifs = liste;
+        await ecrireTypeParams(tp);
+        chargerModes();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
+      }
     }
 
     async function enregistrerModes() {
@@ -6641,10 +6840,10 @@
           if (infos.modes && infos.modes.on && infos.modes.apres.length) { noterTp('modes_actifs'); tp.modes_actifs = infos.modes.apres; tpChange = true; }
           if (infos.horaires && infos.horaires.on) {
             for (const j of infos.horaires.jours) {
-              const { data: anciennes, error: ea } = await supabaseClient.from('business_horaires').select('business_id, jour, numero_tranche, heure_ouverture, heure_fermeture, est_ouvert, mode').eq('business_id', bid).eq('jour', j.jour);
+              const { data: anciennes, error: ea } = await supabaseClient.from('business_horaires').select('business_id, jour, numero_tranche, heure_ouverture, heure_fermeture, est_ouvert, mode').eq('business_id', bid).eq('jour', j.jour).or('mode.is.null,mode.neq.sur_place');
               if (ea) throw ea;
               log.horaires_avant.push({ jour: j.jour, rows: anciennes || [] });
-              const { error: ed } = await supabaseClient.from('business_horaires').delete().eq('business_id', bid).eq('jour', j.jour);
+              const { error: ed } = await supabaseClient.from('business_horaires').delete().eq('business_id', bid).eq('jour', j.jour).or('mode.is.null,mode.neq.sur_place');
               if (ed) throw ed;
               if (j.tranches.length) {
                 const { error: ei } = await supabaseClient.from('business_horaires').insert(['livraison', 'emporter'].flatMap(m => j.tranches.map((t, i) => ({ business_id: bid, jour: j.jour, numero_tranche: i + 1, heure_ouverture: t[0] + ':00', heure_fermeture: t[1] + ':00', est_ouvert: true, mode: m }))));
@@ -6710,7 +6909,7 @@
       await del('zones_service', log.zones_creees);
       for (const x of (log.zones_modifiees || [])) { const { error } = await supabaseClient.from('zones_service').update(x.avant).eq('id', x.id); if (error) throw new Error('zones_service : ' + error.message); }
       for (const h of (log.horaires_avant || [])) {
-        const { error } = await supabaseClient.from('business_horaires').delete().eq('business_id', BUSINESS_ID).eq('jour', h.jour); if (error) throw new Error('business_horaires : ' + error.message);
+        const { error } = await supabaseClient.from('business_horaires').delete().eq('business_id', BUSINESS_ID).eq('jour', h.jour).or('mode.is.null,mode.neq.sur_place'); if (error) throw new Error('business_horaires : ' + error.message);
         if ((h.rows || []).length) { const { error: e2 } = await supabaseClient.from('business_horaires').insert(h.rows); if (e2) throw new Error('business_horaires : ' + e2.message); }
       }
       await del('supplements_prix', log.supplements_crees);
@@ -7985,7 +8184,7 @@
             const o = String(row.heure_ouverture).slice(0, 5);
             const f = String(row.heure_fermeture).slice(0, 5);
             if (!parJour[row.jour]) parJour[row.jour] = [];
-            parJour[row.jour].push(`${o}-${f}`);
+            if (!parJour[row.jour].includes(`${o}-${f}`)) parJour[row.jour].push(`${o}-${f}`);
           }
         });
         JOURS.forEach(j => {
