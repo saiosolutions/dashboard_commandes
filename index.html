@@ -1406,6 +1406,64 @@
       return (il && Array.isArray(il.a_verifier)) ? il.a_verifier : [];
     }
     
+    // ---- Envoi de la commande au fournisseur : écrit par la fonction envoyer-commande dans commandes.metadata.envoi_fournisseur ----
+    function lireEnvoiFournisseur(cmd) {
+      let m = cmd.metadata;
+      if (typeof m === 'string') { try { m = JSON.parse(m); } catch { m = null; } }
+      const e = (m && typeof m === 'object') ? m.envoi_fournisseur : null;
+      if (!e || typeof e !== 'object') return null;
+      const numero = cmd.id_commande_fournisseur || e.id_commande_fournisseur || null;
+      return { ...e, numero };
+    }
+
+    const ENVOI_STYLES = {
+      envoyee:   { texte: 'Envoyée au fournisseur', classe: 'badge-success',   icone: '✅', couleur: '#2e7d32', fond: '#e8f5e9' },
+      echec:     { texte: 'Envoi refusé',           classe: 'badge-danger',    icone: '❌', couleur: '#c62828', fond: '#ffebee' },
+      incertain: { texte: 'Envoi incertain',        classe: 'badge-averifier', icone: '❓', couleur: '#ef6c00', fond: '#fff3e0' },
+      en_cours:  { texte: 'Envoi en cours',         classe: 'badge-warning',   icone: '⏳', couleur: '#555555', fond: '#f3f4f6' }
+    };
+
+    function eur(v) {
+      const n = Number(v);
+      return Number.isFinite(n) ? n.toFixed(2).replace('.', ',') + ' €' : '–';
+    }
+
+    // Petit badge dans la liste des commandes
+    function badgeEnvoi(cmd) {
+      const e = lireEnvoiFournisseur(cmd);
+      if (!e) return '';
+      const st = ENVOI_STYLES[e.statut] || ENVOI_STYLES.en_cours;
+      const texte = e.statut === 'envoyee' && e.numero ? `Fournisseur n° ${escHtml(String(e.numero))}` : st.texte;
+      return `<span class="badge ${st.classe}">${st.icone} ${texte}</span> `;
+    }
+
+    // Bloc détaillé dans le détail de la commande
+    function blocEnvoiHtml(cmd) {
+      const e = lireEnvoiFournisseur(cmd);
+      if (!e) return '';
+      const st = ENVOI_STYLES[e.statut] || ENVOI_STYLES.en_cours;
+      const lignes = [];
+      if (e.numero) lignes.push(`<div>Commande n° <strong>${escHtml(String(e.numero))}</strong> chez le fournisseur</div>`);
+      if (e.ttc_fournisseur != null && e.ttc_fournisseur !== '') {
+        const leur = Number(e.ttc_fournisseur), notre = Number(cmd.prix);
+        const identique = Number.isFinite(leur) && Number.isFinite(notre) && Math.abs(leur - notre) < 0.01;
+        lignes.push(`<div>Total du fournisseur : <strong>${eur(leur)}</strong> · notre total : ${eur(notre)} ${identique ? '<span style="color:#2e7d32;">✅ identiques</span>' : '<span style="color:#c62828;">⚠️ écart de ' + eur(Math.abs(leur - notre)) + ' (le total du fournisseur fait foi)</span>'}</div>`);
+      }
+      if (e.envoye_le) lignes.push(`<div style="color:#666;">Envoi le ${escHtml(formatDate(e.envoye_le))}${e.origine === 'fin_appel' ? ' · à la fin de l\'appel' : ''}${e.duree_ms ? ' · réponse en ' + (e.duree_ms / 1000).toFixed(1).replace('.', ',') + ' s' : ''}</div>`);
+      if (e.erreur) lignes.push(`<div style="color:${st.couleur};">${escHtml(e.erreur)}</div>`);
+      if (Array.isArray(e.avertissements) && e.avertissements.length) {
+        lignes.push(`<div style="margin-top:6px;"><strong>Éléments à contrôler :</strong>${e.avertissements.map(a => `<div>• ${escHtml(a)}</div>`).join('')}</div>`);
+      }
+      if (e.statut === 'echec' || e.statut === 'incertain') {
+        lignes.push(`<div style="margin-top:8px;font-size:13px;">Vérifie d'abord dans la caisse du restaurant avant de ressaisir cette commande : un second envoi pourrait créer un doublon.</div>`);
+      }
+      return `
+        <div style="background: ${st.fond}; padding: 14px; border-radius: 8px; margin-bottom: 14px; border-left: 4px solid ${st.couleur}; font-size: 14px; line-height: 1.6;">
+          <strong>🔗 Fournisseur</strong> <span class="badge ${st.classe}" style="margin-left:6px;">${st.icone} ${st.texte}</span>
+          <div style="margin-top:8px;">${lignes.join('')}</div>
+        </div>`;
+    }
+
     function renderCommandes() {
       const content = document.getElementById('commandes-content');
       if (commandes.length === 0) {
@@ -1433,7 +1491,7 @@
           <div class="row-item" onclick="openCommandeDetail('${cmd.id}')">
             <span class="row-num">#${cmd.numero_commande}</span>
             <div class="row-main">
-              <span class="row-client">${lireAVerifier(cmd).length ? '<span class="badge badge-averifier">⚠️ À vérifier</span> ' : ''}${warningBadge}${nomClient}</span>
+              <span class="row-client">${lireAVerifier(cmd).length ? '<span class="badge badge-averifier">⚠️ À vérifier</span> ' : ''}${badgeEnvoi(cmd)}${warningBadge}${nomClient}</span>
               <span class="row-sub">📞 ${telClient} • <span class="badge badge-${typeBadge}">${typeText}</span></span>
             </div>
             <div class="row-right">
@@ -1551,7 +1609,7 @@
                 ${instructionsAccesHtml}
               </div>
             ` : ''}
-            ${aVerifierHtml}${instructionsLivraisonHtml}${paiementHtml}
+            ${blocEnvoiHtml(cmd)}${aVerifierHtml}${instructionsLivraisonHtml}${paiementHtml}
             <div style="margin-bottom: 16px;">
               <strong>📦 Articles</strong>
               <div style="margin-top: 12px;">${articlesHtml}</div>
@@ -3269,8 +3327,48 @@
               <div style="font-size:12px;color:var(--muted);margin-top:8px;">Le test ne modifie rien : il lit la carte du fournisseur et signale ce qui poserait problème.</div>
             </form>
           </div>`;
+        zone.insertAdjacentHTML('beforeend', await htmlCarteEnvoiCommandes(relie));
       } catch (err) {
         zone.innerHTML = `<div class="no-data">❌ ${escHtml(err.message)}</div>`;
+      }
+    }
+
+    // Interrupteur « envoi des commandes au fournisseur » (business.type_params.envoi_commandes), par restaurant
+    async function htmlCarteEnvoiCommandes(relie) {
+      if (!relie) return '';
+      let actif = false;
+      try {
+        const tp = await lireTypeParams();
+        actif = tp.envoi_commandes === true;
+      } catch (_) { /* carte affichée éteinte */ }
+      return `
+        <div style="background:white;border-radius:12px;padding:22px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.06);max-width:760px;margin-top:18px;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;">
+            <div style="font-size:16px;font-weight:700;">Envoi des commandes au fournisseur</div>
+            <span class="badge ${actif ? 'badge-success' : 'badge-warning'}">${actif ? 'Actif' : 'Éteint'}</span>
+          </div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5;">Quand c'est actif, chaque commande validée au téléphone est envoyée au fournisseur à la fin de l'appel, une seule fois. Si le client refuse la commande, rien n'est envoyé. Le résultat s'affiche dans la commande (badge « Fournisseur n° … » ou point « À vérifier »).</div>
+          <div class="checkbox-group" style="margin-bottom:14px;">
+            <input type="checkbox" id="envoi-actif" ${actif ? 'checked' : ''}>
+            <label for="envoi-actif" style="font-weight:600;">Envoyer les commandes au fournisseur</label>
+          </div>
+          <div class="form-actions" style="justify-content:flex-start;margin-top:0;border-top:none;padding-top:0;">
+            <button class="btn btn-primary" onclick="enregistrerEnvoiCommandes()">💾 Enregistrer</button>
+          </div>
+        </div>`;
+    }
+
+    async function enregistrerEnvoiCommandes() {
+      const voulu = document.getElementById('envoi-actif').checked;
+      if (voulu && !confirm('Chaque commande validée au téléphone sera envoyée au fournisseur (dans la caisse du restaurant). Active-le d\'abord sur un restaurant de test. Activer ?')) return;
+      try {
+        const tp = { ...(await lireTypeParams()) };
+        if (voulu) tp.envoi_commandes = true; else delete tp.envoi_commandes;
+        await ecrireTypeParams(tp);
+        alert(voulu ? '✅ Envoi des commandes activé' : '✅ Envoi des commandes éteint');
+        chargerConnexionApi();
+      } catch (err) {
+        alert('❌ Erreur: ' + err.message);
       }
     }
 
