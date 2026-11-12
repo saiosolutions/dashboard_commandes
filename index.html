@@ -178,6 +178,13 @@
     .btn-danger { background: var(--err); color: white; }
     .btn-sm { padding: 5px 10px; font-size: 12px; }
 
+    /* LIGNES DE CHOIX — affichage uniforme des composants, sauces, boissons, suppléments d'un article */
+    .ligne-choix { font-size: 13px; margin-top: 3px; line-height: 1.45; }
+    .ligne-choix .lc-icone { display: inline-block; width: 1.4em; text-align: center; }
+    .ligne-choix .lc-lib { color: var(--muted); }
+    .ligne-choix .lc-plus { color: var(--info); font-weight: 600; }
+    .ligne-choix .lc-sans { color: var(--warn); }
+
     /* MENUS DÉROULANTS — section Agent IA */
     .agent-actions { display: none; gap: 10px; flex-wrap: wrap; align-items: center; }
     .menu-actions { position: relative; }
@@ -723,8 +730,8 @@
             <button type="button" class="nav-item" data-section="produits" onclick="allerSection('produits')"><span class="nav-pastille" id="pastille-produits"></span><span class="nav-lib">Produits</span><span class="nav-compte" id="compte-produits"></span></button>
             <button type="button" class="nav-item" data-section="attributs" onclick="allerSection('attributs')"><span class="nav-pastille" id="pastille-attributs"></span><span class="nav-lib">Attributs</span><span class="nav-compte" id="compte-attributs"></span></button>
             <button type="button" class="nav-item" data-section="options" onclick="allerSection('options')"><span class="nav-pastille" id="pastille-options"></span><span class="nav-lib">Options produits</span><span class="nav-compte" id="compte-options"></span></button>
-            <button type="button" class="nav-item" data-section="formules" onclick="allerSection('formules')"><span class="nav-pastille" id="pastille-formules"></span><span class="nav-lib">Formules</span><span class="nav-compte" id="compte-formules"></span></button>
             <button type="button" class="nav-item" data-section="supplements" onclick="allerSection('supplements')"><span class="nav-pastille" id="pastille-supplements"></span><span class="nav-lib">Suppléments</span><span class="nav-compte" id="compte-supplements"></span></button>
+            <button type="button" class="nav-item" data-section="formules" onclick="allerSection('formules')"><span class="nav-pastille" id="pastille-formules"></span><span class="nav-lib">Formules</span><span class="nav-compte" id="compte-formules"></span></button>
           </div>
           <div class="nav-groupe"><div class="nav-groupe-titre">Service</div>
             <button type="button" class="nav-item" data-section="modes" onclick="allerSection('modes')"><span class="nav-pastille" id="pastille-modes"></span><span class="nav-lib">Modes de commande</span><span class="nav-compte" id="compte-modes"></span></button>
@@ -752,8 +759,8 @@
               <option value="cles">Clés d'IA</option>
               <option value="attributs">Attributs</option>
               <option value="options">Options produits</option>
-              <option value="formules">Formules</option>
               <option value="supplements">Suppléments</option>
+              <option value="formules">Formules</option>
               <option value="zones">Zones de livraison</option>
               <option value="horaires">Horaires</option>
               <option value="messages">Messages d'accueil et de fin</option>
@@ -3361,18 +3368,41 @@
       }
     }
 
-    const LIBELLES_GROUPES_CHOIX = {
-      'VIANDE': '🥩 Viandes :', 'SAUCE': '🍯 Sauces :', 'BOISSON': '🥤 Boisson :', 'DESSERT': '🍰 Dessert :',
-      'ACCOMPAGNEMENT': '🍽️ Accompagnement :', 'TEX MEX': '🍗 Tex mex :', 'FROMAGE': '🧀 Fromages :'
-    };
+    // Icône d'après la nature de l'élément (emplacement, groupe de choix ou famille) : même jeu partout dans le back-office
+    const ICONES_NATURE = [
+      [/SUPPLEMENT/, '➕'], [/SAUCE/, '🍯'], [/VIANDE/, '🥩'], [/FROMAGE/, '🧀'],
+      [/BOISSON|SODA|JUS|CANETTE|EAU|COLA/, '🥤'], [/DESSERT|GLACE|TIRAMISU|BROWNIE|CREPE|TARTE|GATEAU/, '🍰'],
+      [/PIZZA/, '🍕'], [/PATE|SPAGHETTI|RIGATONI|LASAGNE/, '🍝'], [/SANDWICH|PANINI/, '🥪'], [/BURGER/, '🍔'], [/TACOS/, '🌮'], [/KEBAB|GRIEC|DURUM/, '🥙'],
+      [/SALADE|BOWL/, '🥗'], [/FRITE|ACCOMPAGNEMENT|POTATOES/, '🍟'], [/TEX ?MEX|NUGGET|TENDERS|WINGS/, '🍗'], [/OEUF/, '🥚'], [/LEGUME|CRUDITE/, '🥬']
+    ];
+    function iconeNature(texte) {
+      const n = kbCle(texte);
+      for (const [re, icone] of ICONES_NATURE) if (re.test(n)) return icone;
+      return '🍽️';
+    }
+    const NOMS_NATURE = { 'PATES': 'Pâtes', 'PIZZAS': 'Pizza', 'DESSERTS': 'Dessert', 'BOISSONS': 'Boisson', 'SALADES': 'Salade', 'SANDWICHS': 'Sandwich', 'SANDWICHES': 'Sandwich', 'BURGERS': 'Burger',
+      'ACCOMPAGNEMENT': 'Accompagnement', 'ACCOMPAGNEMENTS': 'Accompagnement', 'TEX MEX': 'Tex mex', 'VIANDE': 'Viandes', 'SAUCE': 'Sauces', 'FROMAGE': 'Fromages', 'BOISSON': 'Boisson', 'DESSERT': 'Dessert' };
+    // Libellé lisible d'un emplacement ou d'un groupe : « PATES » devient « Pâtes »
+    function nomNature(texte) {
+      const brut = String(texte || '').trim();
+      const k = kbCle(brut);
+      if (NOMS_NATURE[k]) return NOMS_NATURE[k];
+      const t = brut.toLowerCase();
+      return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+    function nomGroupeChoix(g) { return NOMS_NATURE[kbCle(g.type)] || nomNature(g.lib || g.type); }
 
-    // Étiquette d'un groupe de choix : celle du back-office (ex. « Choix des viandes », « Sauces gratuites »), avec une icône d'après son nom
-    function libelleGroupeChoix(g) {
-      if (LIBELLES_GROUPES_CHOIX[g.type]) return LIBELLES_GROUPES_CHOIX[g.type];
-      const n = kbCle(g.lib || g.type);
-      const icone = /VIANDE/.test(n) ? '🥩' : /SAUCE/.test(n) ? '🍯' : /BOISSON|SODA|JUS/.test(n) ? '🥤' : /DESSERT|GLACE/.test(n) ? '🍰' : /FROMAGE/.test(n) ? '🧀' : /ACCOMPAGNEMENT|FRITE/.test(n) ? '🍽️' : '📋';
-      const t = String(g.lib || g.type).toLowerCase();
-      return icone + ' ' + t.charAt(0).toUpperCase() + t.slice(1) + ' :';
+    // Une ligne de choix : icône, libellé, valeurs, puis suppléments (« + ») et retraits (« sans »). Même présentation pour les produits, formules et appels.
+    function ligneChoix(nature, libelle, valeurs, opts) {
+      opts = opts || {};
+      const liste = (Array.isArray(valeurs) ? valeurs : (valeurs ? String(valeurs).split(',') : [])).map(v => String(v).trim()).filter(Boolean);
+      if (!liste.length) return '';
+      const plus = (Array.isArray(opts.plus) ? opts.plus : []).map(v => String(v).trim()).filter(Boolean);
+      const sans = (Array.isArray(opts.sans) ? opts.sans : []).map(v => String(v).trim()).filter(Boolean);
+      return '<div class="ligne-choix"' + (opts.couleur ? ' style="color:' + opts.couleur + ';"' : '') + '><span class="lc-icone">' + (opts.icone || iconeNature(nature || libelle)) + '</span> ' +
+        '<span class="lc-lib">' + escHtml(libelle) + ' :</span> <strong>' + liste.map(escHtml).join(', ') + '</strong>' +
+        (plus.length ? ' · <span class="lc-plus">+ ' + plus.map(escHtml).join(', ') + '</span>' : '') +
+        (sans.length ? ' · <span class="lc-sans">sans ' + sans.map(escHtml).join(', ') + '</span>' : '') + '</div>';
     }
 
     function htmlChoixArticle(item) {
@@ -3382,7 +3412,6 @@
     function htmlChoixArticleBase(item) {
       const a = item.attributs_choisis || {};
       const liste = (x) => (Array.isArray(x) ? x : (x ? String(x).split(',') : [])).map(v => String(v).trim()).filter(Boolean);
-      const ligne = (etiquette, noms, style) => `<div${style ? ` style="${style}"` : ''}>${etiquette} ${noms.map(escHtml).join(', ')}</div>`;
       const affiches = new Set();
       let htmlSupp = '';
       let avecGroupes = false;
@@ -3409,17 +3438,17 @@
           }
           affiches.add(k);
         });
-        parType.forEach(({ g, noms }) => { htmlSupp += ligne(libelleGroupeChoix(g), noms); });
-        if (extras.length) htmlSupp += ligne('➕ Suppléments :', extras);
-        if (horsListe.length) htmlSupp += ligne('⚠️ Hors liste du produit :', horsListe, 'color:var(--err);font-weight:600;');
+        parType.forEach(({ g, noms }) => { htmlSupp += ligneChoix(g.type || g.cat, nomGroupeChoix(g), noms); });
+        if (extras.length) htmlSupp += ligneChoix('SUPPLEMENT', 'Suppléments', extras);
+        if (horsListe.length) htmlSupp += ligneChoix('', 'Hors liste du produit', horsListe, { icone: '⚠️', couleur: 'var(--err)' });
       }
 
       // Détails issus de l'analyse de l'appel : seulement ce qui n'est pas déjà affiché ci-dessus
       const reste = (champ) => liste(a[champ]).filter(n => !affiches.has(kbCle(n)));
       let htmlAnalyse = '';
-      [['viandes', '🥩'], ['sauces_sandwich', '🍯 Sandwich:'], ['sauces_plat', '🍯 Plat:'], ['sauces_frites', '🍟 Frites:'], ['fromages', '🧀']].forEach(([champ, etiq]) => {
+      [['viandes', 'Viandes'], ['sauces_sandwich', 'Sauces sandwich'], ['sauces_plat', 'Sauces plat'], ['sauces_frites', 'Sauces frites'], ['fromages', 'Fromages']].forEach(([champ, libelle]) => {
         const r = reste(champ);
-        if (r.length) htmlAnalyse += ligne(etiq, r);
+        if (r.length) htmlAnalyse += ligneChoix(libelle, libelle, r);
       });
       // Produit à groupes (restaurant relié) : les choix rangés d'abord ; sinon ordre habituel (analyse, puis suppléments)
       return avecGroupes ? htmlSupp + htmlAnalyse : htmlAnalyse + htmlSupp;
@@ -4702,13 +4731,8 @@
       let articlesHtml = '';
       if (articles.length > 0) {
         articles.forEach(item => {
-          let attrHtml = '';
-          if (item.viandes)      attrHtml += `<div style="font-size:12px;color:#666;">🥩 ${item.viandes}</div>`;
-          if (item.sauces_plat)  attrHtml += `<div style="font-size:12px;color:#666;">🍯 Sauces (plat) : ${item.sauces_plat}</div>`;
-          if (item.sauces_frites)attrHtml += `<div style="font-size:12px;color:#666;">🍟 Sauces (frites) : ${item.sauces_frites}</div>`;
-          if (item.fromages)     attrHtml += `<div style="font-size:12px;color:#666;">🧀 ${item.fromages}</div>`;
-          if (item.supplements)  attrHtml += `<div style="font-size:12px;color:#666;">➕ ${item.supplements}</div>`;
-          if (item.modifications)attrHtml += `<div style="font-size:12px;color:#f57c00;">💬 ${item.modifications}</div>`;
+          const attrHtml = ligneChoix('Viandes', 'Viandes', item.viandes) + ligneChoix('Sauces plat', 'Sauces plat', item.sauces_plat) + ligneChoix('Sauces frites', 'Sauces frites', item.sauces_frites) +
+            ligneChoix('Fromages', 'Fromages', item.fromages) + ligneChoix('SUPPLEMENT', 'Suppléments', item.supplements) + ligneChoix('', 'Remarque', item.modifications ? [String(item.modifications)] : [], { icone: '💬', couleur: '#f57c00' });
           const prixArticle = item.prix_total != null ? `<strong style="color:#667eea;">${item.prix_total}€</strong>` : '';
           articlesHtml += `
             <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px;">
@@ -7886,7 +7910,7 @@
         const uniques = [...new Set(noms)];
         const liste = uniques.length === 0 ? '<span style="color:var(--err);">aucun produit</span>'
           : (uniques.length <= 6 ? escHtml(uniques.join(', ')) : escHtml(uniques.slice(0, 6).join(', ')) + ' … <span style="color:var(--muted);">(' + uniques.length + ' choix)</span>');
-        return '<div style="display:flex;gap:10px;flex-wrap:wrap;padding:3px 0;font-size:14px;"><strong style="min-width:120px;">' + escHtml(d.nom) + '</strong>' +
+        return '<div style="display:flex;gap:10px;flex-wrap:wrap;padding:3px 0;font-size:14px;"><strong style="min-width:130px;">' + iconeNature(d.nom) + ' ' + escHtml(nomNature(d.nom)) + '</strong>' +
           '<span style="color:var(--muted);">' + d.quantite + ' pièce' + (d.quantite > 1 ? 's' : '') + (d.taille ? ' · taille ' + escHtml(d.taille) : '') + (d.obligatoire ? '' : ' · facultatif') + '</span>' +
           '<span style="flex:1;min-width:200px;">' + liste + '</span></div>';
       }).join('');
@@ -8346,12 +8370,22 @@
         ((Array.isArray(c.choix) && c.choix.length) ? ' avec ' + c.choix.map(x => String(x).toUpperCase()).join(', ') : '') +
         ((Array.isArray(c.retraits) && c.retraits.length) ? ' sans ' + c.retraits.join(', sans ') : '')).join(', ');
     }
+    // Un composant : sa ligne (produit, suppléments payants, retraits), puis en retrait ses choix de groupe (sauce des pâtes…) rangés comme pour un produit vendu seul
     function htmlComposantsArticle(item) {
-      const comps = composantsDeArticle(item);
-      if (!comps.length) return '';
-      return comps.map(c => '<div style="font-size:13px;margin-top:3px;">🍽️ <span style="color:var(--muted);">' + escHtml(c.emplacement || '') + ' :</span> <strong>' + escHtml(c.nom || '') + '</strong>' +
-        ((Array.isArray(c.choix) && c.choix.length) ? ' · <span style="color:var(--info);">+ ' + c.choix.map(escHtml).join(', ') + '</span>' : '') +
-        ((Array.isArray(c.retraits) && c.retraits.length) ? ' · sans ' + c.retraits.map(escHtml).join(', ') : '') + '</div>').join('');
+      const ref = referentielCommandes;
+      return composantsDeArticle(item).map(c => {
+        const choix = (Array.isArray(c.choix) ? c.choix : []).map(String);
+        const groupes = (ref && c.produit_id && ref.groupes.get(c.produit_id)) || [];
+        const parGroupe = new Map(), extras = [];
+        choix.forEach(nom => {
+          const g = groupes.find(x => x.cles.has(kbCle(nom)));
+          if (g) { if (!parGroupe.has(g.cat)) parGroupe.set(g.cat, { g, noms: [] }); parGroupe.get(g.cat).noms.push(nom); }
+          else extras.push(nom);
+        });
+        let h = ligneChoix(c.emplacement, nomNature(c.emplacement), [c.nom || ''], { plus: extras, sans: c.retraits });
+        parGroupe.forEach(({ g, noms }) => { h += '<div style="margin-left:1.6em;">' + ligneChoix(g.type || g.cat, nomGroupeChoix(g), noms) + '</div>'; });
+        return h;
+      }).join('');
     }
     // Remarques de la ligne : masquées quand elles ne font que répéter le contenu de la formule (déjà affiché ci-dessus)
     function htmlNoteArticle(item) {
@@ -8359,7 +8393,7 @@
       if (!note) return '';
       const comps = composantsDeArticle(item);
       if (comps.length && String(note).trim() === composantsTexteBO(comps)) return '';
-      return '<div style="color: #f57c00; margin-top: 6px;">💬 ' + escHtml(note) + '</div>';
+      return ligneChoix('', 'Remarque', [String(note)], { icone: '💬', couleur: '#f57c00' });
     }
 
     // ========================================
