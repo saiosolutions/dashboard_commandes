@@ -1417,16 +1417,11 @@
 })();
 
 /* =====================================================================
-   Module « Commandes et indépendance d'ElevenLabs » (Agent V2)
-   Les fonctions openCommandeDetail, chargerAppelsSansCommande et
-   afficherResultatKb sont enveloppées ou remplacées ici.
-     - Commandes : le détail des prix (prix de base, choix payants,
-       suppléments, frais de livraison, contrôle du total) s'affiche dans
-       chaque article de la fiche commande ;
-     - Commandes : le bandeau « commande non créée » signale aussi les
-       paniers laissés sans validation ;
-     - ElevenLabs : boutons de publication retirés (le menu n'est plus
-       envoyé vers ElevenLabs), textes d'aide mis à jour.
+   Module « Commandes » (Agent V2)
+   Les fonctions openCommandeDetail et chargerAppelsSansCommande sont enveloppées ou remplacées ici.
+     - Commandes : le détail des prix (prix de base, choix payants, suppléments, suppléments des
+       composants d'une formule, frais de livraison, contrôle du total) s'affiche dans chaque article ;
+     - Commandes : le bandeau « commande non créée » signale aussi les paniers laissés sans validation.
    ===================================================================== */
 (function () {
   'use strict';
@@ -1445,6 +1440,8 @@
   var CHAMP_PRIX = { livraison: 'prix_livraison', emporter: 'prix_emporter', sur_place: 'prix_sur_place' };
   var LIB_MODE = { livraison: 'livraison', a_emporter: 'à emporter', sur_place: 'sur place' };
 
+  var composantsDe = function (it) { var c = (it && it.attributs_choisis || {}).composants; return Array.isArray(c) ? c.filter(function (x) { return x && typeof x === 'object'; }) : []; };
+
   /* ---------- Détail des prix d'une commande ---------- */
   async function calculerDetailPrix(cmd) {
     var items = cmd.produits_commandes || [];
@@ -1455,6 +1452,14 @@
     if (rp.error) throw rp.error;
     var prods = {};
     (rp.data || []).forEach(function (p) { prods[p.id] = p; });
+    // Produits des composants des formules (leurs suppléments se facturent comme pour le même produit vendu seul)
+    var idsComp = [];
+    items.forEach(function (it) { composantsDe(it).forEach(function (c) { if (c.produit_id && idsComp.indexOf(c.produit_id) < 0) idsComp.push(c.produit_id); }); });
+    var prodsComp = {};
+    if (idsComp.length) {
+      var rcp = await supabaseClient.from('produits').select('id, nom, famille_id, taille').in('id', idsComp);
+      if (!rcp.error) (rcp.data || []).forEach(function (p) { prodsComp[p.id] = p; });
+    }
     var cle = CLE_MODE[cmd.type_livraison] || 'sur_place';
     var champ = CHAMP_PRIX[cle];
     var lignes = [], somme = 0;
@@ -1476,6 +1481,22 @@
       var inclus = details.length
         ? details.filter(function (d) { return !(Number(d.prix_choix) > 0); }).map(function (d) { return d.nom_choix; })
         : choix;
+      // Formule : choix payants de chaque composant (ex. champignons sur la pizza du menu)
+      var comps = composantsDe(it);
+      for (var c = 0; c < comps.length; c++) {
+        var cp = comps[c], choixC = liste(cp.choix);
+        if (!choixC.length) continue;
+        var pc = prodsComp[cp.produit_id] || {};
+        var rc2 = await supabaseClient.rpc('panier_prix_par_choix', {
+          p_business_id: cmd.business_id || BUSINESS_ID, p_produit_id: cp.produit_id,
+          p_famille_id: pc.famille_id || null, p_taille: pc.taille || null, p_cle_prix: cle, p_choix: choixC
+        });
+        if (!rc2.error && Array.isArray(rc2.data)) {
+          rc2.data.forEach(function (d) {
+            if (Number(d.prix_choix) > 0) payants.push({ nom_choix: String(d.nom_choix) + ' (' + (cp.nom || cp.emplacement || 'composant') + ')', prix_choix: d.prix_choix, origine_choix: d.origine_choix });
+          });
+        }
+      }
       var calcule = base * q + payants.reduce(function (s, d) { return s + Number(d.prix_choix); }, 0);
       var enregistre = Number(it.total);
       somme += Number.isFinite(enregistre) ? enregistre : 0;
@@ -1573,47 +1594,6 @@
       zone.innerHTML = '';
     }
   };
-
-  /* ---------- Indépendance d'ElevenLabs : fin de la publication du menu et des zones ---------- */
-  var texteAgent = '🤖 Cette section définit le comportement de l\'agent vocal : les <strong>règles</strong> qu\'il applique (questions à poser, déductions de taille, exclusivités, prononciation). ' +
-    'Les boutons « Aperçu », en haut, montrent le texte du <strong>menu</strong> et des <strong>zones de livraison</strong> construit d\'après les données du restaurant. ' +
-    'Plus rien n\'est publié vers ElevenLabs : l\'agent LiveKit utilise le prompt choisi dans <strong>Agent vocal › Prompts de l\'agent</strong>.';
-
-  window.afficherResultatKb = function (kb, filename) {
-    window.__kbFilename = filename;
-    var estZones = String(filename).indexOf('ZONE') >= 0;
-    window.__kbType = estZones ? 'zones' : 'menu';
-    var titre = estZones ? '📍 Texte des zones de livraison' : '📄 Texte du menu';
-    var modal = document.getElementById('modal-edit');
-    modal.innerHTML = '<div class="modal-content" onclick="event.stopPropagation()" style="max-width:760px;">' +
-      '<div class="modal-header"><h2>' + titre + '</h2><button class="btn-close" onclick="closeModal(\'modal-edit\')">×</button></div>' +
-      '<div class="modal-body">' +
-      '<div style="background:#e7f1f8;border:1px solid #cfe1ee;border-left:4px solid #2c6e9c;border-radius:8px;padding:11px 14px;font-size:13px;margin-bottom:12px;color:#2c5a7a;">' +
-      '💡 Aperçu généré à partir des données du restaurant (produits, choix, prix, zones, horaires). Il n\'est plus envoyé vers ElevenLabs. Copie ou télécharge-le si besoin.</div>' +
-      '<textarea id="kb-output" style="width:100%;min-height:340px;font-family:monospace;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:12px;">' + String(kb).replace(/</g, '&lt;') + '</textarea>' +
-      '<div class="form-actions"><button class="btn btn-secondary" onclick="copierKb()">📋 Copier</button><button class="btn btn-secondary" onclick="telechargerKb()">⬇️ Télécharger</button></div>' +
-      '</div></div>';
-  };
-
-  // Garde-fous : si un ancien appel survivait quelque part, il n'envoie plus rien vers ElevenLabs
-  var abandonne = function () { alert('La publication vers ElevenLabs est supprimée : l\'agent LiveKit n\'en a plus besoin.'); };
-  window.publierKbVersElevenLabs = abandonne;
-  window.publierRestaurantActuel = abandonne;
-  window.publierToutLesRestaurants = abandonne;
-
-  function nettoyerInterface() {
-    ['btn-publier-tout-flottant', 'btn-publier-restaurant'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el && el.parentNode) el.parentNode.removeChild(el);
-    });
-    var resume = document.querySelector('#agent-actions summary');
-    if (resume) resume.textContent = '📄 Aperçu des textes de l\'agent ▾';
-    var m = document.getElementById('btn-gen-kbmenu'); if (m) m.textContent = '📄 Aperçu du menu';
-    var z = document.getElementById('btn-gen-kbzones'); if (z) z.textContent = '📍 Aperçu des zones de livraison';
-    var aide = document.querySelector('#param-agent .options-help');
-    if (aide) aide.innerHTML = texteAgent;
-  }
-  nettoyerInterface();
 })();
 
 /* =====================================================================
@@ -1625,7 +1605,7 @@
 (function () {
   'use strict';
   if (window.__saiosV2Apercu) return;
-  if (typeof supabaseClient === 'undefined' || typeof window.genererKbMenu !== 'function') {
+  if (typeof supabaseClient === 'undefined') {
     console.warn('[agent-vocal] module Texte envoyé à l\'agent non chargé (page inattendue)');
     return;
   }
@@ -1723,12 +1703,4 @@
 
   window.genererKbMenu = function () { return ouvrir('menu'); };
   window.genererKbZones = function () { return ouvrir('zones'); };
-
-  var m = document.getElementById('btn-gen-kbmenu'); if (m) m.textContent = '📄 Menu envoyé à l\'agent';
-  var z = document.getElementById('btn-gen-kbzones'); if (z) z.textContent = '📍 Zones et horaires envoyés à l\'agent';
-  var resume = document.querySelector('#agent-actions summary'); if (resume) resume.textContent = '📄 Texte reçu par l\'agent ▾';
-  var aide = document.querySelector('#param-agent .options-help');
-  if (aide) aide.innerHTML = '🤖 Cette section définit le comportement de l\'agent vocal : les <strong>règles</strong> qu\'il applique (questions à poser, déductions de taille, exclusivités, prononciation). ' +
-    'Le menu, les zones et les horaires sont construits <strong>automatiquement</strong> d\'après les données du restaurant à chaque appel : le menu « compact » est celui que reçoit l\'agent. ' +
-    'Les boutons en haut affichent ce texte exact. Rien n\'est à publier ni à coller.';
 })();
