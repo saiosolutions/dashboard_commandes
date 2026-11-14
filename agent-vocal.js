@@ -91,9 +91,6 @@
       { k: 'prompt_modele', t: 'prompt', l: 'Prompt de l\'agent', h: 'Modifié dans « Prompts de l\'agent » : le changement s\'applique à tous les agents qui l\'utilisent.' },
       { k: 'info_ailleurs', t: 'info', l: 'Déjà réglés dans les sections existantes (pas de doublon ici)', h: 'Messages d\'accueil, modes de commande, horaires, zones de livraison et menu se règlent là où ils sont déjà. L\'agent LiveKit les lit au décrochage. Les modifications non enregistrées de cet écran sont conservées si tu y reviens.', links: [['messages', 'Messages d\'accueil'], ['modes', 'Modes de commande'], ['horaires', 'Horaires'], ['zones', 'Zones de livraison'], ['produits', 'Produits (menu)']] }
     ] },
-    { id: 'flow', title: 'Déroulé de l\'appel', fields: [
-      { k: 'flow', t: 'flow', l: 'Étapes de l\'appel', h: 'Optionnel. Ce bloc n\'est utilisé que si le prompt contient le repère {{deroule_appel}} : il y est remplacé par ces étapes. Sans ce repère, ces réglages sont ignorés. Le calcul des prix reste verrouillé.' }
-    ] },
     { id: 'tools', title: 'Outils', fields: [
       { k: 'tool_val', t: 'toggle', l: 'Panier et calcul des prix', locked: 1, h: 'Verrouillé : le panier est rempli par les outils ajouter, modifier, retirer et valider. Les prix sont calculés par les fonctions Supabase, jamais par le LLM.' },
       { k: 'tool_transfer', t: 'toggle', l: 'Transfert vers un humain', h: 'Pas d\'abonnement : on paie seulement les minutes de la conversation transférée (≈ 0,02 $/min vers un fixe, ≈ 0,04 $/min vers un mobile : appel sortant + appel entrant qui reste ouvert, estimation Twilio).' },
@@ -128,14 +125,6 @@
   var FM = {};
   SCHEMA.forEach(function (s) { s.fields.forEach(function (f) { FM[f.k] = f; }); });
 
-  var FLOW0 = [
-    { l: 'Mode de commande', on: true, lock: false, mand: true, phrase: 'Souhaitez-vous commander à emporter ou en livraison ?' },
-    { l: 'Prise des produits', on: true, lock: true, mand: true, phrase: 'Que souhaitez-vous commander ?' },
-    { l: 'Adresse de livraison', on: true, lock: false, mand: true, phrase: 'À quelle adresse souhaitez-vous être livré ?' },
-    { l: 'Coordonnées du client', on: true, lock: false, mand: true, phrase: 'À quel nom, s\'il vous plaît ?' },
-    { l: 'Récapitulatif et validation', on: true, lock: true, mand: true, phrase: 'Je récapitule votre commande.' },
-    { l: 'Clôture', on: true, lock: false, mand: false, phrase: 'Merci, bonne journée !' }
-  ];
   // Motifs de transfert proposés par défaut. Le premier est toujours actif (lock). Un motif ajouté à la main porte perso: true.
   var MOTIFS0 = [
     { id: 'humain', l: 'Le client demande un humain', on: true, lock: true, txt: 'Le client demande explicitement un responsable, un humain ou une personne.' },
@@ -154,7 +143,7 @@
     turn: 'multilingual_model', d_min: 0.5, d_max: 3, inter: true, int_words: 2, preempt: true, vad: 0.5, expressif: false, disfluences: false,
     think: 'keyboard1', think_vol: 0.6, amb: 'none', amb_vol: 0.2, tool_snd: 'keyboard1', noise: 'telephony',
     prompt_modele: 'Modèle SAIOS restaurant (défaut)',
-    flow: FLOW0, tool_val: true,
+    tool_val: true,
     tool_transfer: false, transfer_num: '', transfer_type: '', transfer_mode: 'cold', transfer_phrase: 'Je vous passe un collaborateur, ne quittez pas.', transfer_open_only: true, transfer_motifs: MOTIFS0,
     tool_sms: false, sms_sender: '', sms_tpl: '{{nom_restaurant}} : commande {{numero_commande}} confirmee, total {{total}}, prete a {{heure}}.', sms_modes: ['livraison'],
     maxdur: 10, sil_hang: 20,
@@ -205,7 +194,7 @@
   /* ---------- État ---------- */
   var AV = {
     section: null, models: [], configs: [], prompts: [], ops: [],
-    ed: null, bulk: null, filter: 'resto', modelFilter: '', periode: 30, unite: 'min', couts: null, obs: true, typeDefaut: 'equilibre', typesOrdre: null, typesEnBase: false, typ: null, majRes: null, majInfo: null, majSel: {}, sel: {}, openSec: { models: true }, showAdv: false, catTab: 'llm'
+    ed: null, bulk: null, filter: 'resto', modelFilter: '', periode: 30, unite: 'min', couts: null, obs: true, typeDefaut: 'equilibre', fourn: { stt: '', llm: '', tts: '' }, typesOrdre: null, typesEnBase: false, typ: null, majRes: null, majInfo: null, majSel: {}, sel: {}, openSec: { models: true }, showAdv: false, catTab: 'llm'
   };
 
   var M = function (id) { return AV.models.find(function (m) { return m.identifiant === id; }); };
@@ -460,9 +449,6 @@
       if (val && !promptDe(val)) opts += '<option value="' + esc(val) + '" selected>' + esc(val) + ' (introuvable)</option>';
       return '<select id="' + id + '" ' + d + '>' + opts + '</select>';
     }
-    if (f.t === 'flow') return (val || []).map(function (st, i) {
-      return '<div class="av-card" style="padding:12px 14px;margin-bottom:8px"><div class="av-row av-between"><label class="av-row av-l"><input type="checkbox" data-avt="flow" data-avk="' + i + '" data-avp="on"' + (st.on ? ' checked' : '') + (st.lock ? ' disabled' : '') + ' style="width:18px;height:18px"> ' + esc(st.l) + '</label>' + (st.lock ? badge('Toujours actif', 'dark') : '') + '</div><input type="text" class="av-in" style="margin-top:8px" data-avt="flow" data-avk="' + i + '" data-avp="phrase" value="' + esc(st.phrase) + '" aria-label="Phrase : ' + esc(st.l) + '"><label class="av-check"><input type="checkbox" data-avt="flow" data-avk="' + i + '" data-avp="mand"' + (st.mand ? ' checked' : '') + '> Question obligatoire</label></div>';
-    }).join('');
     if (f.t === 'motifs') {
       var liste = (val || []).map(function (m, i) {
         var b = MOTIFS0.filter(function (x) { return x.id === m.id; })[0];
@@ -532,7 +518,6 @@
     if (f.t === 'toggle') return v ? 'Oui' : 'Non';
     if (f.t === 'range') return f.fmt(v);
     if (f.t === 'multi') return (v || []).join(', ') || '—';
-    if (f.t === 'flow') return v.filter(function (x) { return x.on; }).length + ' étape(s) active(s)';
     if (f.t === 'motifs') return (v || []).filter(function (x) { return x.on; }).length + ' motif(s) actif(s)';
     if (f.t === 'select') { var o = f.o.map(pairs).find(function (p) { return String(p[0]) === String(v); }); return o ? o[1] : String(v); }
     return String(v == null || v === '' ? '—' : v);
@@ -701,7 +686,8 @@
   function vueCatalogue() {
     var h = bandeauCatalogue();
     h += '<div class="av-seg">' + ['stt', 'llm', 'tts'].map(function (t) { return '<button class="' + (AV.catTab === t ? 'on' : '') + '" data-avact="cattab" data-id="' + t + '">' + TYPE_LABEL[t] + '</button>'; }).join('') + '</div>';
-    AV.models.filter(function (m) { return m.type === AV.catTab; }).forEach(function (m) {
+    h += barreFournisseurs();
+    AV.models.filter(function (m) { return m.type === AV.catTab && (!AV.fourn[AV.catTab] || fournisseurDe(m) === AV.fourn[AV.catTab]); }).forEach(function (m) {
       var n = AV.configs.filter(function (c) { return primaires(resolu(c)).indexOf(m.identifiant) >= 0; }).length;
       h += '<div class="av-card"><div class="av-row av-between"><div class="av-title">' + esc(m.nom) + (m.hors_catalogue ? ' ' + badge('Hors catalogue', 'warn') : '') + '</div><span class="av-row">' + (m.sante === 'indisponible' ? badge('Indisponible', 'bad') : m.sante === 'lent' ? badge('Latence élevée', 'warn') : '') + '</span></div><div class="av-sub">' + esc(m.fournisseur || '') + ' · <code>' + esc(m.identifiant) + '</code> · utilisé par ' + n + ' agent(s)</div><div class="av-chips">' + chipsPrix(m) + badge(m.endpoint_ue ? 'Endpoint UE' : 'Hors UE', m.endpoint_ue ? 'ok' : 'warn') + (m.francais === false ? badge('Sans français', 'bad') : badge('Français', 'ok')) + '<span class="av-chip">Latence : ' + (m.latence_ms ? m.latence_ms + ' ms' : 'non mesurée') + '</span></div>' + (m.note ? '<div class="av-help">' + esc(m.note) + '</div>' : '') +
         '<div class="av-row" style="margin-top:10px"><label class="av-sub" for="avf_st_' + m.id + '">Statut</label><select id="avf_st_' + m.id + '" class="av-in" style="max-width:170px" data-avt="mstatut" data-avk="' + m.id + '">' + Object.keys(STATUTS).map(function (s) { return '<option value="' + s + '"' + (m.statut === s ? ' selected' : '') + '>' + STATUTS[s][0] + '</option>'; }).join('') + '</select><label class="av-sub" for="avf_sa_' + m.id + '">Incident</label><select id="avf_sa_' + m.id + '" class="av-in" style="max-width:190px" data-avt="msante" data-avk="' + m.id + '"><option value="ok"' + (m.sante === 'ok' ? ' selected' : '') + '>Aucun</option><option value="lent"' + (m.sante === 'lent' ? ' selected' : '') + '>Latence élevée</option><option value="indisponible"' + (m.sante === 'indisponible' ? ' selected' : '') + '>Indisponible</option></select>' + (m.hors_catalogue ? '<label class="av-sub" for="avf_px_' + m.id + '">Prix $/min</label><input type="text" id="avf_px_' + m.id + '" class="av-in" style="max-width:110px" data-avt="mprix" data-avk="' + m.id + '" value="' + (m.prix_minute != null ? String(m.prix_minute).replace('.', ',') : '') + '">' : '') + '</div></div>';
@@ -764,8 +750,7 @@
       if (v === '__custom__' && FM[k] && FM[k].t === 'model') { AV.ed.custom = { k: k, type: FM[k].mt, id: '', pm: '' }; return; }
       if (FM[k] && FM[k].num && v !== '') v = parseFloat(v);
       AV.ed.cfg[k] = v;
-    } else if (t === 'flow') AV.ed.cfg.flow[parseInt(k, 10)][el.dataset.avp] = v;
-    else if (t === 'motif') { var mo = AV.ed.cfg.transfer_motifs[parseInt(k, 10)]; if (mo) mo[el.dataset.avp] = v; }
+    } else if (t === 'motif') { var mo = AV.ed.cfg.transfer_motifs[parseInt(k, 10)]; if (mo) mo[el.dataset.avp] = v; }
     else if (t === 'custom') AV.ed.custom[k] = v;
     else if (t === 'ed') { AV.ed[k] = v; if (k === 'bid') AV.ed.menu = undefined; }
     else if (t === 'nm') { AV.nm = AV.nm || {}; AV.nm[k] = v; }
@@ -1216,10 +1201,8 @@
     }
     h += '</div>';
     // Règles et options
-    var etapes = (r.flow || []).filter(function (x) { return x.on; }).map(function (x) { return x.l; });
     var motifs = (r.transfer_motifs || []).filter(function (m) { return m.on; });
     h += '<div class="av-card"><div class="av-title">Règles et options de l\'agent</div>' +
-      '<div class="av-kv"><span>Déroulé de l\'appel</span><span>' + (etapes.length ? esc(etapes.join(' › ')) : '—') + '</span></div>' +
       '<div class="av-kv"><span>Transfert vers un humain</span><span class="av-row">' + (r.tool_transfer ? badge('Activé', 'ok') + '<span>' + esc(r.transfer_type === 'fixe' ? 'ligne fixe' : r.transfer_type === 'mobile' ? 'mobile' : 'type du numéro à indiquer') + (r.transfer_num ? ' · …' + esc(String(r.transfer_num).slice(-3)) : '') + (r.transfer_open_only ? ' · seulement ouvert' : '') + '</span>' : badge('Désactivé')) + '</span></div>' +
       (r.tool_transfer ? '<div class="av-kv"><span>Motifs de transfert actifs</span><span>' + (motifs.length ? esc(motifs.map(function (m) { return m.l; }).join(', ')) : '—') + '</span></div>' : '') +
       '<div class="av-kv"><span>SMS de confirmation</span><span>' + (r.tool_sms ? badge('Activé', 'ok') + ' expéditeur ' + esc(r.sms_sender) : badge('Désactivé')) + '</span></div>' +
@@ -1293,7 +1276,7 @@
   var nbAgentsType = function (cle) { return AV.configs.filter(function (c) { return c.profil === cle; }).length; };
   function badgesModele(id) { var m = M(id); return m ? badge(m.endpoint_ue ? 'UE' : 'Hors UE', m.endpoint_ue ? 'ok' : 'warn') : badge('Absent du catalogue', 'bad'); }
   function vueTypes() {
-    var h = '<div class="options-help">🧩 Un <b>type d\'agent</b> est un point de départ prêt à l\'emploi (écoute, cerveau, voix et modèles de secours). Il sert à créer un nouvel agent ou à appliquer un profil à plusieurs agents. <b>Modifier un type ne change pas les agents déjà créés</b> : ils gardent leurs propres réglages. Un type n\'est jamais supprimé, seulement archivé.' +
+    var h = '<div class="options-help">🧩 Un <b>type d\'agent</b> est un point de départ prêt à l\'emploi (écoute, cerveau, voix et modèles de secours). Il sert à créer un nouvel agent ou à appliquer un profil à plusieurs agents. <b>Modifier un type ne change pas les agents déjà créés</b> : ils gardent leurs propres réglages.  Un type utilisé par au moins un agent ne peut pas être supprimé (tu peux l\'archiver) ; un type sans aucun agent peut être supprimé définitivement.' +
       (AV.typesEnBase ? '' : ' <b>Les types ci-dessous viennent encore du code : le premier enregistrement les inscrit en base.</b>') + '</div>';
     h += '<div class="sel-toolbar"><button class="btn btn-primary" data-avact="typenew">➕ Nouveau type</button></div>';
     h += barreConso();
@@ -1305,7 +1288,8 @@
       h += '<div class="av-card"' + (t.archive ? ' style="opacity:.65"' : '') + '><div class="av-row av-between"><div class="av-title">' + esc(t.nom) + (def ? ' ' + badge('Par défaut', 'ok') : '') + (t.archive ? ' ' + badge('Archivé') : '') + '</div><span class="av-row">' +
         '<button class="btn btn-secondary btn-sm" data-avact="typeedit" data-id="' + esc(k) + '">✏️ Modifier</button><button class="btn btn-secondary btn-sm" data-avact="typedup" data-id="' + esc(k) + '">Dupliquer</button>' +
         (!t.archive && !def ? '<button class="btn btn-secondary btn-sm" data-avact="typedef" data-id="' + esc(k) + '">Définir par défaut</button>' : '') +
-        (def ? '' : '<button class="btn btn-secondary btn-sm" data-avact="typearch" data-id="' + esc(k) + '">' + (t.archive ? 'Restaurer' : 'Archiver') + '</button>') + '</span></div>' +
+        (def ? '' : '<button class="btn btn-secondary btn-sm" data-avact="typearch" data-id="' + esc(k) + '">' + (t.archive ? 'Restaurer' : 'Archiver') + '</button>') +
+        (def ? '' : (n === 0 ? '<button class="btn btn-secondary btn-sm" style="color:#c0392b" data-avact="typedel" data-id="' + esc(k) + '">Supprimer</button>' : '<span class="av-sub" style="max-width:170px">Utilisé : suppression impossible</span>')) + '</span></div>' +
         (t.description ? '<div class="av-sub">' + esc(t.description) + '</div>' : '') +
         '<div class="av-kv"><span>Écoute</span><span class="av-row">' + esc(mname(c.stt_model)) + badgesModele(c.stt_model) + '</span></div>' +
         '<div class="av-kv"><span>Cerveau</span><span class="av-row">' + esc(mname(c.llm_model)) + badgesModele(c.llm_model) + '</span></div>' +
@@ -1362,6 +1346,18 @@
         return '✅ Type « ' + nom + ' » enregistré. Il sera proposé à la création d\'un agent.';
       });
     };
+    A.typedel = function (el) {
+      var k = el.dataset.id, t = PROFILS[k]; if (!t) return;
+      if (!confirm('Supprimer définitivement le type « ' + t.nom + ' » ? Cette action est irréversible.')) return;
+      return modifierTypes(function () {
+        if (!PROFILS[k]) return false;
+        if (k === AV.typeDefaut) { alert('C\'est le type par défaut : choisis d\'abord un autre type par défaut.'); return false; }
+        var n = nbAgentsType(k);
+        if (n > 0) { alert('Ce type est utilisé par ' + n + ' agent(s) : suppression impossible. Tu peux l\'archiver.'); return false; }
+        delete PROFILS[k]; AV.typesOrdre = AV.typesOrdre.filter(function (x) { return x !== k; });
+        return '✅ Type « ' + t.nom + ' » supprimé.';
+      });
+    };
     A.typedef = function (el) { var k = el.dataset.id; return modifierTypes(function () { if (!PROFILS[k] || PROFILS[k].archive) return false; AV.typeDefaut = k; return '✅ « ' + PROFILS[k].nom + ' » est maintenant le type par défaut des nouveaux agents.'; }); };
     A.typearch = function (el) {
       var k = el.dataset.id, t = PROFILS[k]; if (!t) return;
@@ -1391,9 +1387,9 @@
   }
 
   /* ---------- Catalogue : prix affiché LiveKit / prix ajusté à notre consommation ---------- */
-  var libChamp = { prix_entree_mtok: 'entrée', prix_entree_cache_mtok: 'cache', prix_sortie_mtok: 'sortie', prix_minute: 'prix / min', prix_tts_mcar: 'par M caractères' };
-  var unitChamp = { prix_entree_mtok: ' $/M tokens', prix_entree_cache_mtok: ' $/M tokens', prix_sortie_mtok: ' $/M tokens', prix_minute: ' $/min', prix_tts_mcar: ' $/M car.' };
-  var fnum = function (n) { return n == null ? '—' : String(Number(n)).replace('.', ','); };
+  var libChamp = { prix_entree_mtok: 'entrée', prix_entree_cache_mtok: 'cache', prix_sortie_mtok: 'sortie', prix_minute: 'prix / min', prix_tts_mcar: 'par M caractères', endpoint_ue: 'endpoint' };
+  var unitChamp = { prix_entree_mtok: ' $/M tokens', prix_entree_cache_mtok: ' $/M tokens', prix_sortie_mtok: ' $/M tokens', prix_minute: ' $/min', prix_tts_mcar: ' $/M car.', endpoint_ue: '' };
+  var fnum = function (n) { return n == null ? '—' : (typeof n === 'boolean' ? (n ? 'UE' : 'hors UE') : String(Number(n)).replace('.', ',')); };
   function chipsPrix(m) {
     var aff;
     if (m.type === 'llm') aff = m.prix_entree_mtok != null ? 'entrée ' + usd(m.prix_entree_mtok, 3) + (m.prix_entree_cache_mtok != null ? ' · cache ' + usd(m.prix_entree_cache_mtok, 3) : '') + ' · sortie ' + usd(m.prix_sortie_mtok, 3) + ' / M tokens' : 'prix inconnu';
@@ -1409,6 +1405,17 @@
       (Pm ? badge('Mesuré · ' + Pm.n + ' appel(s)', 'ok') : badge('Projeté', 'warn'));
     return h;
   }
+  var fournisseurDe = function (m) { return String(m.fournisseur || String(m.identifiant).split('/')[0]).split(' (')[0].trim() || 'Autre'; };
+  function barreFournisseurs() {
+    var liste = AV.models.filter(function (m) { return m.type === AV.catTab; }), cpt = {};
+    liste.forEach(function (m) { var f = fournisseurDe(m); cpt[f] = (cpt[f] || 0) + 1; });
+    var noms = Object.keys(cpt).sort(function (a, b) { return a.localeCompare(b, 'fr'); });
+    if (AV.fourn[AV.catTab] && !cpt[AV.fourn[AV.catTab]]) AV.fourn[AV.catTab] = '';
+    var cur = AV.fourn[AV.catTab] || '';
+    return '<div class="av-row" style="margin:10px 0"><span class="av-sub">Fournisseur :</span>' +
+      '<button class="btn ' + (cur === '' ? 'btn-primary' : 'btn-secondary') + ' btn-sm" data-avact="fourn" data-id="">Tous (' + liste.length + ')</button>' +
+      noms.map(function (f) { return '<button class="btn ' + (cur === f ? 'btn-primary' : 'btn-secondary') + ' btn-sm" data-avact="fourn" data-id="' + esc(f) + '">' + esc(f) + ' (' + cpt[f] + ')</button>'; }).join('') + '</div>';
+  }
   function bandeauCatalogue() {
     var mi = AV.majInfo;
     var h = '<div class="options-help">📚 Catalogue des modèles (STT, LLM, TTS) utilisables via LiveKit Inference. Pour chaque modèle : le <b>prix affiché par LiveKit</b> (grille Build/Ship) et le <b>prix ajusté à notre consommation réelle</b> (appels de la période choisie). Le statut est <b>ton avis</b> ; le test de santé automatique reste à venir : signale un incident à la main. Le prix ajusté ne concerne que le poste du modèle (écoute, cerveau ou voix), pas l\'appel entier.</div>';
@@ -1421,8 +1428,11 @@
     var r = AV.majRes; if (!r) return '';
     if (r.attente) return '<div class="av-sub" style="margin-top:10px">Lecture de la page de prix LiveKit…</div>';
     if (!r.ok) return '<div class="av-alert bad" style="margin-top:10px"><b>Vérification impossible.</b> ' + esc(r.erreur || 'Erreur inconnue') + (r.diagnostics ? '<details style="margin-top:6px"><summary style="cursor:pointer">Détails techniques</summary><div class="av-pre">' + esc(JSON.stringify(r.diagnostics, null, 1)) + '</div></details>' : '') + '<div class="av-sub">Rien n\'a été modifié.</div></div>';
-    var ch = r.changements || [], nv = r.nouveaux || [], h = '<div style="margin-top:10px">';
-    if (!ch.length && !nv.length) return h + '<div class="av-sub">✅ Le catalogue est à jour : aucun prix à changer, aucun nouveau modèle (' + new Date(r.verifie_le).toLocaleString('fr-FR') + ').</div></div>';
+    var ch = r.changements || [], nv = r.nouveaux || [], rt = r.retires || [], dg = r.diagnostics || {}, h = '<div style="margin-top:10px">';
+    var nonv = (dg.non_verifies || []);
+    if (nonv.length) h += '<div class="av-alert warn"><b>Partiellement vérifié.</b> Non vérifié (lecture incohérente) : ' + esc(nonv.join(', ')) + '. Rien n\'est proposé pour ces parties.</div>';
+    var detail = '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px">Détails techniques de la lecture</summary><div class="av-pre">' + esc(JSON.stringify(dg, null, 1)) + '</div></details>';
+    if (!ch.length && !nv.length && !rt.length) return h + '<div class="av-sub">✅ Le catalogue est à jour : aucun prix à changer, aucun nouveau modèle (' + new Date(r.verifie_le).toLocaleString('fr-FR') + ').</div>' + detail + '</div>';
     var nsel = Object.keys(AV.majSel).filter(function (k) { return AV.majSel[k]; }).length;
     if (ch.length) {
       h += '<div class="av-l">Prix qui ont changé sur la page LiveKit (' + ch.length + ')</div>';
@@ -1432,26 +1442,31 @@
       });
     }
     if (nv.length) {
-      h += '<div class="av-l" style="margin-top:10px">Nouveaux modèles détectés (' + nv.length + ')</div><div class="av-help">Ils seront ajoutés « non testés », sans statut UE ni français confirmé : à vérifier ensuite dans la liste. L\'identifiant proposé est une déduction : compare-le à celui indiqué dans la documentation LiveKit et corrige-le si besoin.</div>';
+      h += '<div class="av-l" style="margin-top:10px">Nouveaux modèles détectés (' + nv.length + ')</div><div class="av-help">Identifiants, endpoint UE et prix viennent des pages officielles LiveKit. Ils sont ajoutés « non testés » ; le français reste à vérifier. Décochés par défaut : coche ceux que tu veux.</div>';
       nv.forEach(function (n, i) {
         var px = n.prix || {};
-        h += '<div class="av-card" style="padding:10px 12px;margin:6px 0"><label class="av-check"><input type="checkbox" data-avact="majchk" data-id="n' + i + '"' + (AV.majSel['n' + i] ? ' checked' : '') + '><span><b>' + esc(n.nom) + '</b> ' + badge(TYPE_LABEL[n.type] || n.type) + ' <span class="av-sub">' + esc(n.fournisseur || '') + '</span></span></label>' +
+        h += '<div class="av-card" style="padding:10px 12px;margin:6px 0"><label class="av-check"><input type="checkbox" data-avact="majchk" data-id="n' + i + '"' + (AV.majSel['n' + i] ? ' checked' : '') + '><span><b>' + esc(n.nom) + '</b> ' + badge(TYPE_LABEL[n.type] || n.type) + ' <span class="av-sub">' + esc(n.fournisseur || '') + '</span> ' + (n.endpoint_ue === true ? badge('Endpoint UE', 'ok') : n.endpoint_ue === false ? badge('Hors UE', 'warn') : '') + (n.prix_trouve === false ? badge('Prix non trouvé', 'bad') : '') + '</span></label>' +
           '<div class="av-sub">' + (n.type === 'llm' ? 'entrée ' + fnum(px.prix_entree_mtok) + ' · cache ' + fnum(px.prix_entree_cache_mtok) + ' · sortie ' + fnum(px.prix_sortie_mtok) + ' $/M tokens' : n.type === 'tts' ? fnum(px.prix_tts_mcar) + ' $/M caractères' : fnum(px.prix_minute) + ' $/min') + '</div>' +
           '<div class="av-row" style="margin-top:6px"><label class="av-sub" for="avf_majid_' + i + '">Identifiant</label><input type="text" class="av-in" style="max-width:320px" id="avf_majid_' + i + '" data-avt="majid" data-avk="' + i + '" value="' + esc(n.identifiant_propose) + '"></div></div>';
       });
     }
+    if (rt.length) {
+      h += '<div class="av-l" style="margin-top:10px">Modèles retirés ou obsolètes selon LiveKit (' + rt.length + ')</div><div class="av-help">Cocher les passe au statut « Retiré » (ils disparaissent des listes de choix ; les agents qui les utilisent encore ne sont pas modifiés).</div>';
+      rt.forEach(function (x, i) { var n = AV.configs.filter(function (c) { return primaires(resolu(c)).indexOf(x.identifiant) >= 0; }).length; h += '<label class="av-check"><input type="checkbox" data-avact="majchk" data-id="r' + i + '"' + (AV.majSel['r' + i] ? ' checked' : '') + '><span><b>' + esc(x.nom) + '</b> ' + badge(TYPE_LABEL[x.type] || x.type) + ' ' + badge(x.etat === 'retire' ? 'Retiré' : 'Obsolète', 'bad') + (n ? ' <b>utilisé par ' + n + ' agent(s)</b>' : '') + '</span></label>'; });
+    }
     if ((r.absents || []).length) h += '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px">' + r.absents.length + ' modèle(s) du catalogue non retrouvé(s) sur la page de prix (information, rien à faire)</summary><div class="av-sub">' + r.absents.map(function (x) { return esc(x.nom); }).join(', ') + '</div></details>';
-    h += '<div class="av-row" style="margin-top:12px"><button class="btn btn-primary" data-avact="majapply"' + (nsel ? '' : ' disabled') + '>✅ Appliquer la sélection (' + nsel + ')</button><button class="btn btn-secondary btn-sm" data-avact="majall" data-id="on">Tout cocher</button><button class="btn btn-secondary btn-sm" data-avact="majall" data-id="off">Tout décocher</button></div></div>';
+    h += '<div class="av-row" style="margin-top:12px"><button class="btn btn-primary" data-avact="majapply"' + (nsel ? '' : ' disabled') + '>✅ Appliquer la sélection (' + nsel + ')</button><button class="btn btn-secondary btn-sm" data-avact="majall" data-id="on">Tout cocher</button><button class="btn btn-secondary btn-sm" data-avact="majall" data-id="off">Tout décocher</button></div>' + detail + '</div>';
     return h;
   }
   var aujourdhui = function () { return new Date().toISOString().slice(0, 10); };
   function A_catalogue(A) {
+    A.fourn = function (el) { AV.fourn[AV.catTab] = el.dataset.id || ''; rendre(); };
     A.periode = function (el) { AV.periode = parseInt(el.value, 10) || 30; return run(async function () { await chargerCouts(true); rendre(); }); };
     A.unite = function (el) { AV.unite = el.dataset.id === 'appel' ? 'appel' : 'min'; rendre(); };
     A.majchk = function (el) { AV.majSel[el.dataset.id] = el.checked; rendre(); };
     A.majall = function (el) {
       var r = AV.majRes; if (!r || !r.ok) return; AV.majSel = {};
-      if (el.dataset.id === 'on') { (r.changements || []).forEach(function (c, i) { AV.majSel['c' + i] = true; }); (r.nouveaux || []).forEach(function (n, i) { AV.majSel['n' + i] = true; }); }
+      if (el.dataset.id === 'on') { (r.changements || []).forEach(function (c, i) { AV.majSel['c' + i] = true; }); (r.nouveaux || []).forEach(function (n, i) { AV.majSel['n' + i] = true; }); (r.retires || []).forEach(function (x, i) { AV.majSel['r' + i] = true; }); }
       rendre();
     };
     A.verifier = function () {
@@ -1469,8 +1484,7 @@
         AV.majRes = rep; AV.majSel = {};
         if (rep.ok) {
           (rep.changements || []).forEach(function (c, i) { AV.majSel['c' + i] = true; });
-          (rep.nouveaux || []).forEach(function (n, i) { AV.majSel['n' + i] = true; });
-          var info = Object.assign({}, AV.majInfo || {}, { verifie_le: rep.verifie_le, nb_changements: (rep.changements || []).length, nb_nouveaux: (rep.nouveaux || []).length, source: rep.source });
+          var info = Object.assign({}, AV.majInfo || {}, { verifie_le: rep.verifie_le, nb_changements: (rep.changements || []).length, nb_nouveaux: (rep.nouveaux || []).length, nb_retires: (rep.retires || []).length, source: rep.source });
           var w = await supabaseClient.from('reglages_globaux').upsert({ cle: 'catalogue_maj', valeur: info, maj_le: new Date().toISOString() }, { onConflict: 'cle' });
           if (!w.error) AV.majInfo = info; else console.warn('[agent-vocal] date de vérification non enregistrée :', w.error.message);
         }
@@ -1480,13 +1494,13 @@
     A.majapply = function () {
       return run(async function () {
         var r = AV.majRes; if (!r || !r.ok) return;
-        var sel = AV.majSel, chs = (r.changements || []).filter(function (c, i) { return sel['c' + i]; }), nvs = (r.nouveaux || []).filter(function (n, i) { return sel['n' + i]; });
-        if (!chs.length && !nvs.length) return;
+        var sel = AV.majSel, chs = (r.changements || []).filter(function (c, i) { return sel['c' + i]; }), nvs = (r.nouveaux || []).filter(function (n, i) { return sel['n' + i]; }), rts = (r.retires || []).filter(function (x, i) { return sel['r' + i]; });
+        if (!chs.length && !nvs.length && !rts.length) return;
         var vides = nvs.filter(function (n) { return !String(n.identifiant_propose || '').trim() || String(n.identifiant_propose).indexOf('/') < 0; });
         if (vides.length) { alert('Identifiant à corriger pour : ' + vides.map(function (n) { return n.nom; }).join(', ') + '\n(il doit ressembler à fournisseur/modele).'); return; }
         var deja = nvs.filter(function (n) { return M(n.identifiant_propose); });
         if (deja.length) { alert('Ces identifiants existent déjà dans le catalogue : ' + deja.map(function (n) { return n.identifiant_propose; }).join(', ') + '\nCorrige-les ou décoche ces lignes.'); return; }
-        if (!confirm('Appliquer ' + chs.length + ' changement(s) de prix et ajouter ' + nvs.length + ' nouveau(x) modèle(s) ?\nLes coûts affichés et projetés seront recalculés tout de suite.')) return;
+        if (!confirm('Appliquer ' + chs.length + ' changement(s), ajouter ' + nvs.length + ' nouveau(x) modèle(s) et retirer ' + rts.length + ' modèle(s) obsolète(s) ?\nLes coûts affichés et projetés seront recalculés tout de suite.')) return;
         var d = aujourdhui(), src = 'livekit.com/pricing/inference (Build/Ship), relevé le ' + d, now = new Date().toISOString();
         for (var i = 0; i < chs.length; i++) {
           var c = chs[i], patch = { prix_releve_le: d, prix_source: src, maj_le: now };
@@ -1501,16 +1515,20 @@
             prix_minute: px.prix_minute != null ? px.prix_minute : null, prix_entree_mtok: px.prix_entree_mtok != null ? px.prix_entree_mtok : null,
             prix_entree_cache_mtok: px.prix_entree_cache_mtok != null ? px.prix_entree_cache_mtok : null, prix_sortie_mtok: px.prix_sortie_mtok != null ? px.prix_sortie_mtok : null,
             prix_tts_mcar: px.prix_tts_mcar != null ? px.prix_tts_mcar : null, prix_releve_le: d, prix_source: src,
-            hors_catalogue: false, statut: 'non_teste', endpoint_ue: false, francais: true, note: 'Détecté sur la page de prix LiveKit le ' + d + ' : vérifier l\'identifiant, l\'endpoint UE et le français.'
+            hors_catalogue: false, statut: 'non_teste', endpoint_ue: n.endpoint_ue === true, francais: true, note: 'Détecté sur les pages LiveKit le ' + d + ' : vérifier le français et la qualité en appel.'
           });
           if (ins.error) throw ins.error;
         }
-        var info = Object.assign({}, AV.majInfo || {}, { dernier_appliques: now, nb_changements: 0, nb_nouveaux: 0 });
+        for (var k = 0; k < rts.length; k++) {
+          var ur = await supabaseClient.from('catalogue_modeles').update({ statut: 'retire', maj_le: now }).eq('identifiant', rts[k].identifiant);
+          if (ur.error) throw ur.error;
+        }
+        var info = Object.assign({}, AV.majInfo || {}, { dernier_appliques: now, nb_changements: 0, nb_nouveaux: 0, nb_retires: 0 });
         await supabaseClient.from('reglages_globaux').upsert({ cle: 'catalogue_maj', valeur: info, maj_le: now }, { onConflict: 'cle' });
         AV.majInfo = info; AV.majRes = null; AV.majSel = {};
         await charger(); try { await chargerCouts(true); } catch (e2) { /* ignoré */ }
         rendre();
-        alert('✅ Catalogue mis à jour : ' + chs.length + ' prix modifié(s), ' + nvs.length + ' modèle(s) ajouté(s).' + (nvs.length ? '\nPense à vérifier le statut UE / français des nouveaux modèles.' : ''));
+        alert('✅ Catalogue mis à jour : ' + chs.length + ' modèle(s) mis à jour, ' + nvs.length + ' ajouté(s), ' + rts.length + ' retiré(s).' + (nvs.length ? '\nPense à vérifier le français des nouveaux modèles.' : ''));
       });
     };
   }
