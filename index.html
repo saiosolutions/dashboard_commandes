@@ -4386,6 +4386,14 @@
       return total.toFixed(2).replace('.', ',') + ' $';
     }
 
+    // Coût par minute (coût total ÷ durée en minutes), ex. "0,12 $/min" ; "—" si la durée est inconnue
+    function formatCoutMinute(credits, dureeSecondes) {
+      const d = Number(dureeSecondes) || 0;
+      if (d <= 0) return '— $/min';
+      const parMin = calculerCoutAppel(credits, d) / (d / 60);
+      return parMin.toFixed(2).replace('.', ',') + ' $/min';
+    }
+
     function renderPastille(value, label) {
       if (value === null || value === undefined) {
         return `<span class="pastille pastille-unknown"><span class="pastille-dot dot-unknown"></span>${label}</span>`;
@@ -4767,7 +4775,7 @@
           <div style="margin-top: 10px; display: flex; gap: 20px; flex-wrap: wrap;">
             <div style="font-size: 14px;">⏱️ Durée : <strong>${duree}</strong></div>
             <div style="font-size: 14px;">💰 Coût : <strong>${credits !== null ? formatCout(credits, evt.duree_appel || d.duree_appel) : 'N/A'}</strong></div>
-            ${credits !== null ? `<div style="font-size: 12px; color: #999; align-self: center;">(${credits} crédits)</div>` : ''}
+            ${credits !== null ? `<div style="font-size: 12px; color: #999; align-self: center;">(${formatCoutMinute(credits, evt.duree_appel || d.duree_appel)})</div>` : ''}
           </div>
           ${pastillesModal}
         </div>
@@ -8411,7 +8419,7 @@
       if (e.key === 'Escape') document.querySelectorAll('details.menu-actions[open]').forEach(d => d.removeAttribute('open'));
     });
   </script>
-  <script src="agent-vocal.js?v=3"></script>
+  <script src="agent-vocal.js?v=4"></script>
   <script src="notifications-fournisseur.js?v=2"></script>
   <script src="conservation.js?v=2"></script>
 </body>
