@@ -194,7 +194,7 @@
   /* ---------- État ---------- */
   var AV = {
     section: null, models: [], configs: [], prompts: [], ops: [],
-    ed: null, bulk: null, filter: 'resto', modelFilter: '', periode: 30, unite: 'min', couts: null, obs: true, typeDefaut: 'equilibre', fourn: { stt: '', llm: '', tts: '' }, recherche: '', tri: 'fournisseur', ueSeul: false, detM: {}, grpFerme: {}, typesOrdre: null, typesEnBase: false, typ: null, majRes: null, majInfo: null, majSel: {}, sel: {}, openSec: { models: true }, showAdv: false, catTab: 'llm'
+    ed: null, bulk: null, filter: 'resto', modelFilter: '', periode: 30, unite: 'min', couts: null, obs: true, typeDefaut: 'equilibre', fourn: { stt: '', llm: '', tts: '' }, typesOrdre: null, typesEnBase: false, typ: null, majRes: null, majInfo: null, majSel: {}, sel: {}, openSec: { models: true }, showAdv: false, catTab: 'llm'
   };
 
   var M = function (id) { return AV.models.find(function (m) { return m.identifiant === id; }); };
@@ -274,13 +274,6 @@
     '.av-kpi-v{font-size:20px;font-weight:700;margin:2px 0}',
     '.av-kpi-s{font-size:11px;color:var(--muted,#6b7480)}',
     '.av-tab th,.av-tab td{padding:5px 6px;border-bottom:1px solid var(--line)}',
-    '.av-mlist{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:12px}',
-    '.av-mh,.av-mr{display:grid;grid-template-columns:minmax(170px,2.2fr) 1.4fr 1.5fr 54px 110px 84px;gap:8px;align-items:center;padding:8px 12px}',
-    '.av-mh{font-size:11px;color:var(--muted,#6b7480);text-transform:uppercase;background:#fafbfc;border-bottom:1px solid var(--line)}',
-    '.av-mr{border-bottom:1px solid var(--line);font-size:13px}',
-    '.av-mgrp{display:flex;justify-content:space-between;width:100%;padding:8px 12px;background:#f2f3f5;border:0;border-bottom:1px solid var(--line);font-weight:700;font-size:13px;cursor:pointer;text-align:left}',
-    '.av-mdet{padding:6px 12px 12px;background:#fafbfc;border-bottom:1px solid var(--line)}',
-    '@media(max-width:760px){.av-mh{display:none}.av-mr{grid-template-columns:1fr 1fr}}',
     '.av-pre{background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:12px;font-family:monospace;font-size:12px;white-space:pre-wrap;max-height:420px;overflow:auto}'
   ].join('\n');
   document.head.appendChild(css);
@@ -690,64 +683,15 @@
   }
 
   /* ---------- Catalogue ---------- */
-  /* ---------- Catalogue : liste compacte, groupée par fournisseur ---------- */
-  var prixCourt = function (m) {
-    if (m.type === 'llm') return m.prix_entree_mtok != null ? fnum(Number(m.prix_entree_mtok).toFixed(2)) + ' · ' + fnum(Number(m.prix_sortie_mtok).toFixed(2)) + ' $/M' : 'prix inconnu';
-    if (m.type === 'tts') return m.prix_tts_mcar != null ? fnum(Number(m.prix_tts_mcar).toFixed(2)) + ' $/M car.' : (m.prix_minute != null ? '≈ ' + fnum(m.prix_minute) + ' $/min' : 'prix inconnu');
-    return m.prix_minute != null ? fnum(m.prix_minute) + ' $/min' : 'prix inconnu';
-  };
-  function ajusteDe(m) {
-    var mesures = lignesPeriode().filter(function (l) { var u = modeleCat(m.type, l.ids[m.type]); return u && u.identifiant === m.identifiant; });
-    var Pm = mesures.length ? profilDe(agreger(mesures)) : null, P = Pm || profilGlobal();
-    var cm = m.type === 'llm' ? coutLlmMin(m, P) : (m.type === 'stt' ? coutSttMin(m, P) : coutTtsMin(m, P));
-    return cm == null ? null : { v: valU(cm, P.appelMin), n: Pm ? Pm.n : 0 };
-  }
-  var nbAgentsModele = function (m) { return AV.configs.filter(function (c) { return primaires(resolu(c)).indexOf(m.identifiant) >= 0; }).length; };
-  function ligneModele(m) {
-    var aj = ajusteDe(m), n = nbAgentsModele(m), ouvert = !!AV.detM[m.id];
-    var h = '<div class="av-mr"><div><b>' + esc(m.nom) + '</b> ' + (m.hors_catalogue ? badge('Hors catalogue', 'warn') + ' ' : '') + badge(m.endpoint_ue ? 'UE' : 'Hors UE', m.endpoint_ue ? 'ok' : 'warn') + (m.francais === false ? ' ' + badge('Sans français', 'bad') : '') + '</div>' +
-      '<div>' + prixCourt(m) + '</div>' +
-      '<div>' + (aj ? '<b>' + usd(aj.v, AV.unite === 'appel' ? 4 : 5) + unite() + '</b> ' + (aj.n ? badge('Mesuré · ' + aj.n, 'ok') : badge('Projeté', 'warn')) : '<span class="av-sub">—</span>') + '</div>' +
-      '<div>' + (n ? '<b>' + n + '</b>' : '<span class="av-sub">0</span>') + '</div>' +
-      '<div>' + (m.sante === 'indisponible' ? badge('Indisponible', 'bad') : m.sante === 'lent' ? badge('Latence', 'warn') : badge(STATUTS[m.statut] ? STATUTS[m.statut][0] : m.statut, STATUTS[m.statut] ? STATUTS[m.statut][1] : '')) + '</div>' +
-      '<div><button class="av-reset" data-avact="fdet" data-id="' + m.id + '">' + (ouvert ? 'Fermer ▴' : 'Détails ▾') + '</button></div></div>';
-    if (ouvert) h += '<div class="av-mdet"><div class="av-sub">' + esc(m.fournisseur || '') + ' · <code>' + esc(m.identifiant) + '</code> · utilisé par ' + n + ' agent(s)</div><div class="av-chips">' + chipsPrix(m) + '<span class="av-chip">Latence : ' + (m.latence_ms ? m.latence_ms + ' ms' : 'non mesurée') + '</span></div>' + (m.note ? '<div class="av-help">' + esc(m.note) + '</div>' : '') +
-      '<div class="av-row" style="margin-top:10px"><label class="av-sub" for="avf_st_' + m.id + '">Statut</label><select id="avf_st_' + m.id + '" class="av-in" style="max-width:170px" data-avt="mstatut" data-avk="' + m.id + '">' + Object.keys(STATUTS).map(function (s) { return '<option value="' + s + '"' + (m.statut === s ? ' selected' : '') + '>' + STATUTS[s][0] + '</option>'; }).join('') + '</select><label class="av-sub" for="avf_sa_' + m.id + '">Incident</label><select id="avf_sa_' + m.id + '" class="av-in" style="max-width:190px" data-avt="msante" data-avk="' + m.id + '"><option value="ok"' + (m.sante === 'ok' ? ' selected' : '') + '>Aucun</option><option value="lent"' + (m.sante === 'lent' ? ' selected' : '') + '>Latence élevée</option><option value="indisponible"' + (m.sante === 'indisponible' ? ' selected' : '') + '>Indisponible</option></select>' + (m.hors_catalogue ? '<label class="av-sub" for="avf_px_' + m.id + '">Prix $/min</label><input type="text" id="avf_px_' + m.id + '" class="av-in" style="max-width:110px" data-avt="mprix" data-avk="' + m.id + '" value="' + (m.prix_minute != null ? String(m.prix_minute).replace('.', ',') : '') + '">' : '') + '</div>' + '</div>';
-    return h;
-  }
-  function listeModelesHtml() {
-    var q = String(AV.recherche || '').toLowerCase().trim(), fo = AV.fourn[AV.catTab] || '';
-    var liste = AV.models.filter(function (m) {
-      return m.type === AV.catTab && (!fo || fournisseurDe(m) === fo) && (!AV.ueSeul || m.endpoint_ue) && (!q || (m.nom + ' ' + m.identifiant + ' ' + (m.fournisseur || '')).toLowerCase().indexOf(q) >= 0);
-    });
-    var entete = '<div class="av-mh"><div>Modèle</div><div>Prix affiché LiveKit</div><div>Prix ajusté à notre conso</div><div>Agents</div><div>Statut</div><div></div></div>';
-    if (!liste.length) return '<div class="no-data">Aucun modèle pour ces filtres.</div>';
-    var tri = AV.tri || 'fournisseur', h = '<div class="av-sub" style="margin:6px 0">' + liste.length + ' modèle(s) affiché(s)</div><div class="av-mlist">' + entete;
-    var parNom = function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); };
-    if (tri === 'fournisseur') {
-      var groupes = {};
-      liste.forEach(function (m) { var f = fournisseurDe(m); (groupes[f] = groupes[f] || []).push(m); });
-      Object.keys(groupes).sort(function (a, b) { return a.localeCompare(b, 'fr'); }).forEach(function (f) {
-        var cle = AV.catTab + '|' + f, ferme = !!AV.grpFerme[cle];
-        h += '<button class="av-mgrp" data-avact="fgrp" data-id="' + esc(cle) + '"><span>' + (ferme ? '›' : '▾') + ' ' + esc(f) + '</span><span class="av-sub">' + groupes[f].length + ' modèle(s)</span></button>';
-        if (!ferme) groupes[f].sort(parNom).forEach(function (m) { h += ligneModele(m); });
-      });
-    } else {
-      var val = function (m) { var a = ajusteDe(m); return a ? a.v : Infinity; };
-      var cmp = tri === 'prix' ? function (a, b) { return val(a) - val(b) || parNom(a, b); } : (tri === 'usage' ? function (a, b) { return nbAgentsModele(b) - nbAgentsModele(a) || parNom(a, b); } : parNom);
-      liste.slice().sort(cmp).forEach(function (m) { h += ligneModele(m); });
-    }
-    return h + '</div>';
-  }
   function vueCatalogue() {
     var h = bandeauCatalogue();
-    h += '<div class="av-seg">' + ['stt', 'llm', 'tts'].map(function (t) { return '<button class="' + (AV.catTab === t ? 'on' : '') + '" data-avact="cattab" data-id="' + t + '">' + TYPE_LABEL[t] + ' (' + AV.models.filter(function (m) { return m.type === t; }).length + ')</button>'; }).join('') + '</div>';
+    h += '<div class="av-seg">' + ['stt', 'llm', 'tts'].map(function (t) { return '<button class="' + (AV.catTab === t ? 'on' : '') + '" data-avact="cattab" data-id="' + t + '">' + TYPE_LABEL[t] + '</button>'; }).join('') + '</div>';
     h += barreFournisseurs();
-    h += '<div class="av-row" style="margin:6px 0 4px"><input type="text" class="av-in" style="max-width:260px" id="avf_msearch" data-avt="msearch" data-avk="q" placeholder="🔍 Rechercher un modèle…" value="' + esc(AV.recherche || '') + '">' +
-      '<label class="av-sub" for="avf_msort">Trier par</label><select id="avf_msort" class="av-in" style="max-width:210px" data-avt="msort" data-avk="tri">' +
-      [['fournisseur', 'Fournisseur (groupé)'], ['nom', 'Nom (A → Z)'], ['prix', 'Prix ajusté (du moins cher)'], ['usage', 'Les plus utilisés']].map(function (o) { return '<option value="' + o[0] + '"' + ((AV.tri || 'fournisseur') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
-      '<label class="av-chk"><input type="checkbox" data-avt="mueseul" data-avk="ue"' + (AV.ueSeul ? ' checked' : '') + '> Endpoint UE seulement</label></div>';
-    h += '<div id="avlist">' + listeModelesHtml() + '</div>';
+    AV.models.filter(function (m) { return m.type === AV.catTab && (!AV.fourn[AV.catTab] || fournisseurDe(m) === AV.fourn[AV.catTab]); }).forEach(function (m) {
+      var n = AV.configs.filter(function (c) { return primaires(resolu(c)).indexOf(m.identifiant) >= 0; }).length;
+      h += '<div class="av-card"><div class="av-row av-between"><div class="av-title">' + esc(m.nom) + (m.hors_catalogue ? ' ' + badge('Hors catalogue', 'warn') : '') + '</div><span class="av-row">' + (m.sante === 'indisponible' ? badge('Indisponible', 'bad') : m.sante === 'lent' ? badge('Latence élevée', 'warn') : '') + '</span></div><div class="av-sub">' + esc(m.fournisseur || '') + ' · <code>' + esc(m.identifiant) + '</code> · utilisé par ' + n + ' agent(s)</div><div class="av-chips">' + chipsPrix(m) + badge(m.endpoint_ue ? 'Endpoint UE' : 'Hors UE', m.endpoint_ue ? 'ok' : 'warn') + (m.francais === false ? badge('Sans français', 'bad') : badge('Français', 'ok')) + '<span class="av-chip">Latence : ' + (m.latence_ms ? m.latence_ms + ' ms' : 'non mesurée') + '</span></div>' + (m.note ? '<div class="av-help">' + esc(m.note) + '</div>' : '') +
+        '<div class="av-row" style="margin-top:10px"><label class="av-sub" for="avf_st_' + m.id + '">Statut</label><select id="avf_st_' + m.id + '" class="av-in" style="max-width:170px" data-avt="mstatut" data-avk="' + m.id + '">' + Object.keys(STATUTS).map(function (s) { return '<option value="' + s + '"' + (m.statut === s ? ' selected' : '') + '>' + STATUTS[s][0] + '</option>'; }).join('') + '</select><label class="av-sub" for="avf_sa_' + m.id + '">Incident</label><select id="avf_sa_' + m.id + '" class="av-in" style="max-width:190px" data-avt="msante" data-avk="' + m.id + '"><option value="ok"' + (m.sante === 'ok' ? ' selected' : '') + '>Aucun</option><option value="lent"' + (m.sante === 'lent' ? ' selected' : '') + '>Latence élevée</option><option value="indisponible"' + (m.sante === 'indisponible' ? ' selected' : '') + '>Indisponible</option></select>' + (m.hors_catalogue ? '<label class="av-sub" for="avf_px_' + m.id + '">Prix $/min</label><input type="text" id="avf_px_' + m.id + '" class="av-in" style="max-width:110px" data-avt="mprix" data-avk="' + m.id + '" value="' + (m.prix_minute != null ? String(m.prix_minute).replace('.', ',') : '') + '">' : '') + '</div></div>';
+    });
     h += '<div class="av-card"><b>Ajouter un modèle hors catalogue</b><div class="av-sub">Pour un modèle tout juste sorti ou absent de la liste. Il est ajouté « non testé ».</div><div class="av-field"><label class="av-l" for="avf_nm_type">Type</label><select id="avf_nm_type" class="av-in" data-avt="nm" data-avk="type">' + ['stt', 'llm', 'tts'].map(function (t) { return '<option value="' + t + '"' + (AV.catTab === t ? ' selected' : '') + '>' + TYPE_LABEL[t] + '</option>'; }).join('') + '</select></div><div class="av-field"><label class="av-l" for="avf_nm_id">Identifiant</label><input type="text" id="avf_nm_id" data-avt="nm" data-avk="id" placeholder="fournisseur/modele"></div><div class="av-field"><label class="av-l" for="avf_nm_px">Prix par minute en $ (facultatif)</label><input type="text" id="avf_nm_px" data-avt="nm" data-avk="pm" placeholder="0,0000"></div><button class="btn btn-primary btn-sm" data-avact="addmodel">Ajouter</button></div>';
     return h;
   }
@@ -810,9 +754,6 @@
     else if (t === 'custom') AV.ed.custom[k] = v;
     else if (t === 'ed') { AV.ed[k] = v; if (k === 'bid') AV.ed.menu = undefined; }
     else if (t === 'nm') { AV.nm = AV.nm || {}; AV.nm[k] = v; }
-    else if (t === 'msearch') AV.recherche = v;
-    else if (t === 'msort') AV.tri = v;
-    else if (t === 'mueseul') AV.ueSeul = !!v;
     else if (t === 'typ') { if (k === 'nom' || k === 'description') AV.typ[k] = v; else AV.typ.o[k] = v; }
     else if (t === 'majid') { var nv = AV.majRes && AV.majRes.nouveaux && AV.majRes.nouveaux[parseInt(k, 10)]; if (nv) nv.identifiant_propose = String(v).trim(); }
     else if (t === 'bulk') {
@@ -1519,8 +1460,6 @@
   }
   var aujourdhui = function () { return new Date().toISOString().slice(0, 10); };
   function A_catalogue(A) {
-    A.fdet = function (el) { AV.detM[el.dataset.id] = !AV.detM[el.dataset.id]; rendre(); };
-    A.fgrp = function (el) { AV.grpFerme[el.dataset.id] = !AV.grpFerme[el.dataset.id]; rendre(); };
     A.fourn = function (el) { AV.fourn[AV.catTab] = el.dataset.id || ''; rendre(); };
     A.periode = function (el) { AV.periode = parseInt(el.value, 10) || 30; return run(async function () { await chargerCouts(true); rendre(); }); };
     A.unite = function (el) { AV.unite = el.dataset.id === 'appel' ? 'appel' : 'min'; rendre(); };
@@ -1616,7 +1555,6 @@
     } else if (el.type === 'text' || el.tagName === 'TEXTAREA') {
       poser(el);
       if (el.dataset.avt === 'motif') majApercuMotifs();
-      if (el.dataset.avt === 'msearch') { var L = $('avlist'); if (L) L.innerHTML = listeModelesHtml(); return; }
       var bar2 = $('avbar'); if (bar2 && AV.ed) bar2.innerHTML = barre();
     }
   });
