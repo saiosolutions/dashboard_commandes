@@ -6,7 +6,7 @@
    enveloppées (switchParamSection, loadParamData) pour ajouter nos sections.
    Tables utilisées : agent_config, agent_config_versions, agent_prompts,
    catalogue_modeles, operations_groupees, appels_livekit (coûts réels), reglages_globaux
-   (clés agent_types et catalogue_maj). Fonction Supabase maj-catalogue (lecture seule).
+   (clés agent_types et catalogue_maj). Fonction Supabase maj-catalogue-LLM (lecture seule).
    ===================================================================== */
 (function () {
   'use strict';
@@ -1459,11 +1459,11 @@
         AV.majRes = { attente: true }; rendre();
         var rep = null;
         try {
-          var r = await supabaseClient.functions.invoke('maj-catalogue', { body: {} });
+          var r = await supabaseClient.functions.invoke('maj-catalogue-LLM', { body: {} });
           if (r.error) {
             var detail = '';
             try { if (r.error.context && r.error.context.json) { var j = await r.error.context.json(); detail = j && (j.erreur || j.error || j.message) || ''; } } catch (e0) { /* ignoré */ }
-            rep = { ok: false, erreur: detail || (/Failed to send|NetworkError|not found|404/i.test(r.error.message || '') ? 'La fonction « maj-catalogue » n\'est pas encore déployée dans Supabase (voir le pas-à-pas), ou le réseau est coupé.' : (r.error.message || 'erreur inconnue')) };
+            rep = { ok: false, erreur: detail || (/Failed to send|NetworkError|not found|404/i.test(r.error.message || '') ? 'La fonction « maj-catalogue-LLM » n\'est pas encore déployée dans Supabase (voir le pas-à-pas), ou le réseau est coupé.' : (r.error.message || 'erreur inconnue')) };
           } else rep = r.data || { ok: false, erreur: 'Réponse vide' };
         } catch (e) { rep = { ok: false, erreur: e && e.message ? e.message : String(e) }; }
         AV.majRes = rep; AV.majSel = {};
