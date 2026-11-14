@@ -198,7 +198,15 @@
   };
 
   var M = function (id) { return AV.models.find(function (m) { return m.identifiant === id; }); };
-  var mname = function (id) { if (!id) return 'Aucun'; var m = M(id); return m ? m.nom : id; };
+  // Nom affiché : toujours précédé du fournisseur (« AssemblyAI Universal-3.6 Pro »), pour que les versions d'un même fournisseur se suivent dans les listes
+  var nomAff = function (m) {
+    var nom = String(m.nom || m.identifiant || ''), f = String(m.fournisseur || String(m.identifiant || '').split('/')[0]).split(' (')[0].trim();
+    if (!f || /^(hors catalogue|livekit)$/i.test(f)) return nom;
+    var n1 = function (x) { return String(x).toLowerCase().replace(/[^a-z0-9]/g, ''); };
+    return n1(nom).indexOf(n1(f)) === 0 ? nom : f + ' ' + nom;
+  };
+  var cmpModeles = function (a, b) { return String(a.fournisseur || a.identifiant.split('/')[0]).toLowerCase().localeCompare(String(b.fournisseur || b.identifiant.split('/')[0]).toLowerCase(), 'fr') || nomAff(a).localeCompare(nomAff(b), 'fr', { numeric: true }); };
+  var mname = function (id) { if (!id) return 'Aucun'; var m = M(id); return m ? nomAff(m) : id; };
   var prix = function (id) { var m = M(id); return m && m.prix_minute != null ? Number(m.prix_minute) : 0; };
   var cfgOf = function (bid) { return AV.configs.find(function (c) { return c.business_id === bid; }); };
   var nomBiz = function (bid) { var b = (typeof businessesList !== 'undefined' ? businessesList : []).find(function (x) { return x.id === bid; }); return b ? b.nom : '(restaurant inconnu)'; };
@@ -381,7 +389,7 @@
       if (m.sante === 'ok') return;
       var n = AV.configs.filter(function (c) { return primaires(resolu(c)).indexOf(m.identifiant) >= 0; }).length;
       if (!n) return;
-      h += '<div class="av-alert ' + (m.sante === 'indisponible' ? 'bad' : 'warn') + '"><b>' + esc(m.nom) + '</b> ' + (m.sante === 'indisponible' ? 'est indisponible' : 'répond lentement') + ' : ' + n + ' agent(s) concerné(s).<div class="av-row"><button class="btn btn-primary btn-sm" data-avact="urgence" data-id="' + esc(m.identifiant) + '">Basculer en urgence</button><button class="btn btn-secondary btn-sm" data-avact="fmodel" data-id="' + esc(m.identifiant) + '">Voir les agents</button></div></div>';
+      h += '<div class="av-alert ' + (m.sante === 'indisponible' ? 'bad' : 'warn') + '"><b>' + esc(nomAff(m)) + '</b> ' + (m.sante === 'indisponible' ? 'est indisponible' : 'répond lentement') + ' : ' + n + ' agent(s) concerné(s).<div class="av-row"><button class="btn btn-primary btn-sm" data-avact="urgence" data-id="' + esc(m.identifiant) + '">Basculer en urgence</button><button class="btn btn-secondary btn-sm" data-avact="fmodel" data-id="' + esc(m.identifiant) + '">Voir les agents</button></div></div>';
     });
     if (AV.filter === 'resto' && !idResto()) AV.filter = 'all';
     var filtres = (idResto() ? [['resto', nomBiz(idResto())]] : []).concat([['all', 'Tous'], ['actifs', 'En service'], ['incident', 'Concernés par un incident'], ['sans', 'Sans agent']]);
@@ -420,10 +428,10 @@
   /* ---------- Champs ---------- */
   function optionsModele(f, val) {
     var h = f.none ? '<option value=""' + (!val ? ' selected' : '') + '>Aucun</option>' : '';
-    AV.models.filter(function (m) { return m.type === f.mt && (m.statut !== 'retire' || m.identifiant === val); }).forEach(function (m) {
+    AV.models.filter(function (m) { return m.type === f.mt && (m.statut !== 'retire' || m.identifiant === val); }).sort(cmpModeles).forEach(function (m) {
       var tags = (m.endpoint_ue ? ' · UE' : ' · hors UE') + (m.francais === false ? ' · sans français' : '') + (m.sante === 'indisponible' ? ' · indisponible' : '') + (m.statut === 'a_eviter' ? ' · à éviter' : '');
       var dis = m.sante === 'indisponible' && m.identifiant !== val;
-      h += '<option value="' + esc(m.identifiant) + '"' + (m.identifiant === val ? ' selected' : '') + (dis ? ' disabled' : '') + '>' + esc(m.nom) + ' — ' + (m.prix_minute != null ? usd(m.prix_minute) + '/min' : 'prix inconnu') + tags + '</option>';
+      h += '<option value="' + esc(m.identifiant) + '"' + (m.identifiant === val ? ' selected' : '') + (dis ? ' disabled' : '') + '>' + esc(nomAff(m)) + ' — ' + (m.prix_minute != null ? usd(m.prix_minute) + '/min' : 'prix inconnu') + tags + '</option>';
     });
     if (val && !M(val)) h += '<option value="' + esc(val) + '" selected>' + esc(val) + ' (absent du catalogue)</option>';
     h += '<option value="__custom__">Autre modèle (saisir l\'identifiant)…</option>';
@@ -637,15 +645,15 @@
   function vueGroupee() {
     var b = AV.bulk; assurerGroupe();
     var h = '<button class="av-reset" data-avact="quitter">‹ Agents vocaux</button><h2 style="font-size:19px;margin:6px 0">Modification groupée</h2><div class="av-sub">Prévisualise l\'impact avant d\'appliquer. Chaque agent garde sa version précédente : l\'opération est annulable.</div>';
-    h += '<div class="av-card"><b>1. Quels agents ?</b><div class="av-chips"><button class="btn btn-secondary btn-sm" data-avact="bscope" data-id="all">Tous les agents</button></div><div class="av-field"><label class="av-l" for="avf_bulk_scopeModel">Ceux qui utilisent le modèle…</label><select id="avf_bulk_scopeModel" data-avt="bulk" data-avk="scopeModel"><option value="">Choisir…</option>' + AV.models.filter(function (m) { return AV.configs.some(function (c) { var r = resolu(c); return CLES_MODELES.some(function (k) { return r[k] === m.identifiant; }); }); }).map(function (m) { return '<option value="' + esc(m.identifiant) + '">' + esc(m.nom) + '</option>'; }).join('') + '</select></div>';
+    h += '<div class="av-card"><b>1. Quels agents ?</b><div class="av-chips"><button class="btn btn-secondary btn-sm" data-avact="bscope" data-id="all">Tous les agents</button></div><div class="av-field"><label class="av-l" for="avf_bulk_scopeModel">Ceux qui utilisent le modèle…</label><select id="avf_bulk_scopeModel" data-avt="bulk" data-avk="scopeModel"><option value="">Choisir…</option>' + AV.models.filter(function (m) { return AV.configs.some(function (c) { var r = resolu(c); return CLES_MODELES.some(function (k) { return r[k] === m.identifiant; }); }); }).map(function (m) { return '<option value="' + esc(m.identifiant) + '">' + esc(nomAff(m)) + '</option>'; }).join('') + '</select></div>';
     AV.configs.forEach(function (c) { h += '<label class="av-check"><input type="checkbox" data-avact="bsel" data-id="' + c.business_id + '"' + (b.ids.indexOf(c.business_id) >= 0 ? ' checked' : '') + '> <span>' + esc(nomBiz(c.business_id)) + '</span> <span class="av-sub">' + esc(mname(resolu(c).llm_model)) + '</span></label>'; });
     h += '</div>';
     h += '<div class="av-card"><b>2. Quelle modification ?</b><div class="av-seg"><button class="' + (b.action === 'replace' ? 'on' : '') + '" data-avact="baction" data-id="replace">Remplacer un modèle</button><button class="' + (b.action === 'field' ? 'on' : '') + '" data-avact="baction" data-id="field">Modifier un réglage</button><button class="' + (b.action === 'profile' ? 'on' : '') + '" data-avact="baction" data-id="profile">Appliquer un profil</button></div>';
     if (b.action === 'replace') {
-      var all = AV.models.filter(function (m) { return m.type === b.rtype; });
+      var all = AV.models.filter(function (m) { return m.type === b.rtype; }).sort(cmpModeles);
       h += '<div class="av-field"><label class="av-l" for="avf_bulk_rtype">Type de modèle</label><select id="avf_bulk_rtype" data-avt="bulk" data-avk="rtype">' + ['stt', 'llm', 'tts'].map(function (t) { return '<option value="' + t + '"' + (t === b.rtype ? ' selected' : '') + '>' + TYPE_LABEL[t] + '</option>'; }).join('') + '</select></div>';
-      h += '<div class="av-field"><label class="av-l" for="avf_bulk_from">Modèle à remplacer</label><select id="avf_bulk_from" data-avt="bulk" data-avk="from">' + all.map(function (m) { return '<option value="' + esc(m.identifiant) + '"' + (m.identifiant === b.from ? ' selected' : '') + '>' + esc(m.nom) + (m.sante !== 'ok' ? ' · incident' : '') + '</option>'; }).join('') + '</select></div>';
-      h += '<div class="av-field"><label class="av-l" for="avf_bulk_to">Remplacé par</label><select id="avf_bulk_to" data-avt="bulk" data-avk="to">' + all.filter(function (m) { return m.identifiant !== b.from; }).map(function (m) { return '<option value="' + esc(m.identifiant) + '"' + (m.identifiant === b.to ? ' selected' : '') + ((m.sante === 'indisponible' || m.statut === 'retire') ? ' disabled' : '') + '>' + esc(m.nom) + ' — ' + (m.prix_minute != null ? usd(m.prix_minute) + '/min' : 'prix inconnu') + '</option>'; }).join('') + '</select>' + (b.to ? infoModele(b.to) : '') + '</div>';
+      h += '<div class="av-field"><label class="av-l" for="avf_bulk_from">Modèle à remplacer</label><select id="avf_bulk_from" data-avt="bulk" data-avk="from">' + all.map(function (m) { return '<option value="' + esc(m.identifiant) + '"' + (m.identifiant === b.from ? ' selected' : '') + '>' + esc(nomAff(m)) + (m.sante !== 'ok' ? ' · incident' : '') + '</option>'; }).join('') + '</select></div>';
+      h += '<div class="av-field"><label class="av-l" for="avf_bulk_to">Remplacé par</label><select id="avf_bulk_to" data-avt="bulk" data-avk="to">' + all.filter(function (m) { return m.identifiant !== b.from; }).map(function (m) { return '<option value="' + esc(m.identifiant) + '"' + (m.identifiant === b.to ? ' selected' : '') + ((m.sante === 'indisponible' || m.statut === 'retire') ? ' disabled' : '') + '>' + esc(nomAff(m)) + ' — ' + (m.prix_minute != null ? usd(m.prix_minute) + '/min' : 'prix inconnu') + '</option>'; }).join('') + '</select>' + (b.to ? infoModele(b.to) : '') + '</div>';
       h += '<label class="av-check"><input type="checkbox" data-avt="bulk" data-avk="useFb"' + (b.useFb ? ' checked' : '') + '> Utiliser d\'abord le modèle de secours propre à chaque agent</label>';
     }
     if (b.action === 'field') {
@@ -1359,8 +1367,8 @@
   }
   function selModeles(type, cle, val, none) {
     var o = (none ? '<option value=""' + (!val ? ' selected' : '') + '>Aucun</option>' : '');
-    AV.models.filter(function (m) { return m.type === type && (m.statut !== 'retire' || m.identifiant === val); }).forEach(function (m) {
-      o += '<option value="' + esc(m.identifiant) + '"' + (m.identifiant === val ? ' selected' : '') + '>' + esc(m.nom) + ' — ' + (m.endpoint_ue ? 'UE' : 'hors UE') + (m.francais === false ? ' · sans français' : '') + (m.sante === 'indisponible' ? ' · indisponible' : '') + '</option>';
+    AV.models.filter(function (m) { return m.type === type && (m.statut !== 'retire' || m.identifiant === val); }).sort(cmpModeles).forEach(function (m) {
+      o += '<option value="' + esc(m.identifiant) + '"' + (m.identifiant === val ? ' selected' : '') + '>' + esc(nomAff(m)) + ' — ' + (m.endpoint_ue ? 'UE' : 'hors UE') + (m.francais === false ? ' · sans français' : '') + (m.sante === 'indisponible' ? ' · indisponible' : '') + '</option>';
     });
     if (val && !M(val)) o += '<option value="' + esc(val) + '" selected>' + esc(val) + ' (absent du catalogue)</option>';
     return '<select class="av-in" id="avf_typ_' + cle + '" data-avt="typ" data-avk="' + cle + '">' + o + '</select>';
@@ -1592,7 +1600,7 @@
         for (var j = 0; j < nvs.length; j++) {
           var n = nvs[j], px = n.prix || {};
           var ins = await supabaseClient.from('catalogue_modeles').insert({
-            type: n.type, identifiant: String(n.identifiant_propose).trim(), nom: n.nom, fournisseur: n.fournisseur || 'LiveKit',
+            type: n.type, identifiant: String(n.identifiant_propose).trim(), nom: nomAff({ nom: n.nom, fournisseur: n.fournisseur || 'LiveKit', identifiant: n.identifiant_propose }), fournisseur: n.fournisseur || 'LiveKit',
             prix_minute: px.prix_minute != null ? px.prix_minute : null, prix_entree_mtok: px.prix_entree_mtok != null ? px.prix_entree_mtok : null,
             prix_entree_cache_mtok: px.prix_entree_cache_mtok != null ? px.prix_entree_cache_mtok : null, prix_sortie_mtok: px.prix_sortie_mtok != null ? px.prix_sortie_mtok : null,
             prix_tts_mcar: px.prix_tts_mcar != null ? px.prix_tts_mcar : null, prix_releve_le: d, prix_source: src,
